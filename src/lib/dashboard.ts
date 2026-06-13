@@ -19,6 +19,14 @@ export type DashboardDraft = {
   draft: ExtractionDraft;
 };
 
+export type DashboardBudget = {
+  id: string;
+  name: string;
+  used_minor: number;
+  limit_minor: number;
+  color: string;
+};
+
 export type DashboardDelta = {
   /** Rounded percentage change versus the previous month. */
   percent: number;
@@ -46,6 +54,8 @@ export function buildDashboardViewModel(input: {
   transactions: LedgerTransaction[];
   drafts: DashboardDraft[];
   privacyEnabled: boolean;
+  /** Optional list of active budgets with usage already computed. */
+  budgets?: DashboardBudget[];
   /** Optional prior-month transactions used to compute income/expense deltas. */
   previousTransactions?: LedgerTransaction[];
 }) {
@@ -65,6 +75,7 @@ export function buildDashboardViewModel(input: {
     month: input.month,
     total_balance_minor: totalBalance,
     wallets: input.wallets,
+    budgets: input.budgets ?? [],
     income_delta: incomeDelta,
     expense_delta: expenseDelta,
     recent_transactions: input.transactions

@@ -73,7 +73,8 @@ class TableQuery {
   private orders: OrderSpec[] = [];
   private selectColumns = "*";
   private limitCount: number | null = null;
-  private mode: "select" | "insert" | "update" | "upsert" = "select";
+  private mode: "select" | "insert" | "update" | "upsert" | "delete" = "select";
+
   private payload: Record<string, unknown> | Record<string, unknown>[] | null = null;
   private onConflict: string | null = null;
   private returning = false;
@@ -140,6 +141,12 @@ class TableQuery {
     this.onConflict = options?.onConflict ?? null;
     return this;
   }
+
+  delete() {
+    this.mode = "delete";
+    return this;
+  }
+
 
   /** Resolves to exactly one row; errors (404-style) if not found. */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -226,7 +233,16 @@ class TableQuery {
       return this.buildInsert(params, true);
     }
 
+    if (this.mode === "delete") {
+      let text = `delete from ${this.table}${where}`;
+      if (this.returning) {
+        text += ` returning ${this.buildSelectColumns()}`;
+      }
+      return { text, params };
+    }
+
     // update
+
     const payload = this.payload as Record<string, unknown>;
     const setClauses = Object.keys(payload).map((key) => {
       assertIdentifier(key);
