@@ -1,0 +1,61 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-sans: "Plus Jakarta Sans", Outfit, system-ui, sans-serif;
+  --font-mono: "Plus Jakarta Sans", "SFMono-Regular", Consolas, monospace;
+  color-scheme: light;
+  letter-spacing: 0;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-height: 100%;
+  background: #f8f9ff;
+}
+
+body {
+  min-height: 100%;
+  margin: 0;
+  background: linear-gradient(180deg, #f8f9ff 0%, #eff4ff 48%, #f8f9ff 100%);
+  font-family: var(--font-sans);
+  letter-spacing: 0;
+  color: #0b1c30;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+button {
+  touch-action: manipulation;
+}
+
+button:focus-visible,
+input:focus-visible {
+  outline: 2px solid #006948;
+  outline-offset: 2px;
+}
+
+[data-privacy-mask="true"] {
+  color: inherit;
+  background: transparent;
+  border-radius: 0;
+  user-select: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
