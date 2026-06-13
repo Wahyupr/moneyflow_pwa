@@ -96,16 +96,28 @@ export function AuthForm({ mode }: { mode: AuthMode }) {
       const json = await response.json();
 
       if (!response.ok) {
+        // Login attempt on an unverified account: route to verification.
+        if (json.requiresEmailConfirmation && typeof window !== "undefined") {
+          const verifyEmail = (json.email as string | undefined) ?? String(formData.get("email") ?? "");
+          window.location.href = `/verify-email?email=${encodeURIComponent(verifyEmail)}`;
+          return;
+        }
         setErrors(json.errors ?? { form: json.error ?? "Authentication failed." });
         return;
       }
 
+
       const redirectPath = getPostAuthRedirect(json);
 
       if (json.requiresEmailConfirmation) {
-        setStatus("Account created. Check your email and click the verification link to finish signing up.");
+        const verifyEmail = (json.email as string | undefined) ?? String(formData.get("email") ?? "");
+        setStatus("Akun dibuat. Memeriksa kode verifikasi…");
+        if (typeof window !== "undefined") {
+          window.location.href = `/verify-email?email=${encodeURIComponent(verifyEmail)}`;
+        }
         return;
       }
+
 
       setStatus(redirectPath ? "Signed in. Opening dashboard." : "Account created. Check your email if confirmation is enabled.");
 

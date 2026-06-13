@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { getAuthRedirectUrl, getSiteUrl } from "../supabase/config";
+import { getAuthRedirectUrl, getSiteUrl } from "../app-config";
+
 import { isProtectedApiPath, isPublicPath } from "../auth/route-guard";
 
 describe("auth redirect URL helpers", () => {
@@ -54,10 +55,11 @@ describe("auth route guard for new endpoints", () => {
     expect(isProtectedApiPath("/api/auth/google")).toBe(false);
   });
 
-  it("treats OAuth callback and email confirm pages as public", () => {
+  it("treats OAuth callback and verify-email pages as public", () => {
     expect(isPublicPath("/auth/callback")).toBe(true);
-    expect(isPublicPath("/auth/confirm")).toBe(true);
+    expect(isPublicPath("/verify-email")).toBe(true);
   });
+
 
   it("still protects application API routes", () => {
     expect(isProtectedApiPath("/api/dashboard")).toBe(true);

@@ -1,7 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { isProtectedApiPath, requiresAuth } from "@/lib/auth/route-guard";
-import { AUTH_COOKIE_NAME, getAuthToken, isDemoAuthEnabled, isDemoToken, verifyDemoToken } from "@/lib/auth/session-token";
-import { getSupabasePublishableKey, getSupabaseUrl } from "@/lib/supabase/config";
+import { AUTH_COOKIE_NAME, getAuthToken } from "@/lib/auth/token";
 
 export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
@@ -15,7 +14,11 @@ export async function middleware(request: NextRequest) {
     cookieToken: request.cookies.get(AUTH_COOKIE_NAME)?.value
   });
 
-  if (!token || !(await isValidSessionToken(token))) {
+  // Middleware runs on the Edge runtime where node:crypto signature
+  // verification is unavailable, so it only performs a cheap structural +
+  // expiry pre-check. Full HMAC verification happens in requireApiUser for API
+  // routes (and on any server-rendered data fetch).
+  if (!token || !hasUnexpiredShape(token)) {
     return unauthenticatedResponse(request);
   }
 
@@ -26,32 +29,16 @@ export const config = {
   matcher: ["/((?!_next/image|_next/static|favicon.ico).*)"]
 };
 
-async function isValidSessionToken(token: string) {
-  if (isDemoToken(token)) {
-    return isDemoAuthEnabled() && (await verifyDemoToken(token)) !== null;
-  }
+function hasUnexpiredShape(token: string): boolean {
+  const segments = token.split(".");
 
-  return verifySupabaseToken(token);
-}
-
-async function verifySupabaseToken(token: string) {
-  const url = getSupabaseUrl();
-  const key = getSupabasePublishableKey();
-
-  if (!url || !key) {
+  if (segments.length !== 3) {
     return false;
   }
 
   try {
-    const response = await fetch(`${url}/auth/v1/user`, {
-      headers: {
-        apikey: key,
-        authorization: `Bearer ${token}`
-      },
-      cache: "no-store"
-    });
-
-    return response.ok;
+    const payload = JSON.parse(Buffer.from(segments[1], "base64url").toString("utf8")) as { exp?: number };
+    return typeof payload.exp === "number" && payload.exp > Math.floor(Date.now() / 1000);
   } catch {
     return false;
   }

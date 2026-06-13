@@ -1,15 +1,17 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { provisionAuthedUser } from "@/lib/auth/provision";
-import { setSessionCookie } from "@/lib/auth/session-cookie";
-import { isDemoAuthEnabled } from "@/lib/auth/session-token";
+import { hashPassword } from "@/lib/auth/password";
+import { createUser, findUserByEmail, issueVerificationCode } from "@/lib/auth/users";
 import { validateRegisterInput } from "@/lib/auth-validation";
-import { createDemoSession, isMissingSupabaseConfigError } from "@/lib/demo-auth";
-import { getAuthRedirectUrl } from "@/lib/supabase/config";
-import { createSupabaseAuthClient } from "@/lib/supabase/server";
+import { sendVerificationEmail } from "@/lib/email/resend";
 
 export const runtime = "nodejs";
 
+/**
+ * Registers a new user with email + password, then issues a 6-digit
+ * verification code by email. The response is intentionally uniform whether or
+ * not the email already exists (anti user-enumeration).
+ */
 export async function POST(request: NextRequest) {
   const validation = validateRegisterInput(
     await request.json().catch(() => ({ fullName: "", email: "", password: "", acceptedTerms: false }))
@@ -19,53 +21,44 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ errors: validation.errors }, { status: 422 });
   }
 
+  const { email, password, fullName } = validation.data;
+
   try {
-    const supabase = createSupabaseAuthClient();
-    const { data, error } = await supabase.auth.signUp({
-      email: validation.data.email,
-      password: validation.data.password,
-      options: {
-        emailRedirectTo: getAuthRedirectUrl("/auth/confirm"),
-        data: {
-          display_name: validation.data.fullName
-        }
-      }
-    });
+    const existing = await findUserByEmail(email);
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 400 });
+    if (!existing) {
+      const passwordHash = await hashPassword(password);
+      const user = await createUser({ email, passwordHash, displayName: fullName });
+      const code = await issueVerificationCode(user.id);
+      await safeSendVerification(email, code);
+    } else if (!existing.email_verified_at) {
+      // Account exists but unverified: re-issue a code so the user can finish.
+      const code = await issueVerificationCode(existing.id);
+      await safeSendVerification(email, code);
     }
+    // If the account exists and is already verified, do nothing but still
+    // return the same neutral response below.
 
-    // When "Confirm email" is enabled in Supabase, signUp returns a user but no
-    // session. The user must click the confirmation link before they can sign in.
-    if (!data.session) {
-      return NextResponse.json(
-        {
-          user: data.user,
-          session: null,
-          requiresEmailConfirmation: true
-        },
-        { status: 201 }
-      );
-    }
-
-    await provisionAuthedUser({
-      userId: data.user?.id,
-      accessToken: data.session.access_token,
-      displayName: validation.data.fullName
-    });
-
-    const response = NextResponse.json({ user: data.user, session: data.session }, { status: 201 });
-    setSessionCookie(response, data.session.access_token, data.session.expires_in);
-    return response;
+    return NextResponse.json(
+      {
+        requiresEmailConfirmation: true,
+        email
+      },
+      { status: 201 }
+    );
   } catch (error) {
-    if (isMissingSupabaseConfigError(error) && isDemoAuthEnabled()) {
-      const demo = await createDemoSession({ email: validation.data.email, displayName: validation.data.fullName });
-      const response = NextResponse.json(demo, { status: 201 });
-      setSessionCookie(response, demo.session.access_token, demo.session.expires_in);
-      return response;
-    }
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Registration failed." },
+      { status: 503 }
+    );
+  }
+}
 
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Auth is not configured." }, { status: 503 });
+async function safeSendVerification(email: string, code: string) {
+  try {
+    await sendVerificationEmail(email, code);
+  } catch {
+    // Swallow provider errors so we don't leak internal details. The user can
+    // request a resend from the verification screen.
   }
 }

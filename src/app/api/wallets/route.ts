@@ -15,9 +15,11 @@ export async function GET(request: NextRequest) {
 
   const { data, error } = await auth.supabase
     .from("wallets")
-    .select("*, wallet_members(role)")
+    .select("*")
+    .eq("user_id", auth.user.id)
     .is("archived_at", null)
     .order("created_at", { ascending: true });
+
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });

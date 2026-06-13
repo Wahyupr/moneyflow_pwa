@@ -27,8 +27,11 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: profilesError?.message ?? entitlementsError?.message }, { status: 500 });
   }
 
-  const entitlementByUser = new Map((entitlements ?? []).map((item) => [item.user_id, item]));
-  const users = (profiles ?? []).map((profile) => ({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const entitlementByUser = new Map((entitlements ?? []).map((item: any) => [item.user_id, item]));
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const users = (profiles ?? []).map((profile: any) => ({
+
     ...profile,
     entitlement: entitlementByUser.get(profile.id) ?? { plan: "free", status: "active", current_period_end: null }
   }));

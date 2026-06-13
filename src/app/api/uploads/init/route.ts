@@ -40,15 +40,17 @@ export async function POST(request: NextRequest) {
     ingestionId,
     fileName: parsed.data.file_name
   });
-  const { data, error } = await auth.supabase.storage.from("transaction-evidence").createSignedUploadUrl(objectKey);
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-
-  return NextResponse.json({
-    ingestion_id: ingestionId,
-    object_key: objectKey,
-    upload: data
-  });
+  // Object storage (signed upload URLs) is not part of the self-hosted Postgres
+  // setup. Configure an S3-compatible store (e.g. MinIO) and wire it here to
+  // re-enable evidence uploads.
+  return NextResponse.json(
+    {
+      error: "Evidence upload storage is not configured.",
+      ingestion_id: ingestionId,
+      object_key: objectKey
+    },
+    { status: 503 }
+  );
 }
+

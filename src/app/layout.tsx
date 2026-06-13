@@ -3,12 +3,12 @@ import { ServiceWorkerRegistration } from "@/components/service-worker-registrat
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "FinanceApp",
+  title: "MoneyFlow",
   description: "Privacy-first personal finance PWA for Indonesia-first transaction tracking.",
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
-    title: "FinanceApp",
+    title: "MoneyFlow",
     statusBarStyle: "black-translucent"
   }
 };

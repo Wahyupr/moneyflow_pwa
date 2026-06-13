@@ -1,24 +1,19 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { provisionAuthedUser } from "@/lib/auth/provision";
+import { hashPassword, verifyPassword } from "@/lib/auth/password";
 import { setSessionCookie } from "@/lib/auth/session-cookie";
-import { isDemoAuthEnabled } from "@/lib/auth/session-token";
+import { createSessionToken } from "@/lib/auth/session";
+import {
+  createUser,
+  findUserByEmail,
+  issueVerificationCode,
+  provisionUser,
+  type UserRow
+} from "@/lib/auth/users";
 import { validateLoginInput, validateRegisterInput } from "@/lib/auth-validation";
-import { createDemoSession, isMissingSupabaseConfigError } from "@/lib/demo-auth";
-import { getAuthRedirectUrl } from "@/lib/supabase/config";
-import { createSupabaseAuthClient } from "@/lib/supabase/server";
+import { sendVerificationEmail } from "@/lib/email/resend";
 
 export const runtime = "nodejs";
-
-type LoginData = {
-  email: string;
-  password: string;
-};
-
-type RegisterData = LoginData & {
-  fullName: string;
-  acceptedTerms: boolean;
-};
 
 export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => ({ email: "", password: "" }));
@@ -43,83 +38,77 @@ export async function POST(request: NextRequest) {
   return loginWithApi(validation.data);
 }
 
-async function loginWithApi(input: LoginData) {
+async function loginWithApi(input: { email: string; password: string }) {
   try {
-    const supabase = createSupabaseAuthClient();
-    const { data, error } = await supabase.auth.signInWithPassword(input);
+    const user = await findUserByEmail(input.email);
+    const passwordOk = await verifyPassword(input.password, user?.password_hash);
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 401 });
+    // Uniform invalid-credentials response (no enumeration of which factor failed).
+    if (!user || !passwordOk) {
+      return NextResponse.json({ error: "Email atau kata sandi salah." }, { status: 401 });
     }
 
-    const response = NextResponse.json({
-      user: data.user,
-      session: data.session
-    });
-
-    setSessionCookie(response, data.session?.access_token, data.session?.expires_in);
-
-    return response;
-  } catch (error) {
-    if (isMissingSupabaseConfigError(error) && isDemoAuthEnabled()) {
-      const demo = await createDemoSession({ email: input.email, displayName: input.email.split("@")[0] });
-      const response = NextResponse.json(demo);
-      setSessionCookie(response, demo.session.access_token, demo.session.expires_in);
-      return response;
-    }
-
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Auth is not configured." }, { status: 503 });
-  }
-}
-
-async function registerWithApi(input: RegisterData) {
-  try {
-    const supabase = createSupabaseAuthClient();
-    const { data, error } = await supabase.auth.signUp({
-      email: input.email,
-      password: input.password,
-      options: {
-        emailRedirectTo: getAuthRedirectUrl("/auth/confirm"),
-        data: {
-          display_name: input.fullName
-        }
-      }
-    });
-
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 400 });
-    }
-
-    // When "Confirm email" is enabled in Supabase, signUp returns a user but no
-    // session. The user must click the confirmation link before they can sign in.
-    if (!data.session) {
+    if (!user.email_verified_at) {
       return NextResponse.json(
-        {
-          user: data.user,
-          session: null,
-          requiresEmailConfirmation: true
-        },
-        { status: 201 }
+        { error: "Email belum diverifikasi.", requiresEmailConfirmation: true, email: user.email },
+        { status: 403 }
       );
     }
 
-    await provisionAuthedUser({
-      userId: data.user?.id,
-      accessToken: data.session.access_token,
-      displayName: input.fullName
-    });
-
-    const response = NextResponse.json({ user: data.user, session: data.session }, { status: 201 });
-    setSessionCookie(response, data.session.access_token, data.session.expires_in);
-    return response;
+    return issueSession(user);
   } catch (error) {
-    if (isMissingSupabaseConfigError(error) && isDemoAuthEnabled()) {
-      const demo = await createDemoSession({ email: input.email, displayName: input.fullName });
-      const response = NextResponse.json(demo, { status: 201 });
-      setSessionCookie(response, demo.session.access_token, demo.session.expires_in);
-      return response;
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Auth is not configured." },
+      { status: 503 }
+    );
+  }
+}
+
+async function registerWithApi(input: { email: string; password: string; fullName: string }) {
+  try {
+    const existing = await findUserByEmail(input.email);
+
+    if (!existing) {
+      const passwordHash = await hashPassword(input.password);
+      const user = await createUser({ email: input.email, passwordHash, displayName: input.fullName });
+      const code = await issueVerificationCode(user.id);
+      await safeSendVerification(input.email, code);
+    } else if (!existing.email_verified_at) {
+      const code = await issueVerificationCode(existing.id);
+      await safeSendVerification(input.email, code);
     }
 
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Auth is not configured." }, { status: 503 });
+    return NextResponse.json({ requiresEmailConfirmation: true, email: input.email }, { status: 201 });
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Auth is not configured." },
+      { status: 503 }
+    );
+  }
+}
+
+async function issueSession(user: UserRow) {
+  await provisionUser({ userId: user.id, displayName: user.display_name });
+
+  const { token, expiresIn } = createSessionToken({
+    id: user.id,
+    email: user.email,
+    role: user.role,
+    display_name: user.display_name
+  });
+
+  const response = NextResponse.json({
+    user: { id: user.id, email: user.email },
+    session: { access_token: token, expires_in: expiresIn }
+  });
+  setSessionCookie(response, token, expiresIn);
+  return response;
+}
+
+async function safeSendVerification(email: string, code: string) {
+  try {
+    await sendVerificationEmail(email, code);
+  } catch {
+    // Don't leak provider errors; resend is available from the verify screen.
   }
 }

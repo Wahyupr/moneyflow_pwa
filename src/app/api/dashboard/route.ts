@@ -42,7 +42,9 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const walletRows: DashboardWallet[] = (wallets ?? []).map((wallet) => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const walletRows: DashboardWallet[] = (wallets ?? []).map((wallet: any) => {
+
     const walletTransactions = ((transactions ?? []) as LedgerTransaction[]).filter((transaction) => transaction.wallet_id === wallet.id);
     const income = walletTransactions.filter((transaction) => transaction.transaction_type === "income").reduce((sum, transaction) => sum + transaction.amount_minor, 0);
     const expense = walletTransactions.filter((transaction) => transaction.transaction_type === "expense").reduce((sum, transaction) => sum + transaction.amount_minor, 0);
@@ -64,7 +66,9 @@ export async function GET(request: NextRequest) {
     month,
     wallets: walletRows,
     transactions: (transactions ?? []) as LedgerTransaction[],
-    drafts: (drafts ?? []).map((item) => ({ id: item.id, draft: normalizeExtractionDraft(item.extracted_json) })),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    drafts: (drafts ?? []).map((item: any) => ({ id: item.id, draft: normalizeExtractionDraft(item.extracted_json) })),
+
     privacyEnabled: profile?.hide_nominal_default ?? false
   });
 

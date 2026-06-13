@@ -1,5 +1,6 @@
 import type { NextResponse } from "next/server";
-import { AUTH_COOKIE_NAME } from "@/lib/auth/session-token";
+import { AUTH_COOKIE_NAME } from "@/lib/auth/token";
+
 
 const defaultMaxAge = 60 * 60 * 24 * 7;
 

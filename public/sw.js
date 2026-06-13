@@ -1,4 +1,4 @@
-const CACHE_NAME = "financeapp-shell-v1";
+const CACHE_NAME = "moneyflow-shell-v1";
 const APP_SHELL = ["/", "/manifest.webmanifest", "/brand-mark.svg"];
 
 self.addEventListener("install", (event) => {

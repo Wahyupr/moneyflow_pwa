@@ -1,6 +1,6 @@
 {
-  "name": "FinanceApp",
-  "short_name": "FinanceApp",
+  "name": "MoneyFlow",
+  "short_name": "MoneyFlow",
   "description": "Privacy-first personal finance PWA.",
   "start_url": "/",
   "scope": "/",

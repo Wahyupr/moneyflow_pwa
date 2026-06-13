@@ -10,9 +10,17 @@ const protectedPagePrefixes = [
   "/ai-transaction-review"
 ];
 
-const publicPagePaths = new Set(["/", "/login", "/register"]);
-const publicPagePrefixes = ["/auth/callback", "/auth/confirm"];
-const publicApiPrefixes = ["/api/auth/login", "/api/auth/register", "/api/auth/logout", "/api/auth/google"];
+const publicPagePaths = new Set(["/", "/login", "/register", "/verify-email"]);
+const publicPagePrefixes = ["/auth/callback"];
+const publicApiPrefixes = [
+  "/api/auth/login",
+  "/api/auth/register",
+  "/api/auth/logout",
+  "/api/auth/google",
+  "/api/auth/verify",
+  "/api/auth/resend"
+];
+
 
 const publicAssetPrefixes = ["/_next", "/favicon.ico", "/manifest.webmanifest", "/sw.js"];
 const publicFilePattern = /\.(?:avif|css|gif|ico|jpg|jpeg|js|json|png|svg|txt|webp|woff2?)$/i;

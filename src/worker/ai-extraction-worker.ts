@@ -1,38 +1,55 @@
 import { buildDuplicateFingerprint } from "@/lib/extraction";
 import { buildExtractionPrompt, parseExtractionJson } from "@/lib/ai/extraction";
-import { createSupabaseServiceClient } from "@/lib/supabase/server";
+import { query } from "@/lib/db/pool";
 
 const pollIntervalMs = Number(process.env.AI_WORKER_POLL_INTERVAL_MS ?? 5000);
 const model = process.env.AI_EXTRACTION_MODEL ?? "gpt-5.5";
 
-async function runOnce() {
-  const supabase = createSupabaseServiceClient();
-  const { data: job, error } = await supabase
-    .from("ai_extraction_jobs")
-    .select("*, file_ingestions(object_key)")
-    .eq("status", "queued")
-    .order("created_at", { ascending: true })
-    .limit(1)
-    .maybeSingle();
+type JobRow = {
+  id: string;
+  user_id: string;
+  ingestion_id: string;
+  document_type: "qris" | "bank_transfer" | "ewallet_transfer" | "receipt" | "unknown";
+  file_sha256: string;
+  attempts: number;
+  object_key: string;
+};
 
-  if (error || !job) {
+/**
+ * Resolves an evidence object key to a URL the OpenAI API can read. Object
+ * storage is not part of the self-hosted Postgres setup, so this must be wired
+ * to your S3-compatible store (e.g. MinIO) before the worker can run.
+ */
+async function resolveEvidenceUrl(_objectKey: string): Promise<string> {
+  throw new Error("Evidence storage is not configured for the self-hosted deployment.");
+}
+
+async function runOnce() {
+  const result = await query<JobRow>(
+    `select j.id, j.user_id, j.ingestion_id, j.document_type, j.file_sha256, j.attempts, i.object_key
+     from ai_extraction_jobs j
+     join file_ingestions i on i.id = j.ingestion_id
+     where j.status = 'queued'
+     order by j.created_at asc
+     limit 1`
+  );
+  const job = result.rows[0];
+
+  if (!job) {
     return;
   }
 
-  await supabase.from("ai_extraction_jobs").update({ status: "processing", attempts: job.attempts + 1 }).eq("id", job.id);
+  await query("update ai_extraction_jobs set status = 'processing', attempts = $2 where id = $1", [
+    job.id,
+    job.attempts + 1
+  ]);
 
   try {
-    const { data: signedUrl, error: signedUrlError } = await supabase.storage
-      .from("transaction-evidence")
-      .createSignedUrl(job.file_ingestions.object_key, 60);
-
-    if (signedUrlError || !signedUrl?.signedUrl) {
-      throw new Error(signedUrlError?.message ?? "Unable to create signed evidence URL.");
-    }
+    const evidenceUrl = await resolveEvidenceUrl(job.object_key);
 
     const extracted = await extractWithOpenAI({
       documentType: job.document_type,
-      signedUrl: signedUrl.signedUrl
+      signedUrl: evidenceUrl
     });
     const fingerprint = buildDuplicateFingerprint({
       userId: job.user_id,
@@ -42,25 +59,21 @@ async function runOnce() {
       occurredAt: extracted.occurred_at ?? null
     });
 
-    await supabase.from("transaction_drafts").insert({
-      job_id: job.id,
-      user_id: job.user_id,
-      ingestion_id: job.ingestion_id,
-      duplicate_fingerprint: fingerprint,
-      extracted_json: extracted,
-      status: "pending_review"
-    });
-    await supabase.from("ai_extraction_jobs").update({ status: "succeeded" }).eq("id", job.id);
+    await query(
+      `insert into transaction_drafts (job_id, user_id, ingestion_id, duplicate_fingerprint, extracted_json, status)
+       values ($1, $2, $3, $4, $5, 'pending_review')`,
+      [job.id, job.user_id, job.ingestion_id, fingerprint, JSON.stringify(extracted)]
+    );
+    await query("update ai_extraction_jobs set status = 'succeeded' where id = $1", [job.id]);
   } catch (caught) {
-    await supabase
-      .from("ai_extraction_jobs")
-      .update({
-        status: job.attempts + 1 >= 3 ? "failed" : "queued",
-        error_message: caught instanceof Error ? caught.message : "Unknown extraction error"
-      })
-      .eq("id", job.id);
+    await query("update ai_extraction_jobs set status = $2, error_message = $3 where id = $1", [
+      job.id,
+      job.attempts + 1 >= 3 ? "failed" : "queued",
+      caught instanceof Error ? caught.message : "Unknown extraction error"
+    ]);
   }
 }
+
 
 async function extractWithOpenAI(input: { documentType: "qris" | "bank_transfer" | "ewallet_transfer" | "receipt" | "unknown"; signedUrl: string }) {
   const apiKey = process.env.OPENAI_API_KEY;

@@ -13,7 +13,8 @@ import { query } from "@/lib/db/pool";
  * call sites, never from request input. All *values* are bound as parameters.
  */
 
-export type DbResult<T> = { data: T; error: { message: string } | null };
+export type DbResult<T> = { data: T; error: { message: string } | null; count?: number };
+
 
 type Filter = { op: "eq" | "is" | "gte" | "lt"; column: string; value: unknown };
 type OrderSpec = { column: string; ascending: boolean };
@@ -141,23 +142,29 @@ class TableQuery {
   }
 
   /** Resolves to exactly one row; errors (404-style) if not found. */
-  single(): Promise<DbResult<Record<string, unknown> | null>> {
-    return this.run("single") as Promise<DbResult<Record<string, unknown> | null>>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  single(): Promise<DbResult<any>> {
+    return this.run("single");
   }
 
   /** Resolves to one row or null. */
-  maybeSingle(): Promise<DbResult<Record<string, unknown> | null>> {
-    return this.run("maybe") as Promise<DbResult<Record<string, unknown> | null>>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  maybeSingle(): Promise<DbResult<any>> {
+    return this.run("maybe");
   }
 
 
+
   /** Allows the builder to be awaited directly (PostgREST style). */
-  then<TResult1 = DbResult<unknown>, TResult2 = never>(
-    onfulfilled?: ((value: DbResult<unknown>) => TResult1 | PromiseLike<TResult1>) | null,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  then<TResult1 = DbResult<any>, TResult2 = never>(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    onfulfilled?: ((value: DbResult<any>) => TResult1 | PromiseLike<TResult1>) | null,
     onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null
   ): Promise<TResult1 | TResult2> {
     return this.run("many").then(onfulfilled, onrejected);
   }
+
 
   private async run(shape: "single" | "maybe" | "many"): Promise<DbResult<unknown>> {
     try {

@@ -13,6 +13,25 @@
   box-sizing: border-box;
 }
 
+@keyframes otp-caret-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+
+.otp-caret {
+  display: block;
+  width: 2px;
+  height: 24px;
+  background-color: #006948;
+  animation: otp-caret-blink 1s step-end infinite;
+}
+
+
 html {
   min-height: 100%;
   background: #f8f9ff;

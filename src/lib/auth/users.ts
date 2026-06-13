@@ -119,3 +119,8 @@ export async function incrementVerificationAttempts(id: string): Promise<void> {
 export async function consumeVerificationCode(id: string): Promise<void> {
   await query("update email_verification_codes set consumed_at = now() where id = $1", [id]);
 }
+
+export async function touchVerificationSentAt(id: string): Promise<void> {
+  await query("update email_verification_codes set last_sent_at = now() where id = $1", [id]);
+}
+

@@ -4,7 +4,7 @@ export type OfflineDraft = {
   payload: Record<string, unknown>;
 };
 
-const queueKey = "financeapp:offline-drafts";
+const queueKey = "MoneyFlow:offline-drafts";
 
 export function createOfflineDraftQueue(storage: Storage) {
   return {
