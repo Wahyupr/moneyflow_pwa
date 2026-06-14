@@ -6,15 +6,24 @@ import { isReceiptAiConfigured, parseReceiptWithAi, type ParsedReceipt } from "@
 
 export const runtime = "nodejs";
 
-const ReceiptSchema = z.object({
-  // base64 image WITHOUT the data URL prefix.
+// Scan/preview from an image (no manual fields yet).
+const ScanSchema = z.object({
   image_base64: z.string().min(16),
   media_type: z.enum(["image/jpeg", "image/png", "image/webp"]).default("image/jpeg"),
-  occurred_at: z.string().datetime().optional(),
-  /** When false, only return the parsed preview without saving. */
-  commit: z.boolean().optional(),
-  /** Optional explicit wallet chosen by the user in the review screen. */
-  wallet_id: z.string().uuid().optional()
+  commit: z.literal(false)
+});
+
+// Save the (possibly user-edited) transaction. The client sends the final
+// values chosen on the review screen, so we never re-run the AI here.
+const SaveSchema = z.object({
+  commit: z.literal(true).optional(),
+  transaction_type: z.enum(["expense", "income"]),
+  amount_minor: z.number().int().positive(),
+  merchant_name: z.string().max(120).nullable().optional(),
+  wallet_id: z.string().uuid(),
+  category_id: z.string().uuid().nullable().optional(),
+  payment_method: z.string().max(80).nullable().optional(),
+  occurred_at: z.string().datetime().optional()
 });
 
 type WalletRow = { id: string; name: string; type: string; institution_name: string | null };
@@ -33,7 +42,6 @@ function findCashWallet(wallets: WalletRow[]): WalletRow | null {
   );
 }
 
-/** Matches the receipt's payment method against the user's wallets. */
 function matchWallet(parsed: ParsedReceipt, wallets: WalletRow[]): WalletRow | null {
   if (wallets.length === 0) {
     return null;
@@ -72,20 +80,47 @@ export async function POST(request: NextRequest) {
     return auth.response;
   }
 
+  const body = await request.json().catch(() => null);
+
+  // --- SAVE PATH: persist the reviewed/edited transaction. ---
+  const save = SaveSchema.safeParse(body);
+  if (save.success) {
+    const { data, error } = await auth.supabase
+      .from("transactions")
+      .insert({
+        user_id: auth.user.id,
+        wallet_id: save.data.wallet_id,
+        category_id: save.data.category_id ?? null,
+        transaction_type: save.data.transaction_type,
+        amount_minor: save.data.amount_minor,
+        currency: "IDR",
+        occurred_at: save.data.occurred_at ?? new Date().toISOString(),
+        merchant_name: save.data.merchant_name?.trim() ? save.data.merchant_name.trim() : null,
+        payment_method: save.data.payment_method ?? null,
+        input_method: "receipt_scan"
+      })
+      .select("*")
+      .single();
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+    return NextResponse.json({ transaction: data }, { status: 201 });
+  }
+
+  // --- SCAN PATH: read the image and return an editable preview. ---
   if (!isReceiptAiConfigured()) {
     return NextResponse.json({ error: "Fitur scan struk belum dikonfigurasi (AI key)." }, { status: 503 });
   }
 
-  const parsedBody = ReceiptSchema.safeParse(await request.json().catch(() => null));
-  if (!parsedBody.success) {
+  const scan = ScanSchema.safeParse(body);
+  if (!scan.success) {
     return NextResponse.json({ error: "Gambar struk tidak valid." }, { status: 400 });
   }
 
-  const { image_base64, media_type, occurred_at, commit, wallet_id } = parsedBody.data;
-
   let parsed: ParsedReceipt;
   try {
-    parsed = await parseReceiptWithAi(image_base64, media_type);
+    parsed = await parseReceiptWithAi(scan.data.image_base64, scan.data.media_type);
   } catch {
     return NextResponse.json({ error: "Gagal membaca struk. Coba foto yang lebih jelas." }, { status: 502 });
   }
@@ -98,14 +133,13 @@ export async function POST(request: NextRequest) {
       .is("archived_at", null)
       .order("created_at"),
     auth.supabase.from("categories").select("id,name,type").eq("is_system", true),
-    auth.supabase.from("merchants").select("name,category_id").eq("is_system", true)
+    // System + user-owned merchants (RLS scopes "own" to the caller).
+    auth.supabase.from("merchants").select("name,category_id")
   ]);
 
   const categoryRows = (systemCategories ?? []) as CategoryRow[];
   const walletList = (wallets ?? []) as WalletRow[];
 
-  // If the receipt merchant matches the directory, normalize the name and use
-  // its DB-assigned category.
   let merchantName = parsed.merchant_name;
   const knownMerchant = merchantName
     ? ((merchants ?? []) as MerchantRow[]).find((merchant) => merchant.name && norm(merchantName!).includes(norm(merchant.name)))
@@ -114,8 +148,7 @@ export async function POST(request: NextRequest) {
     merchantName = knownMerchant.name;
   }
 
-  const explicitWallet = wallet_id ? walletList.find((wallet) => wallet.id === wallet_id) ?? null : null;
-  const wallet = explicitWallet ?? matchWallet(parsed, walletList);
+  const wallet = matchWallet(parsed, walletList);
   const merchantCategory = knownMerchant?.category_id
     ? categoryRows.find((category) => category.id === knownMerchant.category_id) ?? null
     : null;
@@ -133,40 +166,5 @@ export async function POST(request: NextRequest) {
     category_name: category?.name ?? null
   };
 
-  // Preview-only mode: return parsed result without saving.
-  if (commit === false) {
-    return NextResponse.json({ preview });
-  }
-
-  if (parsed.amount_minor <= 0) {
-    return NextResponse.json({ error: "Nominal tidak terbaca dari struk.", preview }, { status: 422 });
-  }
-  if (!wallet) {
-    return NextResponse.json({ error: "Belum ada dompet. Tambahkan dompet dulu.", preview }, { status: 400 });
-  }
-
-  const occurredAt = occurred_at ?? parsed.occurred_at ?? new Date().toISOString();
-
-  const { data, error } = await auth.supabase
-    .from("transactions")
-    .insert({
-      user_id: auth.user.id,
-      wallet_id: wallet.id,
-      category_id: category?.id ?? null,
-      transaction_type: parsed.transaction_type,
-      amount_minor: parsed.amount_minor,
-      currency: "IDR",
-      occurred_at: new Date(occurredAt).toISOString(),
-      merchant_name: merchantName,
-      payment_method: parsed.payment_method,
-      input_method: "receipt_scan"
-    })
-    .select("*")
-    .single();
-
-  if (error) {
-    return NextResponse.json({ error: error.message, preview }, { status: 500 });
-  }
-
-  return NextResponse.json({ transaction: data, preview }, { status: 201 });
+  return NextResponse.json({ preview });
 }
