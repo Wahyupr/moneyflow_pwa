@@ -8,7 +8,7 @@
     "dev:clean": "npm run dev",
     "build": "npm run clean && next build",
     "start": "next start",
-    "clean": "node -e \"require('fs').rmSync('.next',{recursive:true,force:true})\"",
+    "clean": "rm -rf .next",
     "worker": "RUN_AI_WORKER=true tsx src/worker/ai-extraction-worker.ts",
     "lint": "tsc --noEmit -p tsconfig.typecheck.json",
     "typecheck": "tsc --noEmit -p tsconfig.typecheck.json",
