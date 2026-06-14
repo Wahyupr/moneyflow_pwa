@@ -1,0 +1,14 @@
+[phases.setup]
+nixPkgs = ["nodejs_22"]
+
+[phases.install]
+cmds = ["npm ci"]
+
+[phases.build]
+cmds = ["next build"]
+
+[start]
+cmd = "next start"
+
+[variables]
+NEXT_TELEMETRY_DISABLED = "1"
