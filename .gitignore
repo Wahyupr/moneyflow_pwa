@@ -9,3 +9,7 @@ coverage/
 npm-debug.log*
 *.sql
 *.md
+
+# Locally-uploaded merchant logos (self-hosted disk storage)
+/public/uploads/
+

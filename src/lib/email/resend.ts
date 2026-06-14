@@ -79,15 +79,17 @@ export async function sendVerificationEmail(to: string, code: string): Promise<{
   const subject = "Kode verifikasi MoneyFlow";
   const text = `Kode verifikasi kamu adalah ${code}. Berlaku 10 menit. Jangan bagikan kode ini ke siapa pun.`;
   const html = `
-    <body style="margin:0;padding:0;background-color:#f0f4f2;font-family:'Plus Jakarta Sans',Arial,sans-serif;">
-      <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f0f4f2;padding:40px 16px;">
+    <body style="margin:0;padding:0;background-color:#eef3fb;font-family:'Plus Jakarta Sans',Arial,sans-serif;">
+      <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#eef3fb;padding:40px 16px;">
+
         <tr>
           <td align="center">
             <table width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:480px;background-color:#ffffff;border-radius:16px;overflow:hidden;">
 
               <tr>
-                <td style="background-color:#006948;padding:28px 32px 24px;">
-                  <p style="margin:0;font-size:13px;font-weight:600;color:#7edad2;letter-spacing:0.08em;text-transform:uppercase;">Verifikasi Akun</p>
+                <td style="background-color:#1668DC;padding:28px 32px 24px;">
+                  <p style="margin:0;font-size:13px;font-weight:600;color:#bcdcff;letter-spacing:0.08em;text-transform:uppercase;">Verifikasi Akun</p>
+
                   <h1 style="margin:8px 0 0;font-size:22px;font-weight:700;color:#ffffff;line-height:1.3;">Konfirmasi email kamu</h1>
                 </td>
               </tr>
@@ -100,9 +102,10 @@ export async function sendVerificationEmail(to: string, code: string): Promise<{
 
                   <table width="100%" cellpadding="0" cellspacing="0" border="0">
                     <tr>
-                      <td align="center" style="background-color:#e5f4ef;border-radius:12px;padding:24px 16px;">
-                        <p style="margin:0 0 8px;font-size:12px;font-weight:600;color:#006948;letter-spacing:0.1em;text-transform:uppercase;">Kode verifikasi</p>
-                        <p style="margin:0;font-size:36px;font-weight:700;letter-spacing:0.3em;color:#004d34;font-variant-numeric:tabular-nums;">${code}</p>
+                      <td align="center" style="background-color:#e5eeff;border-radius:12px;padding:24px 16px;">
+                        <p style="margin:0 0 8px;font-size:12px;font-weight:600;color:#1668DC;letter-spacing:0.1em;text-transform:uppercase;">Kode verifikasi</p>
+                        <p style="margin:0;font-size:36px;font-weight:700;letter-spacing:0.3em;color:#0A3B8C;font-variant-numeric:tabular-nums;">${code}</p>
+
                         <a href="javascript:void(0)"
                            onclick="
                              var el = document.createElement('textarea');
@@ -112,18 +115,19 @@ export async function sendVerificationEmail(to: string, code: string): Promise<{
                              document.execCommand('copy');
                              document.body.removeChild(el);
                              this.innerHTML = '&#10003; Tersalin!';
-                             this.style.backgroundColor='#006948';
+                             this.style.backgroundColor='#1668DC';
                              this.style.color='#ffffff';
-                             this.style.borderColor='#006948';
+                             this.style.borderColor='#1668DC';
                              var self=this;
                              setTimeout(function(){
                                self.innerHTML='Salin kode';
                                self.style.backgroundColor='transparent';
-                               self.style.color='#006948';
-                               self.style.borderColor='#006948';
+                               self.style.color='#1668DC';
+                               self.style.borderColor='#1668DC';
                              }, 2000);
                            "
-                           style="display:inline-block;margin-top:16px;padding:8px 20px;font-size:13px;font-weight:600;color:#006948;background-color:transparent;border:1.5px solid #006948;border-radius:8px;text-decoration:none;cursor:pointer;">
+                           style="display:inline-block;margin-top:16px;padding:8px 20px;font-size:13px;font-weight:600;color:#1668DC;background-color:transparent;border:1.5px solid #1668DC;border-radius:8px;text-decoration:none;cursor:pointer;">
+
                           Salin kode
                         </a>
                       </td>

@@ -13,7 +13,9 @@
     "lint": "tsc --noEmit -p tsconfig.typecheck.json",
     "typecheck": "tsc --noEmit -p tsconfig.typecheck.json",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "db:migrate": "node scripts/run-migration.mjs"
+
   },
   "dependencies": {
     "clsx": "^2.1.1",

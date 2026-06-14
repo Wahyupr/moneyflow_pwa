@@ -53,6 +53,16 @@ export async function GET(request: NextRequest) {
     auth.supabase.from("categories").select("id,name").eq("is_system", true)
   ]);
 
+  // Global merchant directory (admin-managed) to resolve logos by name.
+  const { data: merchants } = await auth.supabase.from("merchants").select("name,logo_url").eq("is_system", true);
+  const merchantLogoByName = new Map<string, string>();
+  for (const merchant of (merchants ?? []) as Array<{ name: string; logo_url: string | null }>) {
+    if (merchant.logo_url) {
+      merchantLogoByName.set(merchant.name.trim().toLowerCase(), merchant.logo_url);
+    }
+  }
+
+
 
   if (walletsError || transactionsError || draftsError || budgetsError) {
     return NextResponse.json(
@@ -88,7 +98,21 @@ export async function GET(request: NextRequest) {
     };
   });
 
-  const ledger = (transactions ?? []) as LedgerTransaction[];
+  // pg returns timestamptz columns as Date objects; the reporting helpers expect
+  // ISO strings (they call `.startsWith(month)`). Normalize before use.
+  const ledger = ((transactions ?? []) as Array<Record<string, unknown>>).map((transaction) => ({
+    ...transaction,
+    occurred_at:
+      transaction.occurred_at instanceof Date
+        ? transaction.occurred_at.toISOString()
+        : String(transaction.occurred_at),
+    merchant_logo_url:
+      typeof transaction.merchant_name === "string"
+        ? merchantLogoByName.get(transaction.merchant_name.trim().toLowerCase()) ?? null
+        : null
+  })) as unknown as LedgerTransaction[];
+
+
   const categoryName = new Map<string, string>(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     [...(systemCategories ?? []), ...(userCategories ?? [])].map((category: any) => [category.id, category.name])

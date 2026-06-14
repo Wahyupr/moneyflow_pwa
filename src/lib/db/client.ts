@@ -87,11 +87,14 @@ class TableQuery {
     if (options?.head) {
       this.headCount = true;
     }
-    if (this.mode === "select") {
-      this.returning = true;
-    }
+    // Enable the RETURNING clause for insert/update/delete (and is a no-op for
+    // plain selects, which always project columns). Without this, chaining
+    // `.insert(...).select(...).single()` would run with mode already set to
+    // "insert" and never append RETURNING, so `.single()` would see no rows.
+    this.returning = true;
     return this;
   }
+
 
   eq(column: string, value: unknown) {
     this.filters.push({ op: "eq", column, value });
@@ -204,11 +207,12 @@ class TableQuery {
 
   private build(): { text: string; params: unknown[] } {
     const params: unknown[] = [];
-    const where = this.buildWhere(params);
 
     if (this.mode === "select") {
+      const where = this.buildWhere(params);
       const cols = this.headCount ? "count(*)::int as count" : this.buildSelectColumns();
       let text = `select ${cols} from ${this.table}${where}`;
+
       if (!this.headCount && this.orders.length > 0) {
         const orderSql = this.orders
           .map((o) => {
@@ -234,12 +238,14 @@ class TableQuery {
     }
 
     if (this.mode === "delete") {
+      const where = this.buildWhere(params);
       let text = `delete from ${this.table}${where}`;
       if (this.returning) {
         text += ` returning ${this.buildSelectColumns()}`;
       }
       return { text, params };
     }
+
 
     // update
 

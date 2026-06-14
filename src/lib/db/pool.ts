@@ -3,7 +3,16 @@ import { Pool, type QueryResultRow } from "pg";
 
 export const missingDatabaseConfigMessage = "DATABASE_URL is not configured.";
 
-let pool: Pool | null = null;
+/**
+ * The pool is stored on `globalThis` rather than a module-level `let`. In
+ * Next.js dev, hot-module reloading re-evaluates modules on nearly every
+ * request, which would otherwise discard the singleton and force a brand-new
+ * Pool — paying a full TCP + TLS + auth handshake to Postgres before each
+ * first query (the main cause of multi-second API latency, especially with
+ * remote/SSL databases). Pinning it to `globalThis` keeps connections warm and
+ * reused across reloads.
+ */
+const globalForPool = globalThis as typeof globalThis & { __financeAppPgPool?: Pool };
 
 export function getDatabaseUrl() {
   return process.env.DATABASE_URL ?? "";
@@ -20,8 +29,8 @@ export function hasDatabaseConfig() {
  * local (no SSL) and managed (SSL) Postgres.
  */
 export function getPool(): Pool {
-  if (pool) {
-    return pool;
+  if (globalForPool.__financeAppPgPool) {
+    return globalForPool.__financeAppPgPool;
   }
 
   const connectionString = getDatabaseUrl();
@@ -30,16 +39,27 @@ export function getPool(): Pool {
     throw new Error(missingDatabaseConfigMessage);
   }
 
-  pool = new Pool({
+  const pool = new Pool({
     connectionString,
     ssl: process.env.DATABASE_SSL === "true" ? { rejectUnauthorized: false } : undefined,
     max: Number(process.env.DATABASE_POOL_MAX ?? 10),
-    idleTimeoutMillis: 30_000,
-    connectionTimeoutMillis: 10_000
+    // Keep idle connections alive long enough to be reused across requests so
+    // we don't repeatedly pay the connection handshake.
+    idleTimeoutMillis: 60_000,
+    connectionTimeoutMillis: 10_000,
+    // Detect dead connections without blocking new queries.
+    keepAlive: true
   });
 
+  // Avoid crashing the process if an idle backend connection drops.
+  pool.on("error", () => {
+    /* swallow idle-client errors; pg will reconnect on next acquire */
+  });
+
+  globalForPool.__financeAppPgPool = pool;
   return pool;
 }
+
 
 /**
  * Runs a parameterized query. All callers must pass values via `params` so the

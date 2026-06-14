@@ -12,7 +12,8 @@ describe("app action helpers", () => {
     expect(getAddActionOptions().map((action) => [action.id, action.href])).toEqual([
       ["voice", "/voice-input"],
       ["manual", "/transactions/new"],
-      ["receipt", "/ai-transaction-review?source=receipt"],
+      ["receipt", "/scan-receipt"],
+
       ["transfer_proof", "/ai-transaction-review?source=transfer_proof"],
       ["qris", "/ai-transaction-review?source=qris"],
       ["ai_review", "/ai-transaction-review"]

@@ -1,8 +1,11 @@
 "use client";
 
-import { Store, UserRound } from "lucide-react";
+import { UserRound } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { AppFrame } from "@/components/app-frame";
+import { CategoryManager } from "@/components/category-manager";
+import { MerchantManager } from "@/components/merchant-manager";
+
 
 type AdminUser = {
   id: string;
@@ -11,14 +14,6 @@ type AdminUser = {
   default_currency: string;
   created_at: string;
   entitlement: { plan: "free" | "premium"; status: string; current_period_end: string | null };
-};
-
-type AdminMerchant = {
-  id: string;
-  name: string;
-  logo_url: string | null;
-  is_system: boolean;
-  created_at: string;
 };
 
 export default function AdminPage() {
@@ -31,19 +26,13 @@ export default function AdminPage() {
 
 function AdminContent() {
   const [users, setUsers] = useState<AdminUser[]>([]);
-  const [merchants, setMerchants] = useState<AdminMerchant[]>([]);
   const [status, setStatus] = useState<string | null>(null);
   const [forbidden, setForbidden] = useState(false);
-  const [merchantName, setMerchantName] = useState("");
-  const [merchantLogo, setMerchantLogo] = useState("");
 
-  const load = useCallback(async () => {
-    const [usersRes, merchantsRes] = await Promise.all([
-      fetch("/api/admin/users"),
-      fetch("/api/admin/merchants")
-    ]);
+  const loadUsers = useCallback(async () => {
+    const usersRes = await fetch("/api/admin/users");
 
-    if (usersRes.status === 403 || merchantsRes.status === 403) {
+    if (usersRes.status === 403) {
       setForbidden(true);
       return;
     }
@@ -51,14 +40,11 @@ function AdminContent() {
     if (usersRes.ok) {
       setUsers((await usersRes.json()).users ?? []);
     }
-    if (merchantsRes.ok) {
-      setMerchants((await merchantsRes.json()).merchants ?? []);
-    }
   }, []);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    void loadUsers();
+  }, [loadUsers]);
 
   async function updatePlan(userId: string, plan: "free" | "premium") {
     const response = await fetch("/api/admin/users", {
@@ -68,29 +54,7 @@ function AdminContent() {
     });
     setStatus(response.ok ? "Subscription diperbarui." : "Gagal memperbarui subscription.");
     if (response.ok) {
-      void load();
-    }
-  }
-
-  async function addMerchant() {
-    if (!merchantName.trim()) {
-      setStatus("Nama merchant wajib diisi.");
-      return;
-    }
-
-    const response = await fetch("/api/admin/merchants", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ name: merchantName, logo_url: merchantLogo })
-    });
-
-    if (response.ok) {
-      setMerchantName("");
-      setMerchantLogo("");
-      setStatus("Merchant ditambahkan.");
-      void load();
-    } else {
-      setStatus("Gagal menambahkan merchant.");
+      void loadUsers();
     }
   }
 
@@ -105,50 +69,12 @@ function AdminContent() {
 
   return (
     <div className="mt-5 space-y-5">
-      <section className="rounded-xl bg-surface p-4 shadow-card">
-        <SectionTitle icon={Store} title="Tambah Merchant" subtitle="Merchant global (Netflix, dll)" />
-        <label className="mt-4 block">
-          <span className="text-sm font-semibold text-muted">Nama merchant</span>
-          <input
-            className="mt-2 min-h-12 w-full rounded-lg border border-outline bg-surface px-3 focus:border-primary focus:outline-none"
-            value={merchantName}
-            onChange={(event) => setMerchantName(event.target.value)}
-            placeholder="Netflix"
-          />
-        </label>
-        <label className="mt-3 block">
-          <span className="text-sm font-semibold text-muted">URL logo</span>
-          <input
-            className="mt-2 min-h-12 w-full rounded-lg border border-outline bg-surface px-3 focus:border-primary focus:outline-none"
-            value={merchantLogo}
-            onChange={(event) => setMerchantLogo(event.target.value)}
-            placeholder="https://.../netflix.png"
-          />
-        </label>
-        <button className="mt-4 min-h-12 w-full rounded-lg bg-primary px-4 font-bold text-white active:scale-[0.98]" onClick={addMerchant} type="button">
-          Tambah Merchant
-        </button>
+      <MerchantManager onStatus={setStatus} />
 
-        {merchants.length > 0 ? (
-          <ul className="mt-4 space-y-2">
-            {merchants.map((merchant) => (
-              <li className="flex items-center gap-3 rounded-lg border border-outline p-2" key={merchant.id}>
-                {merchant.logo_url ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img alt={merchant.name} className="size-8 rounded-md object-cover" src={merchant.logo_url} />
-                ) : (
-                  <span className="flex size-8 items-center justify-center rounded-md bg-surface-container text-primary">
-                    <Store size={16} />
-                  </span>
-                )}
-                <span className="font-semibold text-ink">{merchant.name}</span>
-              </li>
-            ))}
-          </ul>
-        ) : null}
-      </section>
+      <CategoryManager onStatus={setStatus} />
 
       <section className="rounded-xl bg-surface p-4 shadow-card">
+
         <SectionTitle icon={UserRound} title="User & Subscription" subtitle="Kelola plan user" />
         <ul className="mt-4 space-y-2">
           {users.map((user) => (

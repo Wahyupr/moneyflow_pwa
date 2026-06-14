@@ -1,9 +1,11 @@
 "use client";
 
-import { Bell, LogOut, Save, Shield, UserRound } from "lucide-react";
+import { Bell, LogOut, Save, Shield, Store, UserRound } from "lucide-react";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { AppFrame } from "@/components/app-frame";
 import { MerchantManager } from "@/components/merchant-manager";
+
 
 type ProfilePayload = {
   user?: { email?: string | null };
@@ -118,7 +120,24 @@ export default function SettingsPage() {
           </div>
         </section>
 
-        {role === "admin" ? <MerchantManager onStatus={setStatus} /> : null}
+        {role === "admin" ? (
+          <>
+            <Link
+              href="/admin"
+              className="flex items-center gap-3 rounded-xl bg-surface p-4 shadow-card active:scale-[0.99]"
+            >
+              <div className="flex size-10 items-center justify-center rounded-full bg-surface-container text-primary">
+                <Store size={18} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="font-bold text-ink">Panel Admin</p>
+                <p className="text-sm text-muted">Kelola merchant, kategori &amp; user</p>
+              </div>
+            </Link>
+            <MerchantManager onStatus={setStatus} />
+          </>
+        ) : null}
+
 
         <section className="overflow-hidden rounded-xl bg-surface shadow-card">
           <div className="flex items-center justify-between border-b border-surface-container p-4 last:border-b-0">

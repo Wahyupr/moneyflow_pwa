@@ -1,6 +1,64 @@
-<svg width="96" height="96" viewBox="0 0 96 96" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <rect width="96" height="96" rx="20" fill="#006948"/>
-  <path d="M25 61V35H71" stroke="#F8F9FF" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M25 61H58" stroke="#F8F9FF" stroke-width="8" stroke-linecap="round"/>
-  <path d="M43 48H67" stroke="#68DBA9" stroke-width="8" stroke-linecap="round"/>
+<svg width="256" height="256" viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="mfRing" x1="32" y1="40" x2="224" y2="232" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#5CB3FF"/>
+      <stop offset="1" stop-color="#1668DC"/>
+    </linearGradient>
+    <linearGradient id="mfLight" x1="56" y1="110" x2="112" y2="210" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#5CB3FF"/>
+      <stop offset="1" stop-color="#2F86E8"/>
+    </linearGradient>
+    <linearGradient id="mfDark" x1="144" y1="110" x2="200" y2="210" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#1F5FCB"/>
+      <stop offset="1" stop-color="#0A3B8C"/>
+    </linearGradient>
+  </defs>
+
+  <path d="M188 52a96 96 0 1 1-120 0M118 232l-16 18-6-24"
+        stroke="url(#mfRing)" stroke-width="9" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+
+  <g fill="#3B9EFF">
+    <circle cx="96" cy="44" r="4.5"/>
+    <circle cx="112" cy="36" r="4.5"/>
+    <circle cx="128" cy="33" r="4.5"/>
+    <circle cx="144" cy="36" r="4.5"/>
+    <circle cx="160" cy="44" r="4.5"/>
+  </g>
+
+  <g stroke="#1F5FCB" stroke-width="6" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M125 62c-11-9-28-4-30 9-13 1-17 15-8 24-7 8 0 21 13 21 4 6 17 6 25 0z"/>
+    <path d="M131 62c11-9 28-4 30 9 13 1 17 15 8 24 7 8 0 21-13 21-4 6-17 6-25 0z"/>
+    <path d="M110 80h9M104 95l9 4M122 104l-6 6"/>
+    <path d="M146 80h-9M152 95l-9 4M134 104l6 6"/>
+  </g>
+  <g fill="#1F5FCB">
+    <circle cx="119" cy="80" r="3"/>
+    <circle cx="113" cy="99" r="3"/>
+    <circle cx="137" cy="80" r="3"/>
+    <circle cx="143" cy="99" r="3"/>
+  </g>
+
+  <g fill="url(#mfLight)">
+    <circle cx="78" cy="126" r="22"/>
+    <path d="M56 160c0-12 10-22 22-22s22 10 22 22v52c0 4-4 8-8 8H64c-4 0-8-4-8-8z"/>
+  </g>
+
+  <g fill="url(#mfDark)">
+    <circle cx="178" cy="126" r="22"/>
+    <path d="M156 160c0-12 10-22 22-22s22 10 22 22v52c0 4-4 8-8 8h-28c-4 0-8-4-8-8z"/>
+  </g>
+
+  <path d="M100 160l28 30 28-30" stroke="#F8F9FF" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+
+  <g>
+    <rect x="96" y="196" width="14" height="20" rx="3" fill="#5CB3FF"/>
+    <rect x="117" y="184" width="14" height="32" rx="3" fill="#2F86E8"/>
+    <rect x="138" y="170" width="14" height="46" rx="3" fill="#1F5FCB"/>
+    <rect x="159" y="156" width="14" height="60" rx="3" fill="#0A3B8C"/>
+  </g>
+
+  <g stroke="#0A3B8C" stroke-width="7" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M100 196c26-4 50-20 70-46"/>
+    <path d="M152 146h20v20"/>
+  </g>
 </svg>

@@ -18,7 +18,10 @@ export type LedgerTransaction = {
   currency: CurrencyCode;
   occurred_at: string;
   transfer_pair_id: string | null;
+  /** Resolved from the global merchant directory by merchant_name, if matched. */
+  merchant_logo_url?: string | null;
 };
+
 
 export type ExtractionLineItem = {
   name: string;

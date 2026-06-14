@@ -42,8 +42,26 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ transactions: data });
+  // Resolve merchant logos by name from the global merchant directory.
+  const { data: merchants } = await auth.supabase.from("merchants").select("name,logo_url").eq("is_system", true);
+  const merchantLogoByName = new Map<string, string>();
+  for (const merchant of (merchants ?? []) as Array<{ name: string; logo_url: string | null }>) {
+    if (merchant.logo_url) {
+      merchantLogoByName.set(merchant.name.trim().toLowerCase(), merchant.logo_url);
+    }
+  }
+
+  const transactions = ((data ?? []) as Array<Record<string, unknown>>).map((transaction) => ({
+    ...transaction,
+    merchant_logo_url:
+      typeof transaction.merchant_name === "string"
+        ? merchantLogoByName.get(transaction.merchant_name.trim().toLowerCase()) ?? null
+        : null
+  }));
+
+  return NextResponse.json({ transactions });
 }
+
 
 export async function POST(request: NextRequest) {
   const auth = await requireApiUser(request);

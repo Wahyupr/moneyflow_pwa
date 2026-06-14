@@ -37,7 +37,8 @@ export function validateWalletInput(input: WalletInput): WalletValidationResult 
   const name = input.name?.trim() ?? "";
   const type = input.type;
   const currency = (input.currency?.trim() || "IDR").toUpperCase();
-  const color = input.color?.trim() || "#006948";
+  const color = input.color?.trim() || "#1668DC";
+
   const icon = input.icon?.trim() || "wallet";
   const institutionName = nullableText(input.institution_name);
   const accountNumber = nullableText(input.account_number);

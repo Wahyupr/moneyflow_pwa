@@ -13,20 +13,50 @@ export async function GET(request: NextRequest) {
     return auth.response;
   }
 
-  const { data, error } = await auth.supabase
-    .from("wallets")
-    .select("*")
-    .eq("user_id", auth.user.id)
-    .is("archived_at", null)
-    .order("created_at", { ascending: true });
+  const [{ data, error }, { data: transactions, error: transactionsError }] = await Promise.all([
+    auth.supabase
+      .from("wallets")
+      .select("*")
+      .eq("user_id", auth.user.id)
+      .is("archived_at", null)
+      .order("created_at", { ascending: true }),
+    auth.supabase
+      .from("transactions")
+      .select("wallet_id,transaction_type,amount_minor")
+      .eq("user_id", auth.user.id)
+  ]);
 
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error || transactionsError) {
+    return NextResponse.json({ error: (error ?? transactionsError)?.message }, { status: 500 });
   }
 
-  return NextResponse.json({ wallets: data });
+  // Derive each wallet's live balance from its opening balance plus the net of
+  // its income/expense transactions (transfers are stored as income/expense
+  // legs, so they net out correctly across the two wallets).
+  const incomeByWallet = new Map<string, number>();
+  const expenseByWallet = new Map<string, number>();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  for (const transaction of (transactions ?? []) as any[]) {
+    const target = transaction.transaction_type === "income" ? incomeByWallet : expenseByWallet;
+    target.set(transaction.wallet_id, (target.get(transaction.wallet_id) ?? 0) + Number(transaction.amount_minor));
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const wallets = ((data ?? []) as any[]).map((wallet) => {
+    const income = incomeByWallet.get(wallet.id) ?? 0;
+    const expense = expenseByWallet.get(wallet.id) ?? 0;
+
+    return {
+      ...wallet,
+      income_minor: income,
+      expense_minor: expense,
+      balance_minor: Number(wallet.opening_balance_minor ?? 0) + income - expense
+    };
+  });
+
+  return NextResponse.json({ wallets });
 }
+
 
 export async function POST(request: NextRequest) {
   const auth = await requireApiUser(request);

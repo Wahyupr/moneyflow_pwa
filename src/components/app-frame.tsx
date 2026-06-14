@@ -2,19 +2,28 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart3, Bell, Home, Mic, ReceiptText, WalletCards } from "lucide-react";
+import { BarChart3, Bell, Home, Mic, ReceiptText, Settings, ShieldCheck, WalletCards } from "lucide-react";
+import { useEffect, useState } from "react";
 import { BottomNav } from "@/components/bottom-nav";
 import { PrivacyProvider } from "@/components/privacy-provider";
 import { TopBar } from "@/components/top-bar";
+import type { LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 
-const sideNav = [
+type NavItem = { label: string; icon: LucideIcon; href: string };
+
+const sideNav: NavItem[] = [
   { label: "Home", icon: Home, href: "/dashboard" },
   { label: "History", icon: ReceiptText, href: "/transactions" },
   { label: "Voice", icon: Mic, href: "/voice-input" },
   { label: "Reports", icon: BarChart3, href: "/reports" },
-  { label: "Wallets", icon: WalletCards, href: "/wallets" }
+  { label: "Wallets", icon: WalletCards, href: "/wallets" },
+  { label: "Settings", icon: Settings, href: "/settings" }
 ];
+
+const adminNavItem: NavItem = { label: "Admin", icon: ShieldCheck, href: "/admin" };
+
+
 
 export function AppFrame({
   title,
@@ -28,8 +37,27 @@ export function AppFrame({
   defaultHidden?: boolean;
 }) {
   const pathname = usePathname() ?? "/";
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    fetch("/api/profile")
+      .then((response) => (response.ok ? response.json() : null))
+      .then((json) => {
+        if (active && json?.profile?.role === "admin") {
+          setIsAdmin(true);
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const navItems = isAdmin ? [...sideNav, adminNavItem] : sideNav;
 
   return (
+
     <PrivacyProvider defaultHidden={defaultHidden}>
       <div className="min-h-dvh bg-background text-ink md:flex">
         <aside className="hidden h-dvh w-64 shrink-0 flex-col border-r border-surface-container bg-surface px-4 py-6 md:sticky md:top-0 md:flex">
@@ -41,7 +69,8 @@ export function AppFrame({
             </div>
           </div>
           <nav className="flex-1 space-y-2">
-            {sideNav.map((item) => {
+            {navItems.map((item) => {
+
               const Icon = item.icon;
               const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
 

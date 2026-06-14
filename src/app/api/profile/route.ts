@@ -35,14 +35,21 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: profileError.message }, { status: 500 });
   }
 
+  // The session token carries the authoritative role (from the `users` table).
+  // `profiles.role` may lag behind for accounts provisioned before the role was
+  // granted, so we surface the session role to the client.
+  const profileWithRole = profile ? { ...profile, role: auth.user.role } : { role: auth.user.role };
+
   return NextResponse.json({
     user: {
       id: auth.user.id,
-      email: auth.user.email
+      email: auth.user.email,
+      role: auth.user.role
     },
-    profile,
+    profile: profileWithRole,
     entitlement: entitlement ?? { plan: "free", status: "active", current_period_end: null }
   });
+
 }
 
 export async function PATCH(request: NextRequest) {
