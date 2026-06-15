@@ -23,7 +23,10 @@ const SaveSchema = z.object({
   wallet_id: z.string().uuid(),
   category_id: z.string().uuid().nullable().optional(),
   payment_method: z.string().max(80).nullable().optional(),
-  occurred_at: z.string().datetime().optional()
+  occurred_at: z.string().datetime().optional(),
+  // Compressed receipt photo as a data URL ("data:image/jpeg;base64,...").
+  // Stored on the transaction so the user can view the proof later.
+  receipt_image_data_url: z.string().max(2_000_000).startsWith("data:").optional()
 });
 
 type WalletRow = { id: string; name: string; type: string; institution_name: string | null };
@@ -97,7 +100,8 @@ export async function POST(request: NextRequest) {
         occurred_at: save.data.occurred_at ?? new Date().toISOString(),
         merchant_name: save.data.merchant_name?.trim() ? save.data.merchant_name.trim() : null,
         payment_method: save.data.payment_method ?? null,
-        input_method: "receipt_scan"
+        input_method: "receipt_scan",
+        receipt_image_data_url: save.data.receipt_image_data_url ?? null
       })
       .select("*")
       .single();
@@ -163,7 +167,16 @@ export async function POST(request: NextRequest) {
     wallet_id: wallet?.id ?? null,
     wallet_name: wallet?.name ?? null,
     category_id: category?.id ?? null,
-    category_name: category?.name ?? null
+    category_name: category?.name ?? null,
+    // Rich detail (read-only on review screen): item list + breakdown.
+    items: parsed.items,
+    subtotal: parsed.subtotal,
+    tax: parsed.tax,
+    discount: parsed.discount,
+    service_fee: parsed.service_fee,
+    total_amount: parsed.total_amount,
+    currency: parsed.currency,
+    notes: parsed.notes
   };
 
   return NextResponse.json({ preview });

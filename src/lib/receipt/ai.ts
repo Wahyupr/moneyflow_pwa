@@ -1,66 +1,115 @@
 /**
- * AI receipt/QRIS/transfer-proof parser using the Anthropic-compatible vision
- * endpoint (z.ai). Extracts a single transaction from an image.
+ * AI parser for receipts, QRIS screenshots, transfer proofs, and shipping
+ * receipts. Uses an OpenAI-compatible chat-completions gateway (per the
+ * struk-ocr reference) which gives more accurate, structured output than the
+ * previous Anthropic Messages call.
  */
 
+export type ReceiptItem = {
+  name: string;
+  quantity: string | null;
+  unit_price: number | null;
+  amount: number | null;
+};
+
 export type ParsedReceipt = {
+  // Mapped/derived fields used by the rest of the app:
   transaction_type: "expense" | "income";
   amount_minor: number;
   merchant_name: string | null;
   occurred_at: string | null;
   payment_method: string | null;
   category_hint: string | null;
+
+  // Rich detail from the model (read-only in the review screen):
+  items: ReceiptItem[];
+  subtotal: number | null;
+  tax: number | null;
+  discount: number | null;
+  service_fee: number | null;
+  total_amount: number | null;
+  currency: string | null;
+  notes: string | null;
 };
 
-const DEFAULT_BASE_URL = "https://api.z.ai/api/anthropic";
-const DEFAULT_MODEL = "claude-3-5-sonnet-20241022";
+const DEFAULT_MODEL = "gemini/gemini-2.5-pro";
 
 function getConfig() {
-  const apiKey = process.env.AI_API_KEY ?? process.env.ANTHROPIC_API_KEY;
-  const baseUrl = (process.env.AI_BASE_URL ?? DEFAULT_BASE_URL).replace(/\/+$/, "");
-  const model = process.env.AI_MODEL ?? DEFAULT_MODEL;
+  // Prefer the new GATEWAY_* envs (struk-ocr style); fall back to AI_* so
+  // existing deployments keep working without re-configuration.
+  const apiKey = process.env.GATEWAY_API_KEY ?? process.env.AI_API_KEY ?? process.env.ANTHROPIC_API_KEY;
+  const baseUrl = (process.env.GATEWAY_BASE_URL ?? process.env.AI_BASE_URL ?? "").replace(/\/+$/, "");
+  const model = process.env.GATEWAY_MODEL_IMAGE ?? DEFAULT_MODEL;
   return { apiKey, baseUrl, model };
 }
 
 export function isReceiptAiConfigured(): boolean {
-  return Boolean(getConfig().apiKey);
+  const { apiKey, baseUrl } = getConfig();
+  return Boolean(apiKey && baseUrl);
 }
 
-const SYSTEM_PROMPT = [
-  "You read Indonesian receipts, QRIS screenshots, and bank/e-wallet transfer proofs.",
-  "Return JSON only, no markdown. Keys: transaction_type ('expense'|'income'), amount_minor (integer rupiah of the TOTAL paid), merchant_name (string or null), occurred_at (ISO 8601 or null), payment_method (string or null), category_hint (string or null).",
-  "amount_minor is whole rupiah (e.g. Rp50.000 => 50000). Use the grand total, not subtotals.",
-  "category_hint examples: 'Makan & Minum', 'Transportasi', 'Belanja', 'Tagihan', 'Hiburan', 'Kesehatan'.",
-  "Most receipts are expenses. Use 'income' only for clearly incoming money."
-].join(" ");
+const SYSTEM_PROMPT = `Anda adalah sistem OCR keuangan. Baca struk ini dan ubah menjadi data transaksi yang siap disimpan ke aplikasi keuangan. Tentukan kategori pengeluaran yang paling sesuai (Makanan, Transportasi, Belanja, Tagihan, Hiburan, Kesehatan, Pendidikan, dll). Selain struk belanja, Anda juga bisa membaca screenshot QRIS, bukti transfer bank/e-wallet, dan resi pengiriman.
+
+Berikan hasil HANYA dalam format JSON murni tanpa markdown, tanpa backtick, tanpa penjelasan tambahan:
+{
+  "merchant": string | null,
+  "transaction_date": string | null,
+  "payment_method": string | null,
+  "items": [{ "name": string, "quantity": string, "unit_price": number, "amount": number }],
+  "subtotal": number | null,
+  "tax": number | null,
+  "discount": number | null,
+  "service_fee": number | null,
+  "total_amount": number | null,
+  "currency": string,
+  "category": string,
+  "notes": string | null
+}
+
+Jangan menambahkan informasi yang tidak ada pada struk. Field yang tidak ada isi null.`;
+
+/** Maps the model's free-text category to our internal category-hint vocabulary. */
+function normalizeCategory(category: string | null): string | null {
+  if (!category) return null;
+  const c = category.toLowerCase();
+  if (c.includes("makan") || c.includes("minum") || c.includes("food") || c.includes("kuliner")) return "Makan & Minum";
+  if (c.includes("transport") || c.includes("ojek") || c.includes("bensin") || c.includes("parkir")) return "Transportasi";
+  if (c.includes("belanja") || c.includes("shopping")) return "Belanja";
+  if (c.includes("tagihan") || c.includes("bill") || c.includes("listrik") || c.includes("air") || c.includes("internet")) return "Tagihan";
+  if (c.includes("hiburan") || c.includes("entertain")) return "Hiburan";
+  if (c.includes("kesehatan") || c.includes("medic") || c.includes("apotek")) return "Kesehatan";
+  if (c.includes("pendidikan") || c.includes("school") || c.includes("kursus")) return "Pendidikan";
+  return category;
+}
 
 /**
- * Parses a base64 image (no data URL prefix) with the AI vision model. Throws
- * on network/parse errors so the caller can surface a friendly message.
+ * Parse a base64 image (no data URL prefix) using the chat-completions gateway.
+ * Throws on network/parse errors so the caller can surface a friendly message.
  */
 export async function parseReceiptWithAi(base64Image: string, mediaType: string): Promise<ParsedReceipt> {
   const { apiKey, baseUrl, model } = getConfig();
-  if (!apiKey) {
-    throw new Error("AI not configured.");
+  if (!apiKey || !baseUrl) {
+    throw new Error("AI gateway not configured.");
   }
 
-  const response = await fetch(`${baseUrl}/v1/messages`, {
+  const response = await fetch(`${baseUrl}/v1/chat/completions`, {
     method: "POST",
     headers: {
       "content-type": "application/json",
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01"
+      authorization: `Bearer ${apiKey}`
     },
     body: JSON.stringify({
       model,
-      max_tokens: 600,
-      system: SYSTEM_PROMPT,
+      stream: false,
       messages: [
         {
           role: "user",
           content: [
-            { type: "image", source: { type: "base64", media_type: mediaType, data: base64Image } },
-            { type: "text", text: "Extract the transaction from this image." }
+            { type: "text", text: SYSTEM_PROMPT },
+            {
+              type: "image_url",
+              image_url: { url: `data:${mediaType || "image/jpeg"};base64,${base64Image}` }
+            }
           ]
         }
       ]
@@ -68,21 +117,55 @@ export async function parseReceiptWithAi(base64Image: string, mediaType: string)
   });
 
   if (!response.ok) {
-    throw new Error(`AI request failed: ${response.status}`);
+    throw new Error(`AI gateway error: ${response.status}`);
   }
 
-  const payload = (await response.json()) as { content?: Array<{ text?: string }> };
-  const text = payload.content?.map((part) => part.text ?? "").join("").trim() ?? "";
-  const json = JSON.parse(text.replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/\s*```$/i, ""));
+  const payload = (await response.json()) as { choices?: Array<{ message?: { content?: string } }> };
+  const raw = payload.choices?.[0]?.message?.content ?? "";
+  const cleaned = raw.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
 
-  const amount = Math.round(Number(json.amount_minor));
+  let json: Record<string, unknown>;
+  try {
+    json = JSON.parse(cleaned);
+  } catch {
+    throw new Error("Gagal membaca jawaban AI.");
+  }
+
+  const totalRaw = json.total_amount;
+  const total = totalRaw == null ? null : Math.round(Number(totalRaw));
+  const merchant = typeof json.merchant === "string" ? json.merchant : null;
+  const date = typeof json.transaction_date === "string" ? json.transaction_date : null;
+  const paymentMethod = typeof json.payment_method === "string" ? json.payment_method : null;
+  const categoryHint = normalizeCategory(typeof json.category === "string" ? json.category : null);
+
+  // Items array (best-effort)
+  const items: ReceiptItem[] = Array.isArray(json.items)
+    ? json.items.map((item) => {
+        const it = item as Record<string, unknown>;
+        return {
+          name: typeof it.name === "string" ? it.name : "",
+          quantity: it.quantity == null ? null : String(it.quantity),
+          unit_price: it.unit_price == null ? null : Number(it.unit_price),
+          amount: it.amount == null ? null : Number(it.amount)
+        };
+      })
+    : [];
 
   return {
-    transaction_type: json.transaction_type === "income" ? "income" : "expense",
-    amount_minor: Number.isFinite(amount) && amount > 0 ? amount : 0,
-    merchant_name: typeof json.merchant_name === "string" ? json.merchant_name : null,
-    occurred_at: typeof json.occurred_at === "string" ? json.occurred_at : null,
-    payment_method: typeof json.payment_method === "string" ? json.payment_method : null,
-    category_hint: typeof json.category_hint === "string" ? json.category_hint : null
+    transaction_type: "expense",
+    amount_minor: Number.isFinite(total) && total !== null && total > 0 ? total : 0,
+    merchant_name: merchant,
+    occurred_at: date,
+    payment_method: paymentMethod,
+    category_hint: categoryHint,
+
+    items,
+    subtotal: json.subtotal == null ? null : Number(json.subtotal),
+    tax: json.tax == null ? null : Number(json.tax),
+    discount: json.discount == null ? null : Number(json.discount),
+    service_fee: json.service_fee == null ? null : Number(json.service_fee),
+    total_amount: total,
+    currency: typeof json.currency === "string" ? json.currency : null,
+    notes: typeof json.notes === "string" ? json.notes : null
   };
 }

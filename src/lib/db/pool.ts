@@ -20,6 +20,7 @@ export function getDatabaseUrl() {
 
 export function hasDatabaseConfig() {
   return Boolean(getDatabaseUrl());
+
 }
 
 /**

@@ -11,6 +11,24 @@ type WalletOption = { id: string; name: string };
 type CategoryOption = { id: string; name: string; type: "expense" | "income" | "transfer" };
 type MerchantOption = { id: string; name: string; category_id: string | null; is_system: boolean };
 
+type ReceiptItem = {
+  name: string;
+  quantity: string | null;
+  unit_price: number | null;
+  amount: number | null;
+};
+
+type ReceiptDetail = {
+  items: ReceiptItem[];
+  subtotal: number | null;
+  tax: number | null;
+  discount: number | null;
+  service_fee: number | null;
+  total_amount: number | null;
+  currency: string | null;
+  notes: string | null;
+};
+
 type ReceiptForm = {
   transaction_type: "expense" | "income";
   amount: string;
@@ -23,6 +41,36 @@ type ReceiptForm = {
 
 const MAX_BYTES = 6 * 1024 * 1024;
 const ADD_MERCHANT = "__add__";
+
+/**
+ * Compress an image to a JPEG data URL we can store on the transaction. We
+ * downscale so the longest side ≤ 1024px and re-encode at quality 0.7. This
+ * keeps the receipt photo legible while dropping size from megabytes to a few
+ * hundred KB so it fits comfortably in a single TEXT column.
+ */
+async function compressImageDataUrl(originalDataUrl: string, maxSide = 1024, quality = 0.7): Promise<string> {
+  const img = new Image();
+  await new Promise<void>((resolve, reject) => {
+    img.onload = () => resolve();
+    img.onerror = () => reject(new Error("Gagal memuat gambar."));
+    img.src = originalDataUrl;
+  });
+
+  const ratio = Math.min(1, maxSide / Math.max(img.width, img.height));
+  const w = Math.round(img.width * ratio);
+  const h = Math.round(img.height * ratio);
+
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) {
+    return originalDataUrl;
+  }
+  ctx.drawImage(img, 0, 0, w, h);
+  return canvas.toDataURL("image/jpeg", quality);
+}
+
 
 export default function ScanReceiptPage() {
   return (
@@ -44,6 +92,7 @@ function ScanReceiptContent() {
   const [merchants, setMerchants] = useState<MerchantOption[]>([]);
 
   const [form, setForm] = useState<ReceiptForm | null>(null);
+  const [detail, setDetail] = useState<ReceiptDetail | null>(null);
   const [addingMerchant, setAddingMerchant] = useState(false);
 
   const [busy, setBusy] = useState(false);
@@ -126,6 +175,14 @@ function ScanReceiptContent() {
         occurred_at: string | null;
         wallet_id: string | null;
         category_id: string | null;
+        items?: ReceiptItem[];
+        subtotal?: number | null;
+        tax?: number | null;
+        discount?: number | null;
+        service_fee?: number | null;
+        total_amount?: number | null;
+        currency?: string | null;
+        notes?: string | null;
       };
       setForm({
         transaction_type: preview.transaction_type,
@@ -135,6 +192,16 @@ function ScanReceiptContent() {
         category_id: preview.category_id ?? "",
         payment_method: preview.payment_method ?? "",
         occurred_at: preview.occurred_at
+      });
+      setDetail({
+        items: preview.items ?? [],
+        subtotal: preview.subtotal ?? null,
+        tax: preview.tax ?? null,
+        discount: preview.discount ?? null,
+        service_fee: preview.service_fee ?? null,
+        total_amount: preview.total_amount ?? null,
+        currency: preview.currency ?? null,
+        notes: preview.notes ?? null
       });
       setAddingMerchant(false);
     } finally {
@@ -146,6 +213,7 @@ function ScanReceiptContent() {
     setImageData(null);
     setBase64(null);
     setForm(null);
+    setDetail(null);
     setError(null);
     setAddingMerchant(false);
   }
@@ -171,6 +239,18 @@ function ScanReceiptContent() {
       // it (and its category) is reusable next time.
       await ensureMerchant(form);
 
+      // Compress the original photo so we can store it on the transaction as a
+      // small data URL (proof for later viewing). Best-effort: if compression
+      // fails the transaction still saves without the receipt image.
+      let receiptImageDataUrl: string | undefined;
+      if (imageData) {
+        try {
+          receiptImageDataUrl = await compressImageDataUrl(imageData);
+        } catch {
+          receiptImageDataUrl = undefined;
+        }
+      }
+
       const response = await fetch("/api/receipt-transactions", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -182,7 +262,8 @@ function ScanReceiptContent() {
           wallet_id: form.wallet_id,
           category_id: form.category_id ? form.category_id : null,
           payment_method: form.payment_method.trim() ? form.payment_method.trim() : null,
-          occurred_at: form.occurred_at ?? undefined
+          occurred_at: form.occurred_at ?? undefined,
+          receipt_image_data_url: receiptImageDataUrl
         })
       });
       const payload = await response.json().catch(() => null);
@@ -351,6 +432,43 @@ function ScanReceiptContent() {
         </div>
       ) : null}
 
+      {detail && (detail.items.length > 0 || detail.subtotal != null || detail.tax != null || detail.discount != null || detail.service_fee != null || detail.notes) ? (
+        <div className="rounded-xl border border-outline bg-surface p-4 shadow-card">
+          <h3 className="font-bold text-ink">Detail Struk</h3>
+
+          {detail.items.length > 0 ? (
+            <ul className="mt-3 divide-y divide-outline/50">
+              {detail.items.map((item, idx) => (
+                <li key={`${item.name}-${idx}`} className="flex items-start justify-between gap-3 py-2 text-sm">
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-semibold text-ink">{item.name}</p>
+                    {item.quantity ? <p className="text-xs text-muted">Qty: {item.quantity}{item.unit_price ? ` × ${formatCurrency(item.unit_price, "IDR")}` : ""}</p> : null}
+                  </div>
+                  {item.amount != null ? <span className="shrink-0 font-semibold text-ink">{formatCurrency(item.amount, "IDR")}</span> : null}
+                </li>
+              ))}
+            </ul>
+          ) : null}
+
+          {(detail.subtotal != null || detail.tax != null || detail.discount != null || detail.service_fee != null) ? (
+            <dl className="mt-3 space-y-1 border-t border-outline/50 pt-3 text-sm">
+              {detail.subtotal != null ? <BreakdownRow label="Subtotal" value={formatCurrency(detail.subtotal, "IDR")} /> : null}
+              {detail.discount != null && detail.discount !== 0 ? <BreakdownRow label="Diskon" value={`- ${formatCurrency(Math.abs(detail.discount), "IDR")}`} /> : null}
+              {detail.tax != null && detail.tax !== 0 ? <BreakdownRow label="Pajak" value={formatCurrency(detail.tax, "IDR")} /> : null}
+              {detail.service_fee != null && detail.service_fee !== 0 ? <BreakdownRow label="Biaya Layanan" value={formatCurrency(detail.service_fee, "IDR")} /> : null}
+              {detail.total_amount != null ? (
+                <div className="flex items-center justify-between pt-1 text-base font-bold">
+                  <span>Total</span>
+                  <span>{formatCurrency(detail.total_amount, "IDR")}</span>
+                </div>
+              ) : null}
+            </dl>
+          ) : null}
+
+          {detail.notes ? <p className="mt-3 text-xs italic text-muted">{detail.notes}</p> : null}
+        </div>
+      ) : null}
+
       {error ? <p className="text-sm font-semibold text-error">{error}</p> : null}
 
       {form ? (
@@ -375,6 +493,15 @@ function ScanReceiptContent() {
       )}
 
       {form ? <p className="text-center text-xs text-muted">Total dari struk: {formatCurrency(Number(form.amount) || 0, "IDR")}</p> : null}
+    </div>
+  );
+}
+
+function BreakdownRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between text-sm">
+      <dt className="text-muted">{label}</dt>
+      <dd className="font-semibold text-ink">{value}</dd>
     </div>
   );
 }

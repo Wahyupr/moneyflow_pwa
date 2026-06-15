@@ -1,6 +1,7 @@
 "use client";
 
 import { Search, WalletCards } from "lucide-react";
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AppFrame } from "@/components/app-frame";
 import { usePrivacy } from "@/components/privacy-provider";
@@ -165,7 +166,11 @@ function TransactionGroup({
           const subtitle = [transaction.note, time].filter(Boolean).join(" · ");
 
           return (
-            <article className="flex items-center justify-between gap-3 rounded-xl bg-surface p-4 shadow-card" key={transaction.id}>
+            <Link
+              href={`/transactions/${transaction.id}`}
+              key={transaction.id}
+              className="flex items-center justify-between gap-3 rounded-xl bg-surface p-4 shadow-card transition active:scale-[0.99]"
+            >
               <div className="flex min-w-0 items-center gap-3">
                 {transaction.merchant_logo_url ? (
                   // eslint-disable-next-line @next/next/no-img-element
@@ -182,7 +187,7 @@ function TransactionGroup({
                 </div>
               </div>
               <p className={`shrink-0 text-right font-bold ${positive ? "text-income" : "text-ink"}`}>{displayAmount(amount)}</p>
-            </article>
+            </Link>
           );
         })}
       </div>
