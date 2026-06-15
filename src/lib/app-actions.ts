@@ -17,13 +17,10 @@ export function getAddActionOptions(): AppAction[] {
   return [
     { id: "voice", label: "Input Suara", href: "/voice-input" },
     { id: "manual", label: "Form Manual", href: "/transactions/new" },
-    { id: "receipt", label: "Scan Struk", href: "/scan-receipt" },
-
-    { id: "transfer_proof", label: "Bukti Transfer", href: "/ai-transaction-review?source=transfer_proof" },
-    { id: "qris", label: "Screenshot QRIS", href: "/ai-transaction-review?source=qris" },
-    { id: "ai_review", label: "Review Draft AI", href: "/ai-transaction-review" }
+    { id: "receipt", label: "Scan Struk", href: "/scan-receipt" }
   ];
 }
+
 
 export function maskAmount(value: string) {
   return value ? "*".repeat(value.length) : "****";

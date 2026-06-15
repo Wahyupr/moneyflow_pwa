@@ -82,14 +82,15 @@ export async function GET(request: NextRequest) {
   const walletRows: DashboardWallet[] = (wallets ?? []).map((wallet: any) => {
 
     const walletTransactions = ((transactions ?? []) as LedgerTransaction[]).filter((transaction) => transaction.wallet_id === wallet.id);
-    const income = walletTransactions.filter((transaction) => transaction.transaction_type === "income").reduce((sum, transaction) => sum + transaction.amount_minor, 0);
-    const expense = walletTransactions.filter((transaction) => transaction.transaction_type === "expense").reduce((sum, transaction) => sum + transaction.amount_minor, 0);
+    // pg returns bigint columns as strings — coerce to Number before arithmetic.
+    const income = walletTransactions.filter((transaction) => transaction.transaction_type === "income").reduce((sum, transaction) => sum + Number(transaction.amount_minor), 0);
+    const expense = walletTransactions.filter((transaction) => transaction.transaction_type === "expense").reduce((sum, transaction) => sum + Number(transaction.amount_minor), 0);
 
     return {
       id: wallet.id,
       name: wallet.name,
       type: wallet.type,
-      balance_minor: (wallet.opening_balance_minor ?? 0) + income - expense,
+      balance_minor: Number(wallet.opening_balance_minor ?? 0) + income - expense,
       income_minor: income,
       expense_minor: expense,
       color: wallet.color,
@@ -102,6 +103,8 @@ export async function GET(request: NextRequest) {
   // ISO strings (they call `.startsWith(month)`). Normalize before use.
   const ledger = ((transactions ?? []) as Array<Record<string, unknown>>).map((transaction) => ({
     ...transaction,
+    // pg returns bigint columns as strings — coerce to number.
+    amount_minor: Number(transaction.amount_minor),
     occurred_at:
       transaction.occurred_at instanceof Date
         ? transaction.occurred_at.toISOString()
@@ -111,6 +114,7 @@ export async function GET(request: NextRequest) {
         ? merchantLogoByName.get(transaction.merchant_name.trim().toLowerCase()) ?? null
         : null
   })) as unknown as LedgerTransaction[];
+
 
 
   const categoryName = new Map<string, string>(
