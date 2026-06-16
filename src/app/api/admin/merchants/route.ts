@@ -66,7 +66,7 @@ export async function POST(request: NextRequest) {
       website_url: parsed.data.website_url ? parsed.data.website_url : null,
       category_id: parsed.data.category_id ?? null,
       is_system: true,
-      created_by: auth.user.id
+      created_by: null  // system merchants are not owned by any individual user
     })
     .select("id,name,logo_url,website_url,category_id,is_system,created_at")
     .single();

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { z } from "zod";
 import { requireApiUser } from "@/lib/api/auth";
+import { query } from "@/lib/db/pool";
 
 export const runtime = "nodejs";
 
@@ -11,26 +12,23 @@ const MerchantCreateSchema = z.object({
 });
 
 /**
- * Lists merchants the user can pick: global/system ones (admin-managed) plus
- * the user's own merchants. RLS already scopes "own" rows to the caller.
+ * Lists merchants the user can pick:
+ *   - Global/system merchants (is_system = true, created_by = NULL) — visible to everyone.
+ *   - The user's own personal merchants (created_by = current user) — private.
  */
 export async function GET(request: NextRequest) {
   const auth = await requireApiUser(request);
+  if ("response" in auth) return auth.response;
 
-  if ("response" in auth) {
-    return auth.response;
-  }
+  const rows = await query<{ id: string; name: string; logo_url: string | null; category_id: string | null; is_system: boolean; created_by: string | null }>(
+    `select id, name, logo_url, category_id, is_system, created_by
+     from merchants
+     where is_system = true or created_by = $1
+     order by is_system desc, name`,
+    [auth.user.id]
+  );
 
-  const { data, error } = await auth.db
-    .from("merchants")
-    .select("id,name,logo_url,category_id,is_system")
-    .order("name");
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-
-  return NextResponse.json({ merchants: data ?? [] });
+  return NextResponse.json({ merchants: rows.rows });
 }
 
 /**
@@ -55,7 +53,7 @@ export async function POST(request: NextRequest) {
       name: parsed.data.name.trim(),
       category_id: parsed.data.category_id ?? null,
       is_system: false,
-      created_by: auth.user.id
+      created_by: auth.user.id  // user-owned merchants are scoped to creator
     })
     .select("id,name,logo_url,category_id,is_system")
     .single();
@@ -65,4 +63,26 @@ export async function POST(request: NextRequest) {
   }
 
   return NextResponse.json({ merchant: data }, { status: 201 });
+}
+
+/**
+ * DELETE — Removes the user's own merchant. System (admin) merchants cannot be deleted here.
+ */
+export async function DELETE(request: NextRequest) {
+  const auth = await requireApiUser(request);
+  if ("response" in auth) return auth.response;
+
+  const { searchParams } = new URL(request.url);
+  const id = searchParams.get("id");
+  if (!id) return NextResponse.json({ error: "id wajib diisi." }, { status: 400 });
+
+  const { error } = await auth.db
+    .from("merchants")
+    .delete()
+    .eq("id", id)
+    .eq("created_by", auth.user.id)
+    .eq("is_system", false);
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ ok: true });
 }

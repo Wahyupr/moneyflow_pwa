@@ -26,7 +26,14 @@ export async function GET(request: NextRequest) {
   }
 
   const { searchParams } = new URL(request.url);
-  let query = auth.db.from("transactions").select("*").eq("user_id", auth.user.id).order("occurred_at", { ascending: false });
+  // Exclude receipt_image_data_url from the list — it can be several hundred KB
+  // per row and is only needed on the detail page. Omitting it dramatically
+  // reduces payload size and speeds up the list.
+  let query = auth.db
+    .from("transactions")
+    .select("id,wallet_id,category_id,transaction_type,amount_minor,currency,occurred_at,merchant_name,payment_method,note,input_method,transfer_pair_id,recurring_id,mood,raw_receipt_text")
+    .eq("user_id", auth.user.id)
+    .order("occurred_at", { ascending: false });
 
   if (searchParams.get("wallet")) {
     query = query.eq("wallet_id", searchParams.get("wallet"));
