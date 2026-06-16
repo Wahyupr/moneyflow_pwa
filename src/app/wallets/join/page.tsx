@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { CheckCircle, Loader2, Users, XCircle } from "lucide-react";
 import { AppFrame } from "@/components/app-frame";
@@ -23,9 +23,21 @@ type PageState =
   | { status: "success"; walletId: string; walletName: string };
 
 export default function WalletJoinPage() {
+  // useSearchParams() inside requires a Suspense boundary during static
+  // prerender (Next.js 15 build rule). The fallback is shown for the brief
+  // moment before client hydration resolves the search params.
   return (
     <AppFrame title="Terima Undangan" subtitle="Dompet Bersama">
-      <WalletJoinContent />
+      <Suspense
+        fallback={
+          <div className="mt-10 flex flex-col items-center gap-4 text-muted">
+            <Loader2 className="animate-spin" size={36} />
+            <p className="text-sm">Memuat undangan...</p>
+          </div>
+        }
+      >
+        <WalletJoinContent />
+      </Suspense>
     </AppFrame>
   );
 }
