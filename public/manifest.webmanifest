@@ -2,7 +2,7 @@
   "name": "MoneyFlow",
   "short_name": "MoneyFlow",
   "description": "Privacy-first personal finance PWA.",
-  "start_url": "/",
+  "start_url": "/dashboard",
   "scope": "/",
   "display": "standalone",
   "background_color": "#f8f9ff",

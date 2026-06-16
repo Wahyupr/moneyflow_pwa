@@ -10,16 +10,17 @@ export const runtime = "nodejs";
  * Returns a single transaction including the stored receipt image data URL,
  * scoped to the requesting user via RLS.
  */
-export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const auth = await requireApiUser(request);
   if ("response" in auth) {
     return auth.response;
   }
 
+  const { id } = await params;
   const { data, error } = await auth.supabase
     .from("transactions")
     .select("*")
-    .eq("id", params.id)
+    .eq("id", id)
     .eq("user_id", auth.user.id)
     .maybeSingle();
 

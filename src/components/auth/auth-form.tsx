@@ -144,7 +144,7 @@ export function AuthForm({ mode }: { mode: AuthMode }) {
         <AuthField
           action={
             !isRegister ? (
-              <Link className="text-xs font-semibold text-primary hover:underline" href="/login">
+              <Link className="text-xs font-semibold text-primary hover:underline" href="/forgot-password">
                 Forgot Password?
               </Link>
             ) : null

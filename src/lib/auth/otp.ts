@@ -12,7 +12,10 @@ import { getAuthSecret } from "@/lib/auth/session";
 
 export const OTP_TTL_SECONDS = 10 * 60; // 10 minutes
 export const OTP_MAX_ATTEMPTS = 5;
-export const OTP_RESEND_COOLDOWN_SECONDS = 60;
+// Two-minute window before another email can be sent (anti-spam + protects
+// the email provider quota). Applies to both signup verification and the
+// password reset flow.
+export const OTP_RESEND_COOLDOWN_SECONDS = 120;
 
 export function generateOtpCode(): string {
   return String(randomInt(0, 1_000_000)).padStart(6, "0");

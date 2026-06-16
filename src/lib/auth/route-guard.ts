@@ -10,7 +10,7 @@ const protectedPagePrefixes = [
   "/ai-transaction-review"
 ];
 
-const publicPagePaths = new Set(["/", "/login", "/register", "/verify-email"]);
+const publicPagePaths = new Set(["/", "/login", "/register", "/verify-email", "/forgot-password"]);
 const publicPagePrefixes = ["/auth/callback"];
 const publicApiPrefixes = [
   "/api/auth/login",
@@ -18,7 +18,8 @@ const publicApiPrefixes = [
   "/api/auth/logout",
   "/api/auth/google",
   "/api/auth/verify",
-  "/api/auth/resend"
+  "/api/auth/resend",
+  "/api/auth/forgot-password"
 ];
 
 
