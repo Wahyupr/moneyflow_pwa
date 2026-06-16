@@ -92,7 +92,7 @@ export async function parseReceiptWithAi(base64Image: string, mediaType: string)
     throw new Error("AI gateway not configured.");
   }
 
-  const response = await fetch(`${baseUrl}/v1/chat/completions`, {
+  const response = await fetch(`${baseUrl}/chat/completions`, {
     method: "POST",
     headers: {
       "content-type": "application/json",
