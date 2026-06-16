@@ -22,8 +22,8 @@ export async function GET(request: NextRequest) {
   }
 
   const [{ data: profile, error: profileError }, { data: entitlement }] = await Promise.all([
-    auth.supabase.from("profiles").select("*").eq("id", auth.user.id).maybeSingle(),
-    auth.supabase
+    auth.db.from("profiles").select("*").eq("id", auth.user.id).maybeSingle(),
+    auth.db
       .from("subscription_entitlements")
       .select("plan,status,current_period_end")
       .eq("user_id", auth.user.id)
@@ -69,7 +69,7 @@ export async function PATCH(request: NextRequest) {
     ...parsed.data,
     default_currency: parsed.data.default_currency?.toUpperCase()
   };
-  const { data, error } = await auth.supabase
+  const { data, error } = await auth.db
     .from("profiles")
     .upsert({ id: auth.user.id, ...patch }, { onConflict: "id" })
     .select("*")

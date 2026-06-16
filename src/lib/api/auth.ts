@@ -55,7 +55,7 @@ export async function requireApiUser(request: NextRequest) {
     } as const;
   }
 
-  return { supabase: createDatabaseClient(), user: toApiUser(session) } as const;
+  return { db: createDatabaseClient(), user: toApiUser(session) } as const;
 }
 
 /**

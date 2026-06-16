@@ -24,7 +24,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   }
   const { id } = await params;
 
-  const { data: rule, error: ruleError } = await auth.supabase
+  const { data: rule, error: ruleError } = await auth.db
     .from("recurring_rules")
     .select(
       "id,user_id,wallet_id,category_id,merchant_id,name,amount_minor,currency,frequency,next_run_at,last_paid_at,is_active"
@@ -46,7 +46,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   // 1) Create the expense transaction (the user's wallet balance is derived
   // from transactions, so this naturally reduces it).
-  const { data: tx, error: txError } = await auth.supabase
+  const { data: tx, error: txError } = await auth.db
     .from("transactions")
     .insert({
       user_id: auth.user.id,
@@ -69,7 +69,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   // 2) Advance the schedule. 3) Stamp last_paid_at.
   const next = advanceNextRun(ruleRow.next_run_at, ruleRow.frequency);
-  await auth.supabase
+  await auth.db
     .from("recurring_rules")
     .update({ next_run_at: next, last_paid_at: occurredAt })
     .eq("id", ruleRow.id)

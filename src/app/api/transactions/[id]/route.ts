@@ -17,7 +17,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   }
 
   const { id } = await params;
-  const { data, error } = await auth.supabase
+  const { data, error } = await auth.db
     .from("transactions")
     .select("*")
     .eq("id", id)

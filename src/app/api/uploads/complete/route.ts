@@ -41,13 +41,13 @@ export async function POST(request: NextRequest) {
     fileSha256: parsed.data.file_sha256
   });
 
-  const { error: ingestionError } = await auth.supabase.from("file_ingestions").insert(ingestion);
+  const { error: ingestionError } = await auth.db.from("file_ingestions").insert(ingestion);
 
   if (ingestionError) {
     return NextResponse.json({ error: ingestionError.message }, { status: 500 });
   }
 
-  const { data, error: jobError } = await auth.supabase
+  const { data, error: jobError } = await auth.db
     .from("ai_extraction_jobs")
     .insert(job)
     .select("id, ingestion_id, status, attempts")

@@ -31,7 +31,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     return NextResponse.json({ error: "Data tidak valid." }, { status: 400 });
   }
 
-  const { data, error } = await auth.supabase
+  const { data, error } = await auth.db
     .from("recurring_rules")
     .update(parsed.data)
     .eq("id", id)
@@ -53,7 +53,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   }
   const { id } = await params;
 
-  const { error } = await auth.supabase
+  const { error } = await auth.db
     .from("recurring_rules")
     .update({ is_active: false })
     .eq("id", id)

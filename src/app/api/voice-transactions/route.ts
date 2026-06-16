@@ -112,14 +112,14 @@ export async function POST(request: NextRequest) {
   }
 
   const [{ data: wallets }, { data: systemCategories }, { data: merchants }] = await Promise.all([
-    auth.supabase
+    auth.db
       .from("wallets")
       .select("id,name,type,institution_name")
       .eq("user_id", auth.user.id)
       .is("archived_at", null)
       .order("created_at"),
-    auth.supabase.from("categories").select("id,name,type").eq("is_system", true),
-    auth.supabase.from("merchants").select("name,category_id").eq("is_system", true)
+    auth.db.from("categories").select("id,name,type").eq("is_system", true),
+    auth.db.from("merchants").select("name,category_id").eq("is_system", true)
   ]);
 
   const categoryRows = (systemCategories ?? []) as CategoryRow[];
@@ -168,7 +168,7 @@ export async function POST(request: NextRequest) {
   // Auto-provision a default Cash wallet so "tanpa sebut dompet = cash" always
   // lands on a real cash wallet instead of an unrelated e-wallet.
   if (!wallet && isCashHint(parsed)) {
-    const { data: createdCash, error: cashError } = await auth.supabase
+    const { data: createdCash, error: cashError } = await auth.db
       .from("wallets")
       .insert({
         user_id: auth.user.id,
@@ -192,7 +192,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Belum ada dompet. Tambahkan dompet dulu.", preview }, { status: 400 });
   }
 
-  const { data, error } = await auth.supabase
+  const { data, error } = await auth.db
     .from("transactions")
     .insert({
       user_id: auth.user.id,

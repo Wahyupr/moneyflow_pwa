@@ -13,6 +13,7 @@ type Reminder = {
   amount_minor: number;
   wallet_id: string;
   category_id: string | null;
+  merchant_id: string | null;
   frequency: "daily" | "weekly" | "monthly" | "yearly";
   next_run_at: string;
   remind_days_before: number;
@@ -23,7 +24,7 @@ type Reminder = {
 
 type WalletOption = { id: string; name: string };
 type CategoryOption = { id: string; name: string; type: "expense" | "income" | "transfer" };
-type MerchantOption = { id: string; name: string; category_id: string | null };
+type MerchantOption = { id: string; name: string; logo_url: string | null; category_id: string | null };
 
 export default function RemindersPage() {
   return (
@@ -128,6 +129,7 @@ function RemindersContent() {
                     onPay={() => setConfirming(reminder)}
                     onDelete={() => archiveReminder(reminder.id)}
                     displayAmount={displayAmount}
+                    merchantLogoUrl={merchants.find((m) => m.id === reminder.merchant_id)?.logo_url ?? null}
                     highlight
                   />
                 ))}
@@ -152,6 +154,7 @@ function RemindersContent() {
                     onPay={() => setConfirming(reminder)}
                     onDelete={() => archiveReminder(reminder.id)}
                     displayAmount={displayAmount}
+                    merchantLogoUrl={merchants.find((m) => m.id === reminder.merchant_id)?.logo_url ?? null}
                   />
                 ))}
               </div>
@@ -196,64 +199,315 @@ function RemindersContent() {
   );
 }
 
-// Legacy demo content removed; the page is now data-driven.
-function _LegacyShim() {
+const FREQUENCY_LABEL: Record<Reminder["frequency"], string> = {
+  daily: "Setiap hari",
+  weekly: "Setiap minggu",
+  monthly: "Setiap bulan",
+  yearly: "Setiap tahun"
+};
+
+function statusLabel(reminder: Reminder): { text: string; tone: string } {
+  if (reminder.paid_for_current_period) return { text: "Sudah dibayar", tone: "text-income" };
+  switch (reminder.status) {
+    case "overdue":
+      return { text: `Terlambat ${Math.abs(reminder.days_until)} hari`, tone: "text-expense" };
+    case "due_today":
+      return { text: "Jatuh tempo hari ini", tone: "text-expense" };
+    case "due_soon":
+      return { text: `${reminder.days_until} hari lagi`, tone: "text-warning" };
+    case "upcoming":
+      return { text: `${reminder.days_until} hari lagi`, tone: "text-warning" };
+    default:
+      return { text: `${reminder.days_until} hari lagi`, tone: "text-muted" };
+  }
+}
+
+function ReminderCard({
+  reminder,
+  busy,
+  onPay,
+  onDelete,
+  displayAmount,
+  merchantLogoUrl,
+  highlight
+}: {
+  reminder: Reminder;
+  busy: boolean;
+  onPay: () => void;
+  onDelete: () => void;
+  displayAmount: (value: string) => string;
+  merchantLogoUrl?: string | null;
+  highlight?: boolean;
+}) {
+  const status = statusLabel(reminder);
+  const initial = (reminder.name ?? "?").trim().charAt(0).toUpperCase() || "?";
+  const dueDate = new Date(reminder.next_run_at).toLocaleDateString("id-ID", { day: "numeric", month: "long" });
+
   return (
-    <div className="mt-5 space-y-5">
-      <section className="rounded-xl bg-surface p-5 shadow-card">
-        <div className="mb-5 flex items-center gap-4">
-          <div className="flex size-12 items-center justify-center rounded-full bg-error-container text-on-error-container">
-            <span className="font-bold">N</span>
-          </div>
-          <div className="flex-1">
-            <h2 className="text-lg font-bold">Netflix</h2>
-            <p className="text-sm text-muted">Jatuh tempo: 01 Juni</p>
-          </div>
-          <div className="text-right">
-            <p className="font-bold">{displayAmount("Rp 186.000")}</p>
-            <span className="mt-1 inline-flex rounded-full bg-primary px-2 py-1 text-[10px] font-bold text-white">AKTIF</span>
+    <article className={`rounded-xl bg-surface p-4 shadow-card ${highlight && !reminder.paid_for_current_period ? "border-2 border-warning/60" : ""}`}>
+      <div className="flex items-center gap-3">
+        {merchantLogoUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={merchantLogoUrl} alt="" className="size-11 shrink-0 rounded-full object-cover" />
+        ) : (
+          <div className="flex size-11 shrink-0 items-center justify-center rounded-full bg-primary/10 font-bold text-primary">{initial}</div>
+        )}
+        <div className="min-w-0 flex-1">
+          <h4 className="truncate font-bold text-ink">{reminder.name ?? "Pengingat"}</h4>
+          <p className="text-xs text-muted">{FREQUENCY_LABEL[reminder.frequency]} · jatuh tempo {dueDate}</p>
+          <p className={`text-xs font-semibold ${status.tone}`}>{status.text}</p>
+        </div>
+        <div className="text-right">
+          <p className="font-bold text-ink">{displayAmount(formatCurrency(reminder.amount_minor, "IDR"))}</p>
+          <button className="mt-1 text-muted transition hover:text-expense disabled:opacity-50" disabled={busy} onClick={onDelete} type="button" aria-label="Hapus">
+            <Trash2 size={16} />
+          </button>
+        </div>
+      </div>
+
+      {!reminder.paid_for_current_period ? (
+        <button
+          className="mt-3 flex min-h-10 w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-bold text-white active:scale-[0.98] disabled:opacity-60"
+          disabled={busy}
+          onClick={onPay}
+          type="button"
+        >
+          <Bell size={16} />
+          Tandai sudah dibayar
+        </button>
+      ) : null}
+    </article>
+  );
+}
+
+function PayConfirmDialog({
+  reminder,
+  walletName,
+  busy,
+  onCancel,
+  onConfirm,
+  displayAmount
+}: {
+  reminder: Reminder;
+  walletName: string | null;
+  busy: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+  displayAmount: (value: string) => string;
+}) {
+  return (
+    <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/40 p-4 sm:items-center" role="dialog" aria-modal="true">
+      <div className="w-full max-w-sm rounded-2xl bg-surface p-5 shadow-lift">
+        <div className="flex items-start gap-3">
+          <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-warning/15 text-warning">
+            <AlertTriangle size={20} />
+          </span>
+          <div>
+            <h3 className="font-bold text-ink">Konfirmasi pembayaran</h3>
+            <p className="mt-1 text-sm text-muted">
+              Ini akan mencatat pengeluaran <strong>{displayAmount(formatCurrency(reminder.amount_minor, "IDR"))}</strong>
+              {walletName ? <> dari dompet <strong>{walletName}</strong></> : null} dan mengurangi saldomu.
+            </p>
           </div>
         </div>
-        <div className="space-y-4 border-t border-surface-container pt-4">
-          <div>
-            <p className="mb-2 text-sm font-semibold text-muted">Periode Notifikasi</p>
-            <div className="flex flex-wrap gap-2">
-              {["7 hari sebelum", "3 hari sebelum", "1 hari sebelum"].map((item, index) => (
-                <button className={`min-h-10 rounded-full px-4 text-sm font-semibold ${index === 1 ? "bg-primary text-white" : "bg-surface-container text-muted"}`} key={item} type="button">
-                  {item}
+        <div className="mt-5 flex gap-2">
+          <button className="min-h-11 flex-1 rounded-lg bg-surface-container px-4 font-bold text-ink active:scale-[0.98]" disabled={busy} onClick={onCancel} type="button">
+            Batal
+          </button>
+          <button className="min-h-11 flex-1 rounded-lg bg-primary px-4 font-bold text-white active:scale-[0.98] disabled:opacity-60" disabled={busy} onClick={onConfirm} type="button">
+            {busy ? "Memproses..." : "Ya, bayar"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ReminderFormSheet({
+  wallets,
+  categories,
+  merchants,
+  onClose,
+  onSaved
+}: {
+  wallets: WalletOption[];
+  categories: CategoryOption[];
+  merchants: MerchantOption[];
+  onClose: () => void;
+  onSaved: () => void | Promise<void>;
+}) {
+  const expenseCategories = useMemo(() => categories.filter((category) => category.type === "expense"), [categories]);
+  const [merchantId, setMerchantId] = useState<string | null>(null);
+  const [name, setName] = useState("");
+  const [amount, setAmount] = useState("");
+  const [walletId, setWalletId] = useState(wallets[0]?.id ?? "");
+  const [categoryId, setCategoryId] = useState("");
+  const [frequency, setFrequency] = useState<Reminder["frequency"]>("monthly");
+  const [dueDate, setDueDate] = useState("");
+  const [remindDays, setRemindDays] = useState(5);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Pick a merchant to prefill the name + category (the user's subscriptions
+  // are usually known merchants, e.g. "Claude Pro").
+  function pickMerchant(value: string) {
+    const merchant = merchants.find((item) => item.id === value);
+    if (!merchant) return;
+    setMerchantId(merchant.id);
+    setName(merchant.name);
+    if (merchant.category_id) setCategoryId(merchant.category_id);
+  }
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError(null);
+    const amountMinor = Math.round(Number(amount));
+    if (!name.trim()) return setError("Nama pengingat wajib diisi.");
+    if (!Number.isFinite(amountMinor) || amountMinor <= 0) return setError("Nominal harus lebih dari 0.");
+    if (!walletId) return setError("Pilih dompet.");
+    if (!dueDate) return setError("Pilih tanggal jatuh tempo.");
+
+    setBusy(true);
+    try {
+      const response = await fetch("/api/reminders", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          name: name.trim(),
+          amount_minor: amountMinor,
+          wallet_id: walletId,
+          category_id: categoryId || null,
+          merchant_id: merchantId,
+          frequency,
+          next_run_at: new Date(`${dueDate}T09:00:00.000Z`).toISOString(),
+          remind_days_before: remindDays
+        })
+      });
+      if (!response.ok) {
+        const data = await response.json().catch(() => null);
+        setError(data?.error ?? "Gagal menyimpan pengingat.");
+        return;
+      }
+      await onSaved();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/40 sm:items-center sm:p-4" role="dialog" aria-modal="true">
+      <form onSubmit={submit} className="flex w-full max-w-md flex-col rounded-t-2xl bg-surface shadow-lift sm:rounded-2xl" style={{ maxHeight: "min(90dvh, calc(100dvh - env(safe-area-inset-bottom, 0px)))" }}>
+        {/* Fixed header */}
+        <div className="flex shrink-0 items-center justify-between px-5 pb-3 pt-5">
+          <h3 className="text-lg font-bold text-ink">Pengingat Baru</h3>
+          <button className="flex size-9 items-center justify-center rounded-full text-muted hover:bg-surface-container" onClick={onClose} type="button" aria-label="Tutup">
+            <X size={20} />
+          </button>
+        </div>
+
+        {/* Scrollable content */}
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-3">
+        <div className="space-y-3">
+          {merchants.length > 0 ? (
+            <div>
+              <span className="text-sm font-semibold text-muted">Dari merchant (opsional)</span>
+              <SelectMenu
+                ariaLabel="Merchant"
+                value=""
+                onChange={pickMerchant}
+                placeholder="Pilih merchant langganan"
+                options={merchants.map((merchant) => ({
+                  value: merchant.id,
+                  label: merchant.name,
+                  icon: merchant.logo_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={merchant.logo_url} alt="" className="size-5 rounded-full object-cover" />
+                  ) : undefined
+                }))}
+              />
+            </div>
+          ) : null}
+
+          <label className="block">
+            <span className="text-sm font-semibold text-muted">Nama</span>
+            <input className="mt-1 min-h-12 w-full rounded-lg border border-outline bg-surface px-3 focus:border-primary focus:outline-none" value={name} onChange={(event) => setName(event.target.value)} placeholder="Claude Pro" />
+          </label>
+
+          <label className="block">
+            <span className="text-sm font-semibold text-muted">Nominal (Rp)</span>
+            <input className="mt-1 min-h-12 w-full rounded-lg border border-outline bg-surface px-3 focus:border-primary focus:outline-none" inputMode="numeric" value={amount} onChange={(event) => setAmount(event.target.value)} placeholder="300000" />
+          </label>
+
+          <div className="block">
+            <span className="text-sm font-semibold text-muted">Dompet</span>
+            <SelectMenu
+              ariaLabel="Dompet"
+              value={walletId}
+              onChange={setWalletId}
+              placeholder="Pilih dompet"
+              options={wallets.map((wallet) => ({ value: wallet.id, label: wallet.name }))}
+            />
+          </div>
+
+          <div className="block">
+            <span className="text-sm font-semibold text-muted">Kategori</span>
+            <SelectMenu
+              ariaLabel="Kategori"
+              value={categoryId}
+              onChange={setCategoryId}
+              placeholder="Tanpa kategori"
+              options={[{ value: "", label: "Tanpa kategori" }, ...expenseCategories.map((category) => ({ value: category.id, label: category.name }))]}
+            />
+          </div>
+
+          <div className="block">
+            <span className="text-sm font-semibold text-muted">Frekuensi</span>
+            <SelectMenu
+              ariaLabel="Frekuensi"
+              value={frequency}
+              onChange={(value) => setFrequency(value as Reminder["frequency"])}
+              options={[
+                { value: "monthly", label: "Setiap bulan" },
+                { value: "weekly", label: "Setiap minggu" },
+                { value: "yearly", label: "Setiap tahun" },
+                { value: "daily", label: "Setiap hari" }
+              ]}
+            />
+          </div>
+
+          <label className="block">
+            <span className="text-sm font-semibold text-muted">Jatuh tempo berikutnya</span>
+            <input type="date" className="mt-1 min-h-12 w-full rounded-lg border border-outline bg-surface px-3 focus:border-primary focus:outline-none" value={dueDate} onChange={(event) => setDueDate(event.target.value)} />
+          </label>
+
+          <div className="block">
+            <span className="text-sm font-semibold text-muted">Ingatkan mulai</span>
+            <div className="mt-1 flex flex-wrap gap-2">
+              {[1, 3, 5].map((days) => (
+                <button
+                  key={days}
+                  type="button"
+                  className={`min-h-10 rounded-full px-4 text-sm font-semibold ${remindDays === days ? "bg-primary text-white" : "bg-surface-container text-muted"}`}
+                  onClick={() => setRemindDays(days)}
+                >
+                  H-{days}
                 </button>
               ))}
             </div>
+            <p className="mt-1 text-xs text-muted">Pengingat muncul mulai H-{remindDays}, lalu H-3 dan H-1.</p>
           </div>
-          <div className="flex items-center gap-3 rounded-lg bg-surface-low p-3">
-            <Repeat className="text-primary" size={20} />
-            <span className="font-semibold">Setiap bulan</span>
-          </div>
+
+          {error ? <p className="rounded-lg bg-error-container p-3 text-sm text-on-error-container">{error}</p> : null}
         </div>
-      </section>
-      <section>
-        <h3 className="mb-3 text-sm font-bold text-muted">LANGGANAN LAINNYA</h3>
-        <div className="space-y-3">
-          {subscriptions.map((item) => (
-            <article className={`flex items-center justify-between rounded-xl bg-surface p-4 shadow-card ${item.tone === "warning" ? "border-2 border-dashed border-warning" : ""}`} key={item.name}>
-              <div className="flex items-center gap-3">
-                <div className={`flex size-10 items-center justify-center rounded-full ${item.tone === "warning" ? "bg-surface-container text-warning" : "bg-income/10 text-income"}`}>
-                  {item.tone === "warning" ? <ShieldAlert size={18} /> : <Bell size={18} />}
-                </div>
-                <div>
-                  <p className="font-semibold">{item.name}</p>
-                  <p className={`text-sm ${item.tone === "warning" ? "text-warning" : "text-muted"}`}>{item.date}</p>
-                </div>
-              </div>
-              <p className="font-semibold">{displayAmount(item.amount)}</p>
-            </article>
-          ))}
         </div>
-      </section>
-      <button className="flex min-h-14 w-full items-center justify-center gap-2 rounded-full bg-primary px-4 font-bold text-white shadow-card active:scale-[0.98]" type="button">
-        <Plus size={20} />
-        Tambah Pengingat Baru
-      </button>
+
+        {/* Fixed footer — always visible, clears mobile safe-area */}
+        <div className="shrink-0 px-5 pb-[calc(1.25rem+env(safe-area-inset-bottom,0px))] pt-3">
+          <button className="flex min-h-12 w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 font-bold text-white active:scale-[0.98] disabled:opacity-60" disabled={busy} type="submit">
+            {busy ? "Menyimpan..." : "Simpan Pengingat"}
+          </button>
+        </div>
+      </form>
     </div>
   );
 }

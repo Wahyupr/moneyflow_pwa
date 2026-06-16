@@ -28,7 +28,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
   }
 
   const { id } = await context.params;
-  const { data: draftRecord, error: draftError } = await auth.supabase
+  const { data: draftRecord, error: draftError } = await auth.db
     .from("transaction_drafts")
     .select("*")
     .eq("id", id)
@@ -51,7 +51,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
       note: parsed.data.note,
       inputMethod: draftRecord.input_method
     });
-    const { data: transaction, error: insertError } = await auth.supabase
+    const { data: transaction, error: insertError } = await auth.db
       .from("transactions")
       .insert(transactionPayload)
       .select("*")
@@ -61,7 +61,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
       return NextResponse.json({ error: insertError.message }, { status: 500 });
     }
 
-    await auth.supabase.from("transaction_drafts").update({ status: "confirmed" }).eq("id", id).eq("user_id", auth.user.id);
+    await auth.db.from("transaction_drafts").update({ status: "confirmed" }).eq("id", id).eq("user_id", auth.user.id);
 
     return NextResponse.json({ transaction }, { status: 201 });
   } catch (error) {

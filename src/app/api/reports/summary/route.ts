@@ -53,18 +53,18 @@ export async function GET(request: NextRequest) {
 
   // Transactions for the requested period.
   const [{ data: txRows, error: txError }, { data: systemCategories }, { data: allMerchants }] = await Promise.all([
-    auth.supabase
+    auth.db
       .from("transactions")
       .select("id,user_id,wallet_id,category_id,merchant_name,payment_method,transaction_type,amount_minor,currency,occurred_at,transfer_pair_id")
       .eq("user_id", auth.user.id)
       .gte("occurred_at", fromIso)
       .lt("occurred_at", toIso)
       .order("occurred_at", { ascending: false }),
-    auth.supabase
+    auth.db
       .from("categories")
       .select("id,name,color,type")
       .eq("is_system", true),
-    auth.supabase
+    auth.db
       .from("merchants")
       .select("name,logo_url")
   ]);
@@ -162,7 +162,7 @@ export async function GET(request: NextRequest) {
   }
 
   const earliestMonth = trendMonths[0];
-  const { data: trendRows } = await auth.supabase
+  const { data: trendRows } = await auth.db
     .from("transactions")
     .select("transaction_type,amount_minor,occurred_at,transfer_pair_id")
     .eq("user_id", auth.user.id)

@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid transfer payload." }, { status: 400 });
   }
 
-  const { data, error } = await auth.supabase.rpc("create_internal_transfer", {
+  const { data, error } = await auth.db.rpc("create_internal_transfer", {
     p_user_id: auth.user.id,
     p_from_wallet_id: parsed.data.from_wallet_id,
     p_to_wallet_id: parsed.data.to_wallet_id,

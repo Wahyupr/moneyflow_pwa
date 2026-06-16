@@ -19,8 +19,8 @@ export async function GET(request: NextRequest) {
   }
 
   const [{ data: profiles, error: profilesError }, { data: entitlements, error: entitlementsError }] = await Promise.all([
-    auth.supabase.from("profiles").select("id,display_name,role,default_currency,created_at").order("created_at", { ascending: false }),
-    auth.supabase.from("subscription_entitlements").select("user_id,plan,status,current_period_end")
+    auth.db.from("profiles").select("id,display_name,role,default_currency,created_at").order("created_at", { ascending: false }),
+    auth.db.from("subscription_entitlements").select("user_id,plan,status,current_period_end")
   ]);
 
   if (profilesError || entitlementsError) {
@@ -52,7 +52,7 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: "Invalid subscription payload." }, { status: 400 });
   }
 
-  const { data, error } = await auth.supabase
+  const { data, error } = await auth.db
     .from("subscription_entitlements")
     .upsert(
       {

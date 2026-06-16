@@ -14,13 +14,13 @@ export async function GET(request: NextRequest) {
   }
 
   const [{ data, error }, { data: transactions, error: transactionsError }] = await Promise.all([
-    auth.supabase
+    auth.db
       .from("wallets")
       .select("*")
       .eq("user_id", auth.user.id)
       .is("archived_at", null)
       .order("created_at", { ascending: true }),
-    auth.supabase
+    auth.db
       .from("transactions")
       .select("wallet_id,transaction_type,amount_minor")
       .eq("user_id", auth.user.id)
@@ -71,11 +71,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid wallet payload.", errors: parsed.errors }, { status: 400 });
   }
 
-  const { count } = await auth.supabase
+  const { count } = await auth.db
     .from("wallets")
     .select("id", { count: "exact", head: true })
     .eq("user_id", auth.user.id);
-  const { data: entitlement } = await auth.supabase
+  const { data: entitlement } = await auth.db
     .from("subscription_entitlements")
     .select("plan")
     .eq("user_id", auth.user.id)
@@ -87,7 +87,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: limit.reason }, { status: 402 });
   }
 
-  const { data, error } = await auth.supabase
+  const { data, error } = await auth.db
     .from("wallets")
     .insert({ ...parsed.data, user_id: auth.user.id })
     .select("*")

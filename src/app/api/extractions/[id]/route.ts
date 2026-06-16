@@ -12,7 +12,7 @@ export async function GET(request: NextRequest, context: { params: Promise<{ id:
   }
 
   const { id } = await context.params;
-  const { data: job, error: jobError } = await auth.supabase
+  const { data: job, error: jobError } = await auth.db
     .from("ai_extraction_jobs")
     .select("id, ingestion_id, status, attempts, error_message, created_at, updated_at")
     .eq("id", id)
@@ -23,7 +23,7 @@ export async function GET(request: NextRequest, context: { params: Promise<{ id:
     return NextResponse.json({ error: jobError.message }, { status: 404 });
   }
 
-  const { data: draft } = await auth.supabase
+  const { data: draft } = await auth.db
     .from("transaction_drafts")
     .select("*")
     .eq("job_id", id)

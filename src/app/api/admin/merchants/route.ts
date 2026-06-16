@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
     return auth.response;
   }
 
-  const { data, error } = await auth.supabase
+  const { data, error } = await auth.db
     .from("merchants")
     .select("id,name,logo_url,website_url,category_id,is_system,created_at")
     .eq("is_system", true)
@@ -58,7 +58,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid merchant payload." }, { status: 400 });
   }
 
-  const { data, error } = await auth.supabase
+  const { data, error } = await auth.db
     .from("merchants")
     .insert({
       name: parsed.data.name.trim(),

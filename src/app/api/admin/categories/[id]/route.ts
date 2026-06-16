@@ -47,7 +47,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     patch.type = parsed.data.type;
   }
 
-  const { data, error } = await auth.supabase
+  const { data, error } = await auth.db
     .from("categories")
     .update(patch)
     .eq("id", id)
@@ -70,7 +70,7 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
   }
 
   const { id } = await context.params;
-  const { error } = await auth.supabase.from("categories").delete().eq("id", id).eq("is_system", true);
+  const { error } = await auth.db.from("categories").delete().eq("id", id).eq("is_system", true);
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });

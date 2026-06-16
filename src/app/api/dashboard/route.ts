@@ -28,33 +28,33 @@ export async function GET(request: NextRequest) {
     { data: systemCategories }
   ] = await Promise.all([
 
-    auth.supabase
+    auth.db
       .from("wallets")
       .select("id,name,type,currency,color,icon,is_shared,opening_balance_minor")
       .eq("user_id", auth.user.id)
       .is("archived_at", null)
       .order("created_at"),
-    auth.supabase
+    auth.db
       .from("transactions")
       .select("id,user_id,wallet_id,category_id,merchant_name,payment_method,transaction_type,amount_minor,currency,occurred_at,transfer_pair_id")
       .eq("user_id", auth.user.id)
       .gte("occurred_at", `${month}-01T00:00:00.000Z`)
       .lt("occurred_at", nextMonthIso(month))
       .order("occurred_at", { ascending: false }),
-    auth.supabase.from("transaction_drafts").select("id,extracted_json").eq("user_id", auth.user.id).eq("status", "pending_review").limit(5),
-    auth.supabase.from("profiles").select("hide_nominal_default").eq("id", auth.user.id).maybeSingle(),
-    auth.supabase
+    auth.db.from("transaction_drafts").select("id,extracted_json").eq("user_id", auth.user.id).eq("status", "pending_review").limit(5),
+    auth.db.from("profiles").select("hide_nominal_default").eq("id", auth.user.id).maybeSingle(),
+    auth.db
       .from("budgets")
       .select("id,category_id,amount_limit_minor,period")
       .eq("user_id", auth.user.id)
       .eq("is_active", true)
       .eq("period", "monthly"),
-    auth.supabase.from("categories").select("id,name").eq("user_id", auth.user.id),
-    auth.supabase.from("categories").select("id,name").eq("is_system", true)
+    auth.db.from("categories").select("id,name").eq("user_id", auth.user.id),
+    auth.db.from("categories").select("id,name").eq("is_system", true)
   ]);
 
   // Global merchant directory (admin-managed) to resolve logos by name.
-  const { data: merchants } = await auth.supabase.from("merchants").select("name,logo_url").eq("is_system", true);
+  const { data: merchants } = await auth.db.from("merchants").select("name,logo_url").eq("is_system", true);
   const merchantLogoByName = new Map<string, string>();
   for (const merchant of (merchants ?? []) as Array<{ name: string; logo_url: string | null }>) {
     if (merchant.logo_url) {

@@ -15,7 +15,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
   }
 
   const { id } = await context.params;
-  const { data, error } = await auth.supabase
+  const { data, error } = await auth.db
     .from("transaction_drafts")
     .select("*")
     .eq("id", id)
@@ -37,7 +37,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
   }
 
   const { id } = await context.params;
-  const { data: existing, error: existingError } = await auth.supabase
+  const { data: existing, error: existingError } = await auth.db
     .from("transaction_drafts")
     .select("extracted_json")
     .eq("id", id)
@@ -50,7 +50,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
   const patch = createDraftPatch(await request.json().catch(() => ({})));
   const merged = { ...(existing.extracted_json as Record<string, unknown>), ...patch.extracted_json };
-  const { data, error } = await auth.supabase
+  const { data, error } = await auth.db
     .from("transaction_drafts")
     .update({ extracted_json: merged })
     .eq("id", id)

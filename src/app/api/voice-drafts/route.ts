@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
     transcript: parsed.data.transcript,
     occurredAt: parsed.data.occurred_at ?? new Date().toISOString()
   });
-  const { data, error } = await auth.supabase.from("transaction_drafts").insert(insert).select("*").single();
+  const { data, error } = await auth.db.from("transaction_drafts").insert(insert).select("*").single();
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });

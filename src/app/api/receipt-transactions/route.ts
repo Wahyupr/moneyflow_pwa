@@ -88,7 +88,7 @@ export async function POST(request: NextRequest) {
   // --- SAVE PATH: persist the reviewed/edited transaction. ---
   const save = SaveSchema.safeParse(body);
   if (save.success) {
-    const { data, error } = await auth.supabase
+    const { data, error } = await auth.db
       .from("transactions")
       .insert({
         user_id: auth.user.id,
@@ -130,15 +130,15 @@ export async function POST(request: NextRequest) {
   }
 
   const [{ data: wallets }, { data: systemCategories }, { data: merchants }] = await Promise.all([
-    auth.supabase
+    auth.db
       .from("wallets")
       .select("id,name,type,institution_name")
       .eq("user_id", auth.user.id)
       .is("archived_at", null)
       .order("created_at"),
-    auth.supabase.from("categories").select("id,name,type").eq("is_system", true),
+    auth.db.from("categories").select("id,name,type").eq("is_system", true),
     // System + user-owned merchants (RLS scopes "own" to the caller).
-    auth.supabase.from("merchants").select("name,category_id")
+    auth.db.from("merchants").select("name,category_id")
   ]);
 
   const categoryRows = (systemCategories ?? []) as CategoryRow[];

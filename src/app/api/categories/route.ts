@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
     return auth.response;
   }
 
-  const { data, error } = await auth.supabase
+  const { data, error } = await auth.db
     .from("categories")
     .select("id,name,icon,color,type,is_system")
     .eq("is_system", true)

@@ -23,7 +23,7 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({ error: "PIN harus berisi 4 sampai 8 digit." }, { status: 400 });
   }
 
-  const { error } = await auth.supabase
+  const { error } = await auth.db
     .from("profiles")
     .upsert({ id: auth.user.id, pin_hash: hashPin(parsed.data.pin) }, { onConflict: "id" });
 
@@ -41,7 +41,7 @@ export async function DELETE(request: NextRequest) {
     return auth.response;
   }
 
-  const { error } = await auth.supabase.from("profiles").update({ pin_hash: null }).eq("id", auth.user.id);
+  const { error } = await auth.db.from("profiles").update({ pin_hash: null }).eq("id", auth.user.id);
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });

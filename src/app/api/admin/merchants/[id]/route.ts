@@ -57,7 +57,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     patch.category_id = parsed.data.category_id ?? null;
   }
 
-  const { data, error } = await auth.supabase
+  const { data, error } = await auth.db
     .from("merchants")
     .update(patch)
     .eq("id", id)
@@ -80,7 +80,7 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
   }
 
   const { id } = await context.params;
-  const { error } = await auth.supabase.from("merchants").delete().eq("id", id).eq("is_system", true);
+  const { error } = await auth.db.from("merchants").delete().eq("id", id).eq("is_system", true);
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });

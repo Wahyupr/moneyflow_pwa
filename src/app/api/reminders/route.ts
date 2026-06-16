@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
     return auth.response;
   }
 
-  const { data, error } = await auth.supabase
+  const { data, error } = await auth.db
     .from("recurring_rules")
     .select(
       "id,user_id,wallet_id,category_id,merchant_id,name,amount_minor,currency,frequency,day_of_month,day_of_week,next_run_at,remind_days_before,is_active,last_paid_at"
@@ -69,7 +69,7 @@ export async function POST(request: NextRequest) {
   }
   const input = parsed.data;
 
-  const { data, error } = await auth.supabase
+  const { data, error } = await auth.db
     .from("recurring_rules")
     .insert({
       user_id: auth.user.id,

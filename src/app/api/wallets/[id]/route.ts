@@ -15,7 +15,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
   }
 
   const { id } = await context.params;
-  const { data, error } = await auth.supabase
+  const { data, error } = await auth.db
     .from("wallets")
     .select("*")
     .eq("id", id)
@@ -44,7 +44,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
   }
 
   const { id } = await context.params;
-  const { data, error } = await auth.supabase
+  const { data, error } = await auth.db
     .from("wallets")
     .update(parsed.data)
     .eq("id", id)
@@ -68,7 +68,7 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
   }
 
   const { id } = await context.params;
-  const { data, error } = await auth.supabase
+  const { data, error } = await auth.db
     .from("wallets")
     .update(buildArchivedWalletUpdate(new Date().toISOString()))
     .eq("id", id)

@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
   }
 
   const { searchParams } = new URL(request.url);
-  let query = auth.supabase.from("transactions").select("*").eq("user_id", auth.user.id).order("occurred_at", { ascending: false });
+  let query = auth.db.from("transactions").select("*").eq("user_id", auth.user.id).order("occurred_at", { ascending: false });
 
   if (searchParams.get("wallet")) {
     query = query.eq("wallet_id", searchParams.get("wallet"));
@@ -43,7 +43,7 @@ export async function GET(request: NextRequest) {
   }
 
   // Resolve merchant logos by name from the global merchant directory.
-  const { data: merchants } = await auth.supabase.from("merchants").select("name,logo_url").eq("is_system", true);
+  const { data: merchants } = await auth.db.from("merchants").select("name,logo_url").eq("is_system", true);
   const merchantLogoByName = new Map<string, string>();
   for (const merchant of (merchants ?? []) as Array<{ name: string; logo_url: string | null }>) {
     if (merchant.logo_url) {
@@ -76,7 +76,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid transaction payload." }, { status: 400 });
   }
 
-  const { data, error } = await auth.supabase
+  const { data, error } = await auth.db
     .from("transactions")
     .insert({ ...parsed.data, user_id: auth.user.id })
     .select("*")
