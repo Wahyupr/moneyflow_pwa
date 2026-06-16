@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowDownRight, ArrowUpRight, ChevronLeft, ChevronRight, Store } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, ChevronLeft, ChevronRight, Download, FileSpreadsheet, Store } from "lucide-react";
 
 import { useCallback, useEffect, useState } from "react";
 import { AppFrame } from "@/components/app-frame";
@@ -56,6 +56,8 @@ function ReportsContent() {
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   const load = useCallback(async (params: string) => {
     setLoading(true);
@@ -73,6 +75,43 @@ function ReportsContent() {
       setLoading(false);
     }
   }, []);
+
+  function buildExportParams(): string | null {
+    if (mode === "month") return `month=${month}`;
+    if (customFrom && customTo && customFrom <= customTo) return `from=${customFrom}&to=${customTo}`;
+    return null;
+  }
+
+  async function exportExcel() {
+    const params = buildExportParams();
+    if (!params) return;
+    setExporting(true);
+    setExportError(null);
+    try {
+      const response = await fetch(`/api/reports/export?${params}`);
+      if (!response.ok) {
+        const errJson = (await response.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(errJson?.error ?? "Gagal mengekspor laporan.");
+      }
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      // Pull filename from Content-Disposition if present, else fallback.
+      const disposition = response.headers.get("content-disposition") ?? "";
+      const match = /filename\*=UTF-8''([^;]+)/i.exec(disposition);
+      const fallbackMatch = /filename="([^"]+)"/i.exec(disposition);
+      a.download = match ? decodeURIComponent(match[1]) : fallbackMatch ? fallbackMatch[1] : "laporan-keuangan.xlsx";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      setExportError(error instanceof Error ? error.message : "Gagal mengekspor laporan.");
+    } finally {
+      setExporting(false);
+    }
+  }
 
   useEffect(() => {
     if (mode === "month") {
@@ -142,6 +181,40 @@ function ReportsContent() {
           {customFrom} — {customTo}
         </p>
       )}
+
+      <section className="rounded-xl bg-surface p-4 shadow-card">
+        <div className="flex items-start gap-3">
+          <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <FileSpreadsheet size={20} />
+          </div>
+          <div className="min-w-0 flex-1">
+            <h2 className="text-base font-bold text-ink">Export Laporan ke Excel</h2>
+            <p className="mt-1 text-xs text-muted">
+              Workbook 6 sheet berwarna + Analisis AI detail di sheet terakhir.
+            </p>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              <SheetChip color="bg-orange-500" label="Ringkasan" />
+              <SheetChip color="bg-blue-500" label="Kategori" />
+              <SheetChip color="bg-purple-500" label="Merchant" />
+              <SheetChip color="bg-emerald-500" label="Tren" />
+              <SheetChip color="bg-slate-500" label="Transaksi" />
+              <SheetChip color="bg-amber-500" label="AI Insight" />
+            </div>
+            <button
+              type="button"
+              className="mt-3 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-bold text-white active:scale-[0.98] disabled:opacity-50"
+              disabled={exporting || loading}
+              onClick={() => void exportExcel()}
+            >
+              <Download size={16} className={exporting ? "animate-bounce" : ""} />
+              {exporting ? "Menyiapkan Excel + Analisis AI..." : "Download .xlsx"}
+            </button>
+            {exportError ? (
+              <p className="mt-2 text-xs font-semibold text-expense">{exportError}</p>
+            ) : null}
+          </div>
+        </div>
+      </section>
 
 
       {loading ? (
@@ -254,5 +327,14 @@ function Metric({ title, value, tone, icon: Icon }: { title: string; value: stri
       <p className="text-sm text-muted">{title}</p>
       <p className={`mt-1 break-words text-base font-bold ${tone === "income" ? "text-income" : "text-expense"}`}>{value}</p>
     </article>
+  );
+}
+
+function SheetChip({ color, label }: { color: string; label: string }) {
+  return (
+    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold text-white ${color}`}>
+      <span aria-hidden="true" className="inline-block size-1.5 rounded-full bg-white/80" />
+      {label}
+    </span>
   );
 }

@@ -15,10 +15,10 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "db:migrate": "node scripts/run-migration.mjs"
-
   },
   "dependencies": {
     "clsx": "^2.1.1",
+    "exceljs": "^4.4.0",
     "lucide-react": "^0.468.0",
     "next": "^15.1.0",
     "pg": "^8.21.0",

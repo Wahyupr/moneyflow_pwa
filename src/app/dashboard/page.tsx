@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ArrowDownRight, ArrowUpRight, Eye, EyeOff, TrendingUp } from "lucide-react";
 import { useEffect, useState } from "react";
 import { AppFrame } from "@/components/app-frame";
+import { DailyInsightCard } from "@/components/daily-insight-card";
 import { usePrivacy } from "@/components/privacy-provider";
 import { TransactionRow } from "@/components/transaction-row";
 import { WalletCard } from "@/components/wallet-card";
@@ -186,10 +187,7 @@ function DashboardContent() {
         </div>
       </section>
 
-      <section className="mt-4 flex items-center gap-2 rounded-lg bg-surface px-3 py-2 shadow-card">
-        <span className="text-xs font-semibold text-muted">{dashboard.insight.title}</span>
-        <span className="text-xs text-ink">{dashboard.insight.message}</span>
-      </section>
+      <DailyInsightCard />
 
       <section className="mt-6">
         <div className="mb-3 flex items-center justify-between">

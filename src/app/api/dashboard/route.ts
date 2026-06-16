@@ -22,6 +22,14 @@ export async function GET(request: NextRequest) {
   const monthStart = `${month}-01T00:00:00.000Z`;
   const monthEnd = nextMonthIso(month);
 
+  // Stamp first-app-access atomically. The WHERE clause makes this safe to call
+  // on every dashboard load: only the very first request updates the row.
+  await query(
+    `update profiles set first_app_access_at = now()
+     where id = $1 and first_app_access_at is null`,
+    [auth.user.id]
+  );
+
   // Fetch all wallets the user has access to: owned + shared via wallet_members.
   const walletsResult = await query<{
     id: string;
@@ -84,9 +92,10 @@ export async function GET(request: NextRequest) {
         `select t.id, t.user_id, t.wallet_id, t.category_id, t.merchant_name,
                 t.payment_method, t.transaction_type, t.amount_minor, t.currency,
                 t.occurred_at, t.transfer_pair_id,
-                coalesce(u.display_name, u.email) as created_by_name
+                case when w.is_shared then coalesce(u.display_name, u.email) else null end as created_by_name
          from transactions t
          join users u on u.id = t.user_id
+         join wallets w on w.id = t.wallet_id
          where t.wallet_id in (${placeholders})`,
         walletIds
       ),
@@ -94,9 +103,10 @@ export async function GET(request: NextRequest) {
         `select t.id, t.user_id, t.wallet_id, t.category_id, t.merchant_name,
                 t.payment_method, t.transaction_type, t.amount_minor, t.currency,
                 t.occurred_at, t.transfer_pair_id,
-                coalesce(u.display_name, u.email) as created_by_name
+                case when w.is_shared then coalesce(u.display_name, u.email) else null end as created_by_name
          from transactions t
          join users u on u.id = t.user_id
+         join wallets w on w.id = t.wallet_id
          where t.wallet_id in (${placeholders})
            and t.occurred_at >= $${walletIds.length + 1}
            and t.occurred_at < $${walletIds.length + 2}
