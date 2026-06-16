@@ -59,7 +59,13 @@ export async function GET(request: NextRequest) {
       display_name: user.display_name
     });
 
-    const response = NextResponse.redirect(getAuthRedirectUrl(next));
+    // Route through the welcome interstitial instead of jumping straight to the
+    // dashboard. The session cookie is already set on this response; the
+    // welcome page reads `next` and performs a client-side redirect after a
+    // short visual delay so the user sees confirmation that sign-in succeeded.
+    const response = NextResponse.redirect(
+      getAuthRedirectUrl(`/auth/welcome?next=${encodeURIComponent(next)}`)
+    );
     setSessionCookie(response, token, expiresIn);
     return clearOauthCookies(response);
   } catch {

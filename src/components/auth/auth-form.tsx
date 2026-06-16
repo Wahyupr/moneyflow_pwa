@@ -57,7 +57,12 @@ export function AuthForm({ mode }: { mode: AuthMode }) {
 
     const next = new URLSearchParams(window.location.search).get("next");
     const target = next ? `/api/auth/google?next=${encodeURIComponent(next)}` : "/api/auth/google";
-    window.location.href = target;
+    // Give React a tick to paint the overlay before the browser starts the
+    // cross-origin navigation to Google. Without this delay, the hard redirect
+    // can win the race and the user sees a frozen form instead of feedback.
+    window.setTimeout(() => {
+      window.location.href = target;
+    }, 350);
   }
 
 
@@ -135,7 +140,9 @@ export function AuthForm({ mode }: { mode: AuthMode }) {
   }
 
   return (
-    <form className="space-y-4" onSubmit={submit}>
+    <>
+      {oauthLoading ? <GoogleConnectingOverlay /> : null}
+      <form className="space-y-4" onSubmit={submit}>
       {isRegister ? <AuthField autoComplete="name" error={errors.fullName} icon={UserRound} id="fullName" label="Full Name" name="fullName" placeholder="Nara Putri" type="text" /> : null}
 
       <AuthField autoComplete="email" error={errors.email} icon={Mail} id="email" label="Email Address" name="email" placeholder="name@example.com" type="email" />
@@ -222,6 +229,33 @@ export function AuthForm({ mode }: { mode: AuthMode }) {
 
       ) : null}
     </form>
+    </>
+  );
+}
+
+function GoogleConnectingOverlay() {
+  return (
+    <div
+      aria-live="assertive"
+      role="status"
+      className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden bg-background/85 px-5 backdrop-blur-md"
+    >
+      <div className="pointer-events-none absolute -left-24 -top-24 size-80 rounded-full bg-primary-container/25 blur-3xl" aria-hidden="true" />
+      <div className="pointer-events-none absolute -right-24 bottom-0 size-72 rounded-full bg-tertiary/20 blur-3xl" aria-hidden="true" />
+
+      <section className="relative w-full max-w-sm rounded-2xl border border-white/60 bg-white/90 p-6 text-center shadow-lift">
+        <div className="relative mx-auto mb-4 flex size-16 items-center justify-center">
+          <span className="absolute inset-0 animate-ping rounded-full bg-primary/15" aria-hidden="true" />
+          <div className="relative flex size-16 items-center justify-center rounded-full bg-primary text-white shadow-card">
+            <Loader2 aria-hidden="true" className="animate-spin" size={26} strokeWidth={2.4} />
+          </div>
+        </div>
+        <p className="text-base font-bold text-ink">Menghubungkan ke Google</p>
+        <p className="mt-1 text-sm leading-5 text-muted">
+          Membuka halaman login Google yang aman. Mohon tunggu sebentar…
+        </p>
+      </section>
+    </div>
   );
 }
 
