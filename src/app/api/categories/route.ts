@@ -55,13 +55,20 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Data tidak valid." }, { status: 400 });
   }
 
+  // Default colors per type matching the app's palette
+  const DEFAULT_COLOR: Record<string, string> = {
+    expense: "#EF4444",
+    income: "#10B981",
+    transfer: "#6366F1"
+  };
+
   const { data, error } = await auth.db
     .from("categories")
     .insert({
       name: parsed.data.name.trim(),
       type: parsed.data.type,
-      icon: parsed.data.icon ?? null,
-      color: parsed.data.color ?? null,
+      icon: parsed.data.icon ?? "tag",
+      color: parsed.data.color ?? (DEFAULT_COLOR[parsed.data.type] ?? "#6366F1"),
       user_id: auth.user.id,
       is_system: false
     })

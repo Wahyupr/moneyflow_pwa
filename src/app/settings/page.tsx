@@ -1,10 +1,11 @@
 "use client";
 
-import { Bell, List, LogOut, Plus, Save, Shield, Store, Trash2, UserRound } from "lucide-react";
+import { Bell, ChevronDown, List, LogOut, Plus, Save, Store, Trash2, UserRound } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { AppFrame } from "@/components/app-frame";
 import { MerchantManager } from "@/components/merchant-manager";
+import { ConfirmDialog, type ConfirmState } from "@/components/ui/confirm-dialog";
 import { SelectMenu } from "@/components/ui/select-menu";
 
 
@@ -18,7 +19,6 @@ export default function SettingsPage() {
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<"user" | "admin">("user");
-  const [pin, setPin] = useState("");
   const [status, setStatus] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -55,18 +55,6 @@ export default function SettingsPage() {
     setStatus(response.ok ? "Profile tersimpan." : "Gagal menyimpan profile.");
   }
 
-  async function savePin() {
-    const response = await fetch("/api/profile/pin", {
-      method: "PUT",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ pin })
-    });
-    setStatus(response.ok ? "PIN tersimpan." : "PIN gagal disimpan (4-8 digit).");
-    if (response.ok) {
-      setPin("");
-    }
-  }
-
   return (
     <AppFrame title="Settings" subtitle="Pengaturan">
       <div className="mt-5 space-y-5">
@@ -95,31 +83,6 @@ export default function SettingsPage() {
           </button>
         </section>
 
-        <section className="rounded-xl bg-surface p-4 shadow-card" id="security">
-          <SectionTitle icon={Shield} title="PIN & Security" subtitle="PIN, biometrik, privacy mode" />
-          <label className="mt-4 block">
-            <span className="text-sm font-semibold text-muted">PIN</span>
-            <input
-              className="mt-2 min-h-12 w-full rounded-lg border border-outline bg-surface px-3 tracking-[0.3em] focus:border-primary focus:outline-none"
-              inputMode="numeric"
-              maxLength={8}
-              value={pin}
-              onChange={(event) => setPin(event.target.value)}
-            />
-          </label>
-          <div className="mt-4 grid grid-cols-2 gap-3">
-            <button className="min-h-12 rounded-lg bg-secondary px-4 font-bold text-white active:scale-[0.98]" onClick={savePin} type="button">
-              Set PIN
-            </button>
-            <button
-              className="min-h-12 rounded-lg bg-surface-container px-4 font-bold text-primary active:scale-[0.98]"
-              onClick={() => fetch("/api/profile/pin", { method: "DELETE" }).finally(() => setStatus("PIN dihapus."))}
-              type="button"
-            >
-              Hapus PIN
-            </button>
-          </div>
-        </section>
 
         {/* User-level merchant management */}
         <UserMerchantSection onStatus={setStatus} />
@@ -163,10 +126,10 @@ export default function SettingsPage() {
         {status ? <p className="rounded-lg bg-surface-container p-3 text-sm font-semibold text-primary">{status}</p> : null}
 
         <button
-          className="flex min-h-12 w-full items-center justify-center gap-2 rounded-lg text-error active:bg-error-container"
+          className="flex min-h-12 w-full items-center justify-center gap-2 rounded-lg bg-expense font-bold text-white active:scale-[0.98] active:brightness-90"
           onClick={() => {
             fetch("/api/auth/logout", { method: "POST" }).finally(() => {
-              window.location.href = "/";
+              window.location.href = "/login";
             });
           }}
           type="button"
@@ -186,6 +149,7 @@ function UserMerchantSection({ onStatus }: { onStatus: (s: string) => void }) {
   const [merchants, setMerchants] = useState<MerchantItem[]>([]);
   const [newName, setNewName] = useState("");
   const [busy, setBusy] = useState(false);
+  const [confirm, setConfirm] = useState<ConfirmState | null>(null);
 
   async function load() {
     const res = await fetch("/api/merchants");
@@ -208,37 +172,52 @@ function UserMerchantSection({ onStatus }: { onStatus: (s: string) => void }) {
     } finally { setBusy(false); }
   }
 
-  async function remove(id: string) {
-    if (!window.confirm("Hapus merchant ini?")) return;
-    const res = await fetch(`/api/merchants?id=${id}`, { method: "DELETE" });
-    if (res.ok) { await load(); onStatus("Merchant dihapus."); }
-    else onStatus("Gagal hapus merchant.");
+  function remove(id: string, name: string) {
+    setConfirm({
+      title: "Hapus Merchant",
+      message: `"${name}" akan dihapus secara permanen.`,
+      confirmLabel: "Ya, Hapus",
+      onConfirm: async () => {
+        const res = await fetch(`/api/merchants?id=${id}`, { method: "DELETE" });
+        if (res.ok) { await load(); onStatus("Merchant dihapus."); }
+        else onStatus("Gagal hapus merchant.");
+      }
+    });
   }
 
-  const own = merchants.filter((m) => !m.is_system);
-  const system = merchants.filter((m) => m.is_system);
+  const [showSystem, setShowSystem] = useState(false);
+  const systemMerchants = merchants.filter((m) => m.is_system);
+  const ownMerchants = merchants.filter((m) => !m.is_system);
 
   return (
     <section className="rounded-xl bg-surface p-4 shadow-card">
-      <SectionTitle icon={Store} title="Merchant Saya" subtitle="Merchant pribadi & global" />
+      {confirm ? <ConfirmDialog {...confirm} onCancel={() => setConfirm(null)} /> : null}
+      <SectionTitle icon={Store} title="Merchant" subtitle="Kelola merchant" />
       <div className="mt-4 space-y-2">
-        {system.length > 0 ? (
-          <p className="text-xs font-semibold text-muted">GLOBAL (dari admin)</p>
+        {/* System merchants — collapsible */}
+        {systemMerchants.length > 0 ? (
+          <button
+            type="button"
+            onClick={() => setShowSystem((v) => !v)}
+            className="flex w-full items-center justify-between rounded-lg px-2 py-1 text-xs font-semibold text-muted hover:bg-surface-container"
+          >
+            <span>Merchant global ({systemMerchants.length})</span>
+            <ChevronDown size={14} className={`transition-transform ${showSystem ? "rotate-180" : ""}`} />
+          </button>
         ) : null}
-        {system.map((m) => (
+        {showSystem
+          ? systemMerchants.map((m) => (
+              <div key={m.id} className="flex items-center gap-2 rounded-lg bg-surface-container px-3 py-2 text-sm">
+                {m.logo_url ? <img src={m.logo_url} alt="" className="size-5 rounded-full object-cover" /> : null}
+                <span className="flex-1 font-semibold text-ink">{m.name}</span>
+              </div>
+            ))
+          : null}
+        {ownMerchants.map((m) => (
           <div key={m.id} className="flex items-center gap-2 rounded-lg bg-surface-container px-3 py-2 text-sm">
             {m.logo_url ? <img src={m.logo_url} alt="" className="size-5 rounded-full object-cover" /> : null}
             <span className="flex-1 font-semibold text-ink">{m.name}</span>
-            <span className="text-xs text-muted">global</span>
-          </div>
-        ))}
-        {own.length > 0 ? (
-          <p className="mt-3 text-xs font-semibold text-muted">MILIKKU</p>
-        ) : null}
-        {own.map((m) => (
-          <div key={m.id} className="flex items-center gap-2 rounded-lg bg-surface-container px-3 py-2 text-sm">
-            <span className="flex-1 font-semibold text-ink">{m.name}</span>
-            <button type="button" onClick={() => remove(m.id)} className="text-muted hover:text-expense">
+            <button type="button" onClick={() => remove(m.id, m.name)} className="text-muted hover:text-expense">
               <Trash2 size={15} />
             </button>
           </div>
@@ -265,6 +244,7 @@ function UserCategorySection({ onStatus }: { onStatus: (s: string) => void }) {
   const [newName, setNewName] = useState("");
   const [newType, setNewType] = useState("expense");
   const [busy, setBusy] = useState(false);
+  const [confirm, setConfirm] = useState<ConfirmState | null>(null);
 
   async function load() {
     const res = await fetch("/api/categories");
@@ -287,39 +267,59 @@ function UserCategorySection({ onStatus }: { onStatus: (s: string) => void }) {
     } finally { setBusy(false); }
   }
 
-  async function remove(id: string) {
-    if (!window.confirm("Hapus kategori ini?")) return;
-    const res = await fetch(`/api/categories?id=${id}`, { method: "DELETE" });
-    if (res.ok) { await load(); onStatus("Kategori dihapus."); }
-    else onStatus("Gagal hapus kategori.");
+  function remove(id: string, name: string) {
+    setConfirm({
+      title: "Hapus Kategori",
+      message: `"${name}" akan dihapus secara permanen.`,
+      confirmLabel: "Ya, Hapus",
+      onConfirm: async () => {
+        const res = await fetch(`/api/categories?id=${id}`, { method: "DELETE" });
+        if (res.ok) { await load(); onStatus("Kategori dihapus."); }
+        else onStatus("Gagal hapus kategori.");
+      }
+    });
   }
 
   const TYPE_LABEL: Record<string, string> = { expense: "Pengeluaran", income: "Pemasukan", transfer: "Transfer" };
-  const own = categories.filter((c) => !c.is_system);
-  const system = categories.filter((c) => c.is_system);
+  const TYPE_COLOR: Record<string, string> = {
+    expense: "bg-expense/10 text-expense",
+    income: "bg-income/10 text-income",
+    transfer: "bg-transfer/10 text-transfer"
+  };
+
+  const [showSystemCats, setShowSystemCats] = useState(false);
+  const systemCategories = categories.filter((c) => c.is_system);
+  const ownCategories = categories.filter((c) => !c.is_system);
 
   return (
     <section className="rounded-xl bg-surface p-4 shadow-card">
-      <SectionTitle icon={List} title="Kategori Saya" subtitle="Kategori pribadi & global" />
+      {confirm ? <ConfirmDialog {...confirm} onCancel={() => setConfirm(null)} /> : null}
+      <SectionTitle icon={List} title="Kategori" subtitle="Kelola kategori" />
       <div className="mt-4 space-y-2">
-        {system.length > 0 ? (
-          <p className="text-xs font-semibold text-muted">GLOBAL (dari admin)</p>
+        {/* System categories — collapsible */}
+        {systemCategories.length > 0 ? (
+          <button
+            type="button"
+            onClick={() => setShowSystemCats((v) => !v)}
+            className="flex w-full items-center justify-between rounded-lg px-2 py-1 text-xs font-semibold text-muted hover:bg-surface-container"
+          >
+            <span>Kategori global ({systemCategories.length})</span>
+            <ChevronDown size={14} className={`transition-transform ${showSystemCats ? "rotate-180" : ""}`} />
+          </button>
         ) : null}
-        {system.map((c) => (
+        {showSystemCats
+          ? systemCategories.map((c) => (
+              <div key={c.id} className="flex items-center gap-2 rounded-lg bg-surface-container px-3 py-2 text-sm">
+                <span className="flex-1 font-semibold text-ink">{c.name}</span>
+                <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${TYPE_COLOR[c.type] ?? "bg-surface-container text-muted"}`}>{TYPE_LABEL[c.type] ?? c.type}</span>
+              </div>
+            ))
+          : null}
+        {ownCategories.map((c) => (
           <div key={c.id} className="flex items-center gap-2 rounded-lg bg-surface-container px-3 py-2 text-sm">
             <span className="flex-1 font-semibold text-ink">{c.name}</span>
-            <span className="text-xs text-muted">{TYPE_LABEL[c.type] ?? c.type}</span>
-            <span className="text-xs text-muted">global</span>
-          </div>
-        ))}
-        {own.length > 0 ? (
-          <p className="mt-3 text-xs font-semibold text-muted">MILIKKU</p>
-        ) : null}
-        {own.map((c) => (
-          <div key={c.id} className="flex items-center gap-2 rounded-lg bg-surface-container px-3 py-2 text-sm">
-            <span className="flex-1 font-semibold text-ink">{c.name}</span>
-            <span className="text-xs text-muted">{TYPE_LABEL[c.type] ?? c.type}</span>
-            <button type="button" onClick={() => remove(c.id)} className="text-muted hover:text-expense">
+            <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${TYPE_COLOR[c.type] ?? "bg-surface-container text-muted"}`}>{TYPE_LABEL[c.type] ?? c.type}</span>
+            <button type="button" onClick={() => remove(c.id, c.name)} className="text-muted hover:text-expense">
               <Trash2 size={15} />
             </button>
           </div>

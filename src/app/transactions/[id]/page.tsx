@@ -4,6 +4,7 @@ import { ArrowLeft, Pencil, ReceiptText, Trash2, X } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
+import { ConfirmDialog, type ConfirmState } from "@/components/ui/confirm-dialog";
 import { SelectMenu } from "@/components/ui/select-menu";
 import { AppFrame } from "@/components/app-frame";
 import { usePrivacy } from "@/components/privacy-provider";
@@ -44,6 +45,7 @@ function DetailContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showEdit, setShowEdit] = useState(false);
+  const [confirm, setConfirm] = useState<ConfirmState | null>(null);
   const [wallets, setWallets] = useState<WalletOption[]>([]);
   const [categories, setCategories] = useState<CategoryOption[]>([]);
 
@@ -72,11 +74,18 @@ function DetailContent() {
     return () => { cancelled = true; };
   }, [id]);
 
-  async function handleDelete() {
-    if (!tx || !window.confirm("Hapus transaksi ini? Aksi tidak bisa dibatalkan.")) return;
-    const res = await fetch(`/api/transactions/${tx.id}`, { method: "DELETE" });
-    if (res.ok) { router.refresh(); router.push("/transactions"); }
-    else { const d = await res.json().catch(() => null); setError(d?.error ?? "Gagal menghapus."); }
+  function handleDelete() {
+    if (!tx) return;
+    setConfirm({
+      title: "Hapus Transaksi",
+      message: "Transaksi ini akan dihapus secara permanen dan tidak bisa dikembalikan.",
+      confirmLabel: "Ya, Hapus",
+      onConfirm: async () => {
+        const res = await fetch(`/api/transactions/${tx.id}`, { method: "DELETE" });
+        if (res.ok) { router.refresh(); router.push("/transactions"); }
+        else { const d = await res.json().catch(() => null); setError(d?.error ?? "Gagal menghapus."); }
+      }
+    });
   }
 
   if (loading) {
@@ -98,6 +107,7 @@ function DetailContent() {
 
   return (
     <div className="mt-5 space-y-4 pb-6">
+      {confirm ? <ConfirmDialog {...confirm} onCancel={() => setConfirm(null)} /> : null}
       <div className="flex items-center justify-between">
         <Link href="/transactions" className="inline-flex items-center gap-1 text-sm font-bold text-primary">
           <ArrowLeft size={16} /> Kembali
