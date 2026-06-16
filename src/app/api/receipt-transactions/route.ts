@@ -23,7 +23,8 @@ const SaveSchema = z.object({
   wallet_id: z.string().uuid(),
   category_id: z.string().uuid().nullable().optional(),
   payment_method: z.string().max(80).nullable().optional(),
-  occurred_at: z.string().datetime().optional(),
+  // Accept any date/datetime string from the AI (e.g. "2026-06-15" or full ISO).
+  occurred_at: z.string().optional(),
   // Compressed receipt photo as a data URL ("data:image/jpeg;base64,...").
   // Stored on the transaction so the user can view the proof later.
   // Accept any reasonable size — oversized images are trimmed server-side.
@@ -33,6 +34,23 @@ const SaveSchema = z.object({
 type WalletRow = { id: string; name: string; type: string; institution_name: string | null };
 type CategoryRow = { id: string; name: string; type: string };
 type MerchantRow = { name: string; category_id: string | null };
+
+/**
+ * Coerce any date/datetime string from the AI into a full ISO 8601 datetime.
+ * The AI may return "2026-06-15" (date only) or a full ISO string. Postgres
+ * timestamptz requires a time component, so we append T00:00:00Z when missing.
+ */
+function toIsoDatetime(value: string | undefined | null): string {
+  if (!value) return new Date().toISOString();
+  // Already a full ISO datetime (contains "T")
+  if (value.includes("T")) {
+    const d = new Date(value);
+    return Number.isNaN(d.getTime()) ? new Date().toISOString() : d.toISOString();
+  }
+  // Date-only string like "2026-06-15" — treat as local midnight UTC
+  const d = new Date(`${value}T00:00:00.000Z`);
+  return Number.isNaN(d.getTime()) ? new Date().toISOString() : d.toISOString();
+}
 
 function norm(value: string): string {
   return value.toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -110,7 +128,7 @@ export async function POST(request: NextRequest) {
         transaction_type: save.data.transaction_type,
         amount_minor: save.data.amount_minor,
         currency: "IDR",
-        occurred_at: save.data.occurred_at ?? new Date().toISOString(),
+        occurred_at: toIsoDatetime(save.data.occurred_at),
         merchant_name: save.data.merchant_name?.trim() ? save.data.merchant_name.trim() : null,
         payment_method: save.data.payment_method ?? null,
         input_method: "receipt_scan",

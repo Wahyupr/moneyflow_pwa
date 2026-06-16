@@ -1,6 +1,6 @@
 "use client";
 
-import { Camera, Check, ReceiptText, RotateCcw } from "lucide-react";
+import { Camera, Check, ImageIcon, ReceiptText, RotateCcw } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { AppFrame } from "@/components/app-frame";
@@ -82,7 +82,8 @@ export default function ScanReceiptPage() {
 
 function ScanReceiptContent() {
   const router = useRouter();
-  const fileRef = useRef<HTMLInputElement | null>(null);
+  const cameraRef = useRef<HTMLInputElement | null>(null);
+  const galleryRef = useRef<HTMLInputElement | null>(null);
   const [imageData, setImageData] = useState<string | null>(null);
   const [base64, setBase64] = useState<string | null>(null);
   const [mediaType, setMediaType] = useState<"image/jpeg" | "image/png" | "image/webp">("image/jpeg");
@@ -119,8 +120,12 @@ function ScanReceiptContent() {
     return { walletList, merchantList };
   }, []);
 
-  function pickFile() {
-    fileRef.current?.click();
+  function pickCamera() {
+    cameraRef.current?.click();
+  }
+
+  function pickGallery() {
+    galleryRef.current?.click();
   }
 
   function onFileChange(event: React.ChangeEvent<HTMLInputElement>) {
@@ -297,20 +302,37 @@ function ScanReceiptContent() {
 
   return (
     <div className="mt-5 space-y-4">
-      <input ref={fileRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={onFileChange} />
+      {/* Camera input — opens camera directly on mobile */}
+      <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={onFileChange} />
+      {/* Gallery input — opens file picker / gallery */}
+      <input ref={galleryRef} type="file" accept="image/*" className="hidden" onChange={onFileChange} />
 
       {!imageData ? (
-        <button
-          className="flex w-full flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed border-outline bg-surface p-10 text-center active:scale-[0.99]"
-          onClick={pickFile}
-          type="button"
-        >
+        <div className="flex w-full flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed border-outline bg-surface p-8 text-center">
           <span className="flex size-14 items-center justify-center rounded-full bg-surface-container text-primary">
             <Camera size={26} />
           </span>
-          <span className="font-bold text-ink">Foto / Pilih Struk</span>
+          <span className="font-bold text-ink">Pilih Sumber Gambar</span>
           <span className="text-sm text-muted">Struk belanja, QRIS, atau bukti transfer</span>
-        </button>
+          <div className="mt-1 flex w-full gap-2">
+            <button
+              className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-primary px-4 py-3 text-sm font-bold text-white active:scale-[0.98]"
+              onClick={pickCamera}
+              type="button"
+            >
+              <Camera size={18} />
+              Kamera
+            </button>
+            <button
+              className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-surface-container px-4 py-3 text-sm font-bold text-ink active:scale-[0.98]"
+              onClick={pickGallery}
+              type="button"
+            >
+              <ImageIcon size={18} />
+              Galeri
+            </button>
+          </div>
+        </div>
       ) : (
         <div className="overflow-hidden rounded-xl bg-surface shadow-card">
           {/* eslint-disable-next-line @next/next/no-img-element */}
