@@ -1,61 +1,11 @@
 "use client";
 
-import {
-  Banknote,
-  Bus,
-  Car,
-  Coffee,
-  CreditCard,
-  Gift,
-  GraduationCap,
-  Heart,
-  Home,
-  Plane,
-  PiggyBank,
-  Receipt,
-  ShoppingBag,
-  ShoppingCart,
-  Smartphone,
-  Sparkles,
-  Tag,
-  Utensils,
-  Wallet,
-  Wrench,
-  Zap
-} from "lucide-react";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Tag } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { LucideIcon } from "lucide-react";
+import { CATEGORY_ICON_OPTIONS, getCategoryIcon, getCategoryIconLabel } from "@/lib/category-icons";
 
 
 type CategoryType = "expense" | "income" | "transfer";
-
-/** Curated set of category icons the admin can choose from (no free typing). */
-const ICON_OPTIONS: { value: string; label: string; Icon: LucideIcon }[] = [
-  { value: "tag", label: "Umum", Icon: Tag },
-  { value: "utensils", label: "Makan", Icon: Utensils },
-  { value: "coffee", label: "Kopi", Icon: Coffee },
-  { value: "shopping-cart", label: "Belanja", Icon: ShoppingCart },
-  { value: "shopping-bag", label: "Tas Belanja", Icon: ShoppingBag },
-  { value: "car", label: "Mobil", Icon: Car },
-  { value: "bus", label: "Transport", Icon: Bus },
-  { value: "plane", label: "Travel", Icon: Plane },
-  { value: "home", label: "Rumah", Icon: Home },
-  { value: "zap", label: "Listrik", Icon: Zap },
-  { value: "smartphone", label: "Pulsa", Icon: Smartphone },
-  { value: "receipt", label: "Tagihan", Icon: Receipt },
-  { value: "heart", label: "Kesehatan", Icon: Heart },
-  { value: "graduation-cap", label: "Pendidikan", Icon: GraduationCap },
-  { value: "gift", label: "Hadiah", Icon: Gift },
-  { value: "sparkles", label: "Hiburan", Icon: Sparkles },
-  { value: "wrench", label: "Perbaikan", Icon: Wrench },
-  { value: "banknote", label: "Gaji", Icon: Banknote },
-  { value: "wallet", label: "Dompet", Icon: Wallet },
-  { value: "piggy-bank", label: "Tabungan", Icon: PiggyBank },
-  { value: "credit-card", label: "Kartu", Icon: CreditCard }
-];
-
-const ICON_BY_VALUE = new Map(ICON_OPTIONS.map((option) => [option.value, option.Icon]));
 
 
 type Category = {
@@ -87,8 +37,8 @@ export function CategoryManager({ onStatus }: { onStatus: (message: string) => v
   const [typeOpen, setTypeOpen] = useState(false);
   const iconRef = useRef<HTMLDivElement>(null);
   const typeRef = useRef<HTMLDivElement>(null);
-  const SelectedIcon = ICON_BY_VALUE.get(icon) ?? Tag;
-  const selectedLabel = ICON_OPTIONS.find((option) => option.value === icon)?.label ?? "Umum";
+  const SelectedIcon = getCategoryIcon(icon);
+  const selectedLabel = getCategoryIconLabel(icon);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -262,7 +212,7 @@ export function CategoryManager({ onStatus }: { onStatus: (message: string) => v
               role="listbox"
               className="absolute z-20 mt-1 max-h-60 w-full overflow-y-auto rounded-lg border border-outline bg-surface py-1 shadow-lift"
             >
-              {ICON_OPTIONS.map((option) => {
+              {CATEGORY_ICON_OPTIONS.map((option) => {
                 const OptionIcon = option.Icon;
                 const selected = icon === option.value;
 
@@ -325,7 +275,7 @@ export function CategoryManager({ onStatus }: { onStatus: (message: string) => v
       {categories.length > 0 ? (
         <ul className="mt-4 space-y-2">
           {categories.map((category) => {
-            const ListIcon = ICON_BY_VALUE.get(category.icon) ?? Tag;
+            const ListIcon = getCategoryIcon(category.icon);
 
             return (
             <li className="flex items-center gap-3 rounded-lg border border-outline p-2" key={category.id}>

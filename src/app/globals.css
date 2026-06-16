@@ -30,6 +30,17 @@ select {
   }
 }
 
+@keyframes voice-bar {
+  0% {
+    transform: scaleY(0.35);
+    opacity: 0.6;
+  }
+  100% {
+    transform: scaleY(1.4);
+    opacity: 1;
+  }
+}
+
 .otp-caret {
   display: block;
   width: 2px;

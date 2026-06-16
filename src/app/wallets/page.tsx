@@ -1,8 +1,6 @@
 "use client";
 
 import {
-  ArrowDownToLine,
-  ArrowRightLeft,
   CreditCard,
   Loader2,
   Mail,
@@ -14,7 +12,6 @@ import {
   UserPlus,
   UsersRound,
   Wallet,
-  WalletCards,
   X
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
@@ -314,28 +311,6 @@ function WalletsContent() {
 
   return (
     <div className="mt-5 space-y-6">
-      <section className="rounded-xl bg-surface p-4 shadow-card">
-        <div className="flex items-start gap-3">
-          <div className="flex size-11 shrink-0 items-center justify-center rounded-full bg-surface-container text-primary">
-            <WalletCards aria-hidden="true" size={21} />
-          </div>
-          <div className="min-w-0 flex-1">
-            <h2 className="font-semibold text-ink">Aksi Dompet</h2>
-            <p className="text-sm text-muted">Top Up dan Transfer</p>
-          </div>
-        </div>
-        <div className="mt-4 grid grid-cols-2 gap-3">
-          <button className="flex min-h-12 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-base font-bold text-white shadow-card active:scale-[0.98]" type="button">
-            <ArrowDownToLine aria-hidden="true" size={18} />
-            Top Up
-          </button>
-          <button className="flex min-h-12 items-center justify-center gap-2 rounded-lg bg-secondary px-4 text-base font-bold text-white shadow-card active:scale-[0.98]" type="button">
-            <ArrowRightLeft aria-hidden="true" size={18} />
-            Transfer
-          </button>
-        </div>
-      </section>
-
       <section>
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-xl font-bold text-ink">Dompet Saya</h2>
