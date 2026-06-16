@@ -16,7 +16,7 @@ const ScanSchema = z.object({
 // Save the (possibly user-edited) transaction. The client sends the final
 // values chosen on the review screen, so we never re-run the AI here.
 const SaveSchema = z.object({
-  commit: z.literal(true).optional(),
+  commit: z.literal(true),
   transaction_type: z.enum(["expense", "income"]),
   amount_minor: z.number().int().positive(),
   merchant_name: z.string().max(120).nullable().optional(),
@@ -26,7 +26,8 @@ const SaveSchema = z.object({
   occurred_at: z.string().datetime().optional(),
   // Compressed receipt photo as a data URL ("data:image/jpeg;base64,...").
   // Stored on the transaction so the user can view the proof later.
-  receipt_image_data_url: z.string().max(2_000_000).startsWith("data:").optional()
+  // Accept any reasonable size — oversized images are trimmed server-side.
+  receipt_image_data_url: z.string().startsWith("data:").optional()
 });
 
 type WalletRow = { id: string; name: string; type: string; institution_name: string | null };
@@ -85,9 +86,21 @@ export async function POST(request: NextRequest) {
 
   const body = await request.json().catch(() => null);
 
+  // Route based on commit flag to avoid ambiguous fall-through.
+  const isCommit = body !== null && typeof body === "object" && (body as Record<string, unknown>).commit === true;
+
   // --- SAVE PATH: persist the reviewed/edited transaction. ---
-  const save = SaveSchema.safeParse(body);
-  if (save.success) {
+  if (isCommit) {
+    const save = SaveSchema.safeParse(body);
+    if (!save.success) {
+      const msg = save.error.errors.map((e) => e.message).join("; ");
+      return NextResponse.json({ error: `Data tidak valid: ${msg}` }, { status: 400 });
+    }
+
+    // Trim oversized receipt images to protect DB row size (>1.5 MB → skip).
+    const receiptUrl = save.data.receipt_image_data_url;
+    const safeReceiptUrl = receiptUrl && receiptUrl.length <= 1_500_000 ? receiptUrl : null;
+
     const { data, error } = await auth.db
       .from("transactions")
       .insert({
@@ -101,7 +114,7 @@ export async function POST(request: NextRequest) {
         merchant_name: save.data.merchant_name?.trim() ? save.data.merchant_name.trim() : null,
         payment_method: save.data.payment_method ?? null,
         input_method: "receipt_scan",
-        receipt_image_data_url: save.data.receipt_image_data_url ?? null
+        receipt_image_data_url: safeReceiptUrl
       })
       .select("*")
       .single();
