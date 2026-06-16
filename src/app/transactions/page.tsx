@@ -20,6 +20,8 @@ type TransactionRow = {
   note: string | null;
   transfer_pair_id: string | null;
   merchant_logo_url?: string | null;
+  created_by_name?: string | null;
+  wallet_name?: string | null;
 };
 
 
@@ -163,7 +165,10 @@ function TransactionGroup({
           const amount = `${sign}${formatCurrency(transaction.amount_minor, "IDR")}`;
 
           const time = new Date(transaction.occurred_at).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
-          const subtitle = [transaction.note, time].filter(Boolean).join(" · ");
+          const subtitleParts = [time, transaction.note].filter(Boolean);
+          const metaParts: string[] = [];
+          if (transaction.wallet_name) metaParts.push(transaction.wallet_name);
+          if (transaction.created_by_name) metaParts.push(`oleh ${transaction.created_by_name}`);
 
           return (
             <Link
@@ -183,7 +188,10 @@ function TransactionGroup({
 
                 <div className="min-w-0">
                   <h4 className="truncate font-bold text-ink">{transaction.merchant_name ?? "Transaksi"}</h4>
-                  <p className="truncate text-sm text-muted">{subtitle || time}</p>
+                  <p className="truncate text-sm text-muted">{subtitleParts.join(" · ")}</p>
+                  {metaParts.length > 0 ? (
+                    <p className="truncate text-xs text-muted/70">{metaParts.join(" · ")}</p>
+                  ) : null}
                 </div>
               </div>
               <p className={`shrink-0 text-right font-bold ${positive ? "text-income" : "text-ink"}`}>{displayAmount(amount)}</p>

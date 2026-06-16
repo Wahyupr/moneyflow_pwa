@@ -37,7 +37,8 @@ const ALLOWED_TABLES = new Set([
   "recurring_rules",
   "audit_logs",
   "subscription_entitlements",
-  "users"
+  "users",
+  "wallet_invites"
 ]);
 
 function assertTable(table: string) {

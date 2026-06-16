@@ -4,6 +4,7 @@ import { requireApiUser } from "@/lib/api/auth";
 import { buildDashboardViewModel, type DashboardBudget, type DashboardWallet } from "@/lib/dashboard";
 import { normalizeExtractionDraft } from "@/lib/extraction";
 import type { LedgerTransaction } from "@/lib/types";
+import { query } from "@/lib/db/pool";
 
 export const runtime = "nodejs";
 
@@ -18,42 +19,35 @@ export async function GET(request: NextRequest) {
 
   const { searchParams } = new URL(request.url);
   const month = searchParams.get("month") ?? new Date().toISOString().slice(0, 7);
-  const [
-    { data: wallets, error: walletsError },
-    { data: transactions, error: transactionsError },
-    { data: drafts, error: draftsError },
-    { data: profile },
-    { data: budgetRows, error: budgetsError },
-    { data: userCategories },
-    { data: systemCategories }
-  ] = await Promise.all([
+  const monthStart = `${month}-01T00:00:00.000Z`;
+  const monthEnd = nextMonthIso(month);
 
-    auth.db
-      .from("wallets")
-      .select("id,name,type,currency,color,icon,is_shared,opening_balance_minor")
-      .eq("user_id", auth.user.id)
-      .is("archived_at", null)
-      .order("created_at"),
-    auth.db
-      .from("transactions")
-      .select("id,user_id,wallet_id,category_id,merchant_name,payment_method,transaction_type,amount_minor,currency,occurred_at,transfer_pair_id")
-      .eq("user_id", auth.user.id)
-      .gte("occurred_at", `${month}-01T00:00:00.000Z`)
-      .lt("occurred_at", nextMonthIso(month))
-      .order("occurred_at", { ascending: false }),
-    auth.db.from("transaction_drafts").select("id,extracted_json").eq("user_id", auth.user.id).eq("status", "pending_review").limit(5),
-    auth.db.from("profiles").select("hide_nominal_default").eq("id", auth.user.id).maybeSingle(),
-    auth.db
-      .from("budgets")
-      .select("id,category_id,amount_limit_minor,period")
-      .eq("user_id", auth.user.id)
-      .eq("is_active", true)
-      .eq("period", "monthly"),
-    auth.db.from("categories").select("id,name").eq("user_id", auth.user.id),
-    auth.db.from("categories").select("id,name").eq("is_system", true)
-  ]);
+  // Fetch all wallets the user has access to: owned + shared via wallet_members.
+  const walletsResult = await query<{
+    id: string;
+    name: string;
+    type: string;
+    currency: string;
+    color: string;
+    icon: string;
+    is_shared: boolean;
+    opening_balance_minor: string;
+    member_role: string | null;
+  }>(
+    `select w.id, w.name, w.type, w.currency, w.color, w.icon,
+            w.is_shared, w.opening_balance_minor, wm.role as member_role
+     from wallets w
+     left join wallet_members wm on wm.wallet_id = w.id and wm.user_id = $1
+     where (w.user_id = $1 or wm.user_id = $1)
+       and w.archived_at is null
+     order by w.created_at asc`,
+    [auth.user.id]
+  );
 
-  // Global merchant directory (admin-managed) to resolve logos by name.
+  const walletRows = walletsResult.rows;
+  const walletIds = walletRows.map((w) => w.id);
+
+  // Resolve merchant logos once, used for both all-time and monthly transactions.
   const { data: merchants } = await auth.db.from("merchants").select("name,logo_url").eq("is_system", true);
   const merchantLogoByName = new Map<string, string>();
   for (const merchant of (merchants ?? []) as Array<{ name: string; logo_url: string | null }>) {
@@ -62,66 +56,102 @@ export async function GET(request: NextRequest) {
     }
   }
 
-
-
-  if (walletsError || transactionsError || draftsError || budgetsError) {
-    return NextResponse.json(
-      {
-        error:
-          walletsError?.message ??
-          transactionsError?.message ??
-          draftsError?.message ??
-          budgetsError?.message ??
-          "Unable to load dashboard."
-      },
-      { status: 500 }
-    );
+  function normalizeTx(transaction: Record<string, unknown>): LedgerTransaction {
+    return {
+      ...transaction,
+      amount_minor: Number(transaction.amount_minor),
+      occurred_at:
+        transaction.occurred_at instanceof Date
+          ? (transaction.occurred_at as Date).toISOString()
+          : String(transaction.occurred_at),
+      merchant_logo_url:
+        typeof transaction.merchant_name === "string"
+          ? merchantLogoByName.get(transaction.merchant_name.trim().toLowerCase()) ?? null
+          : null
+    } as unknown as LedgerTransaction;
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const walletRows: DashboardWallet[] = (wallets ?? []).map((wallet: any) => {
+  // Fetch all-time transactions for live balance calculation.
+  // Fetch monthly transactions for income/expense summaries and recent list.
+  let allTimeTx: LedgerTransaction[] = [];
+  let ledger: LedgerTransaction[] = [];
 
-    const walletTransactions = ((transactions ?? []) as LedgerTransaction[]).filter((transaction) => transaction.wallet_id === wallet.id);
-    // pg returns bigint columns as strings — coerce to Number before arithmetic.
-    const income = walletTransactions.filter((transaction) => transaction.transaction_type === "income").reduce((sum, transaction) => sum + Number(transaction.amount_minor), 0);
-    const expense = walletTransactions.filter((transaction) => transaction.transaction_type === "expense").reduce((sum, transaction) => sum + Number(transaction.amount_minor), 0);
+  if (walletIds.length > 0) {
+    const placeholders = walletIds.map((_, i) => `$${i + 1}`).join(", ");
+
+    const [allTimeResult, monthlyResult] = await Promise.all([
+      query<Record<string, unknown>>(
+        `select t.id, t.user_id, t.wallet_id, t.category_id, t.merchant_name,
+                t.payment_method, t.transaction_type, t.amount_minor, t.currency,
+                t.occurred_at, t.transfer_pair_id,
+                coalesce(u.display_name, u.email) as created_by_name
+         from transactions t
+         join users u on u.id = t.user_id
+         where t.wallet_id in (${placeholders})`,
+        walletIds
+      ),
+      query<Record<string, unknown>>(
+        `select t.id, t.user_id, t.wallet_id, t.category_id, t.merchant_name,
+                t.payment_method, t.transaction_type, t.amount_minor, t.currency,
+                t.occurred_at, t.transfer_pair_id,
+                coalesce(u.display_name, u.email) as created_by_name
+         from transactions t
+         join users u on u.id = t.user_id
+         where t.wallet_id in (${placeholders})
+           and t.occurred_at >= $${walletIds.length + 1}
+           and t.occurred_at < $${walletIds.length + 2}
+         order by t.occurred_at desc`,
+        [...walletIds, monthStart, monthEnd]
+      )
+    ]);
+
+    allTimeTx = allTimeResult.rows.map(normalizeTx);
+    ledger = monthlyResult.rows.map(normalizeTx);
+  }
+
+  // Build wallet view models with LIVE balance from ALL-TIME transactions.
+  // income_minor / expense_minor on the card show the monthly figure for context.
+  const dashboardWallets: DashboardWallet[] = walletRows.map((wallet) => {
+    const allTx = allTimeTx.filter((t) => t.wallet_id === wallet.id);
+    const monthTx = ledger.filter((t) => t.wallet_id === wallet.id);
+
+    const totalIncome = allTx.filter((t) => t.transaction_type === "income").reduce((sum, t) => sum + Number(t.amount_minor), 0);
+    const totalExpense = allTx.filter((t) => t.transaction_type === "expense").reduce((sum, t) => sum + Number(t.amount_minor), 0);
+    const monthIncome = monthTx.filter((t) => t.transaction_type === "income").reduce((sum, t) => sum + Number(t.amount_minor), 0);
+    const monthExpense = monthTx.filter((t) => t.transaction_type === "expense").reduce((sum, t) => sum + Number(t.amount_minor), 0);
 
     return {
       id: wallet.id,
       name: wallet.name,
       type: wallet.type,
-      balance_minor: Number(wallet.opening_balance_minor ?? 0) + income - expense,
-      income_minor: income,
-      expense_minor: expense,
+      balance_minor: Number(wallet.opening_balance_minor ?? 0) + totalIncome - totalExpense,
+      income_minor: monthIncome,
+      expense_minor: monthExpense,
       color: wallet.color,
       icon: wallet.icon,
       shared: wallet.is_shared
     };
   });
 
-  // pg returns timestamptz columns as Date objects; the reporting helpers expect
-  // ISO strings (they call `.startsWith(month)`). Normalize before use.
-  const ledger = ((transactions ?? []) as Array<Record<string, unknown>>).map((transaction) => ({
-    ...transaction,
-    // pg returns bigint columns as strings — coerce to number.
-    amount_minor: Number(transaction.amount_minor),
-    occurred_at:
-      transaction.occurred_at instanceof Date
-        ? transaction.occurred_at.toISOString()
-        : String(transaction.occurred_at),
-    merchant_logo_url:
-      typeof transaction.merchant_name === "string"
-        ? merchantLogoByName.get(transaction.merchant_name.trim().toLowerCase()) ?? null
-        : null
-  })) as unknown as LedgerTransaction[];
-
-
+  // Remaining parallel queries that are still user-scoped (personal data).
+  const [
+    { data: drafts },
+    { data: profile },
+    { data: budgetRows },
+    { data: userCategories },
+    { data: systemCategories }
+  ] = await Promise.all([
+    auth.db.from("transaction_drafts").select("id,extracted_json").eq("user_id", auth.user.id).eq("status", "pending_review").limit(5),
+    auth.db.from("profiles").select("hide_nominal_default").eq("id", auth.user.id).maybeSingle(),
+    auth.db.from("budgets").select("id,category_id,amount_limit_minor,period").eq("user_id", auth.user.id).eq("is_active", true).eq("period", "monthly"),
+    auth.db.from("categories").select("id,name").eq("user_id", auth.user.id),
+    auth.db.from("categories").select("id,name").eq("is_system", true)
+  ]);
 
   const categoryName = new Map<string, string>(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     [...(systemCategories ?? []), ...(userCategories ?? [])].map((category: any) => [category.id, category.name])
   );
-
 
   const expenseByCategory = new Map<string, number>();
   for (const transaction of ledger) {
@@ -143,7 +173,7 @@ export async function GET(request: NextRequest) {
 
   const dashboard = buildDashboardViewModel({
     month,
-    wallets: walletRows,
+    wallets: dashboardWallets,
     transactions: ledger,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     drafts: (drafts ?? []).map((item: any) => ({ id: item.id, draft: normalizeExtractionDraft(item.extracted_json) })),

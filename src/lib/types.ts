@@ -20,6 +20,8 @@ export type LedgerTransaction = {
   transfer_pair_id: string | null;
   /** Resolved from the global merchant directory by merchant_name, if matched. */
   merchant_logo_url?: string | null;
+  /** Display name or email of the user who created this transaction (for shared wallets). */
+  created_by_name?: string | null;
 };
 
 

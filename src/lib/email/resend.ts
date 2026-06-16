@@ -175,6 +175,81 @@ export async function sendVerificationEmail(to: string, code: string): Promise<{
 }
 
 /**
+ * Sends a wallet sharing invitation email with a one-click accept link.
+ */
+export async function sendWalletInviteEmail(input: {
+  to: string;
+  inviterName: string;
+  walletName: string;
+  inviteUrl: string;
+}): Promise<{ ok: boolean }> {
+  const subject = `${input.inviterName} mengundang kamu berbagi dompet di MoneyFlow`;
+  const text = `${input.inviterName} mengundangmu untuk berbagi dompet "${input.walletName}" di MoneyFlow. Klik link berikut untuk menerima: ${input.inviteUrl} — Link berlaku 7 hari.`;
+  const html = `
+    <body style="margin:0;padding:0;background-color:#eef3fb;font-family:'Plus Jakarta Sans',Arial,sans-serif;">
+      <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#eef3fb;padding:40px 16px;">
+        <tr>
+          <td align="center">
+            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:480px;background-color:#ffffff;border-radius:16px;overflow:hidden;">
+              <tr>
+                <td style="background-color:#1668DC;padding:28px 32px 24px;">
+                  <p style="margin:0;font-size:13px;font-weight:600;color:#bcdcff;letter-spacing:0.08em;text-transform:uppercase;">Undangan Dompet Bersama</p>
+                  <h1 style="margin:8px 0 0;font-size:22px;font-weight:700;color:#ffffff;line-height:1.3;">Kamu diundang bergabung!</h1>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding:32px 32px 8px;">
+                  <p style="margin:0 0 20px;font-size:15px;line-height:1.7;color:#3d4a42;">
+                    <strong>${input.inviterName}</strong> mengundangmu untuk berbagi dompet
+                    <strong>"${input.walletName}"</strong> di MoneyFlow.
+                  </p>
+                  <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                    <tr>
+                      <td align="center" style="background-color:#e5eeff;border-radius:12px;padding:24px 16px;">
+                        <p style="margin:0 0 4px;font-size:12px;font-weight:600;color:#1668DC;letter-spacing:0.1em;text-transform:uppercase;">Dompet</p>
+                        <p style="margin:0 0 20px;font-size:20px;font-weight:700;color:#0A3B8C;">${input.walletName}</p>
+                        <a href="${input.inviteUrl}"
+                           style="display:inline-block;padding:12px 28px;font-size:15px;font-weight:700;color:#ffffff;background-color:#1668DC;border-radius:10px;text-decoration:none;">
+                          Terima Undangan
+                        </a>
+                      </td>
+                    </tr>
+                  </table>
+                  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:16px;">
+                    <tr>
+                      <td style="background-color:#fffbeb;border-left:3px solid #d97706;border-radius:0 8px 8px 0;padding:12px 16px;">
+                        <p style="margin:0;font-size:13px;color:#92400e;line-height:1.6;">
+                          ⏱ Link berlaku <strong>7 hari</strong>. Kamu perlu login atau daftar terlebih dahulu.
+                        </p>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding:24px 32px 0;">
+                  <hr style="border:none;border-top:1px solid #e8efec;margin:0;" />
+                </td>
+              </tr>
+              <tr>
+                <td style="padding:20px 32px 32px;">
+                  <p style="margin:0;font-size:12px;color:#8a9e96;line-height:1.6;">
+                    Jika kamu tidak mengenal pengirim ini, abaikan email ini.
+                  </p>
+                </td>
+              </tr>
+            </table>
+            <p style="margin:20px 0 0;font-size:11px;color:#9aada5;text-align:center;">© 2025 MoneyFlow</p>
+          </td>
+        </tr>
+      </table>
+    </body>
+  `;
+
+  return sendEmail({ to: input.to, subject, html, text });
+}
+
+/**
  * Sends the password-reset code email. Same template style as the verification
  * email, but with reset-flow copy.
  */

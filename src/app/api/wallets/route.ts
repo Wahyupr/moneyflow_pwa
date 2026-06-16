@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 import { requireApiUser } from "@/lib/api/auth";
 import { canCreateWallet } from "@/lib/entitlements";
 import { validateWalletInput } from "@/lib/wallets";
+import { query } from "@/lib/db/pool";
 
 export const runtime = "nodejs";
 
@@ -13,36 +14,66 @@ export async function GET(request: NextRequest) {
     return auth.response;
   }
 
-  const [{ data, error }, { data: transactions, error: transactionsError }] = await Promise.all([
-    auth.db
-      .from("wallets")
-      .select("*")
-      .eq("user_id", auth.user.id)
-      .is("archived_at", null)
-      .order("created_at", { ascending: true }),
-    auth.db
-      .from("transactions")
-      .select("wallet_id,transaction_type,amount_minor")
-      .eq("user_id", auth.user.id)
-  ]);
+  // Fetch wallets owned by the user OR shared with them via wallet_members.
+  // member_role is null for owned wallets (owner is not in wallet_members).
+  const walletsResult = await query<{
+    id: string;
+    user_id: string;
+    name: string;
+    type: string;
+    currency: string;
+    color: string;
+    icon: string;
+    is_shared: boolean;
+    is_hidden: boolean;
+    opening_balance_minor: string;
+    institution_name: string | null;
+    phone_number: string | null;
+    account_number: string | null;
+    archived_at: string | null;
+    created_at: string;
+    updated_at: string;
+    member_role: string | null;
+  }>(
+    `select w.*, wm.role as member_role
+     from wallets w
+     left join wallet_members wm on wm.wallet_id = w.id and wm.user_id = $1
+     where (w.user_id = $1 or wm.user_id = $1)
+       and w.archived_at is null
+     order by w.created_at asc`,
+    [auth.user.id]
+  );
 
-  if (error || transactionsError) {
-    return NextResponse.json({ error: (error ?? transactionsError)?.message }, { status: 500 });
+  const walletRows = walletsResult.rows;
+  const walletIds = walletRows.map((w) => w.id);
+
+  if (walletIds.length === 0) {
+    return NextResponse.json({ wallets: [] });
   }
 
-  // Derive each wallet's live balance from its opening balance plus the net of
-  // its income/expense transactions (transfers are stored as income/expense
-  // legs, so they net out correctly across the two wallets).
+  // Fetch transactions for all visible wallets.
+  // For shared wallets, transactions from ALL members should contribute to the balance.
+  const placeholders = walletIds.map((_, i) => `$${i + 1}`).join(", ");
+  const transactionsResult = await query<{
+    wallet_id: string;
+    transaction_type: string;
+    amount_minor: string;
+  }>(
+    `select wallet_id, transaction_type, amount_minor
+     from transactions
+     where wallet_id in (${placeholders})`,
+    walletIds
+  );
+
   const incomeByWallet = new Map<string, number>();
   const expenseByWallet = new Map<string, number>();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  for (const transaction of (transactions ?? []) as any[]) {
+
+  for (const transaction of transactionsResult.rows) {
     const target = transaction.transaction_type === "income" ? incomeByWallet : expenseByWallet;
     target.set(transaction.wallet_id, (target.get(transaction.wallet_id) ?? 0) + Number(transaction.amount_minor));
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const wallets = ((data ?? []) as any[]).map((wallet) => {
+  const wallets = walletRows.map((wallet) => {
     const income = incomeByWallet.get(wallet.id) ?? 0;
     const expense = expenseByWallet.get(wallet.id) ?? 0;
 

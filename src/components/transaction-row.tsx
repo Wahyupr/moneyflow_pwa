@@ -52,6 +52,11 @@ export function TransactionRow({ transaction, hidden }: { transaction: LedgerTra
           {transaction.payment_method ? (
             <span className={`rounded-full px-2 py-1 font-medium ${methodClass[transaction.payment_method] ?? "bg-surface-container text-muted"}`}>{transaction.payment_method}</span>
           ) : null}
+          {transaction.created_by_name ? (
+            <span className="rounded-full bg-surface-container px-2 py-1 font-medium text-muted">
+              oleh {transaction.created_by_name}
+            </span>
+          ) : null}
         </div>
       </div>
 
