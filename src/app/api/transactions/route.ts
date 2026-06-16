@@ -59,7 +59,9 @@ export async function GET(request: NextRequest) {
         : null
   }));
 
-  return NextResponse.json({ transactions });
+  return NextResponse.json({ transactions }, {
+    headers: { "Cache-Control": "no-store" }
+  });
 }
 
 

@@ -50,7 +50,7 @@ function TransactionsContent() {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch("/api/transactions");
+      const response = await fetch("/api/transactions", { cache: "no-store" });
       if (!response.ok) {
         setError("Gagal memuat transaksi.");
         return;
@@ -100,7 +100,7 @@ function TransactionsContent() {
       <div className="mt-3 flex min-h-14 items-center gap-3 rounded-xl bg-surface px-4 shadow-card">
         <Search className="text-muted" size={20} />
         <input
-          className="w-full border-0 bg-transparent text-sm outline-none placeholder:text-muted focus:ring-0"
+          className="w-full border-0 bg-transparent text-base outline-none placeholder:text-muted focus:ring-0"
           placeholder="Cari transaksi..."
           value={search}
           onChange={(event) => setSearch(event.target.value)}

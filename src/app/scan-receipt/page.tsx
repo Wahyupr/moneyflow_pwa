@@ -276,6 +276,8 @@ function ScanReceiptContent() {
         setError(payload?.error ?? "Gagal menyimpan transaksi.");
         return;
       }
+      // Invalidate the Next.js router cache so /transactions shows the new row.
+      router.refresh();
       router.push("/transactions");
     } finally {
       setBusy(false);

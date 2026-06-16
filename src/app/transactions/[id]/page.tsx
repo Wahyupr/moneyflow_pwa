@@ -1,9 +1,10 @@
 "use client";
 
-import { ArrowLeft, ReceiptText } from "lucide-react";
+import { ArrowLeft, Pencil, ReceiptText, Trash2, X } from "lucide-react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useParams, useRouter } from "next/navigation";
+import { useEffect, useState, type FormEvent } from "react";
+import { SelectMenu } from "@/components/ui/select-menu";
 import { AppFrame } from "@/components/app-frame";
 import { usePrivacy } from "@/components/privacy-provider";
 import { formatCurrency } from "@/lib/money";
@@ -23,6 +24,9 @@ type Transaction = {
   receipt_image_data_url: string | null;
 };
 
+type WalletOption = { id: string; name: string };
+type CategoryOption = { id: string; name: string; type: string };
+
 export default function TransactionDetailPage() {
   return (
     <AppFrame title="Detail Transaksi" subtitle="Riwayat">
@@ -34,10 +38,14 @@ export default function TransactionDetailPage() {
 function DetailContent() {
   const params = useParams<{ id: string }>();
   const id = params?.id;
+  const router = useRouter();
   const { displayAmount } = usePrivacy();
   const [tx, setTx] = useState<Transaction | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showEdit, setShowEdit] = useState(false);
+  const [wallets, setWallets] = useState<WalletOption[]>([]);
+  const [categories, setCategories] = useState<CategoryOption[]>([]);
 
   useEffect(() => {
     if (!id) return;
@@ -46,22 +54,30 @@ function DetailContent() {
       setLoading(true);
       setError(null);
       try {
-        const response = await fetch(`/api/transactions/${id}`);
-        const payload = await response.json().catch(() => null);
+        const [txRes, walletsRes, categoriesRes] = await Promise.all([
+          fetch(`/api/transactions/${id}`),
+          fetch("/api/wallets"),
+          fetch("/api/categories")
+        ]);
+        const payload = await txRes.json().catch(() => null);
         if (cancelled) return;
-        if (!response.ok) {
-          setError(payload?.error ?? "Transaksi tidak ditemukan.");
-          return;
-        }
+        if (!txRes.ok) { setError(payload?.error ?? "Transaksi tidak ditemukan."); return; }
         setTx(payload.transaction as Transaction);
+        if (walletsRes.ok) setWallets(((await walletsRes.json()).wallets ?? []) as WalletOption[]);
+        if (categoriesRes.ok) setCategories(((await categoriesRes.json()).categories ?? []) as CategoryOption[]);
       } finally {
         if (!cancelled) setLoading(false);
       }
     })();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [id]);
+
+  async function handleDelete() {
+    if (!tx || !window.confirm("Hapus transaksi ini? Aksi tidak bisa dibatalkan.")) return;
+    const res = await fetch(`/api/transactions/${tx.id}`, { method: "DELETE" });
+    if (res.ok) { router.refresh(); router.push("/transactions"); }
+    else { const d = await res.json().catch(() => null); setError(d?.error ?? "Gagal menghapus."); }
+  }
 
   if (loading) {
     return <p className="mt-8 text-center text-sm text-muted">Memuat...</p>;
@@ -82,9 +98,24 @@ function DetailContent() {
 
   return (
     <div className="mt-5 space-y-4 pb-6">
-      <Link href="/transactions" className="inline-flex items-center gap-1 text-sm font-bold text-primary">
-        <ArrowLeft size={16} /> Kembali
-      </Link>
+      <div className="flex items-center justify-between">
+        <Link href="/transactions" className="inline-flex items-center gap-1 text-sm font-bold text-primary">
+          <ArrowLeft size={16} /> Kembali
+        </Link>
+        <div className="flex gap-2">
+          <button type="button" onClick={() => setShowEdit(true)} className="flex items-center gap-1 rounded-lg bg-surface-container px-3 py-2 text-sm font-bold text-primary active:scale-[0.98]">
+            <Pencil size={15} /> Edit
+          </button>
+          <button type="button" onClick={handleDelete} className="flex items-center gap-1 rounded-lg bg-error-container px-3 py-2 text-sm font-bold text-expense active:scale-[0.98]">
+            <Trash2 size={15} /> Hapus
+          </button>
+        </div>
+      </div>
+
+      {showEdit ? (
+        <EditSheet tx={tx} wallets={wallets} categories={categories} onClose={() => setShowEdit(false)}
+          onSaved={(updated: Transaction) => { setTx(updated); setShowEdit(false); }} />
+      ) : null}
 
       <section className="rounded-xl bg-surface p-5 text-center shadow-card">
         <p className="text-sm text-muted">
@@ -128,6 +159,116 @@ function DetailRow({ label, value }: { label: string; value: string }) {
     <div className="flex items-start justify-between gap-3">
       <dt className="text-muted">{label}</dt>
       <dd className="text-right font-semibold text-ink">{value}</dd>
+    </div>
+  );
+}
+
+function EditSheet({
+  tx,
+  wallets,
+  categories,
+  onClose,
+  onSaved
+}: {
+  tx: Transaction;
+  wallets: WalletOption[];
+  categories: CategoryOption[];
+  onClose: () => void;
+  onSaved: (updated: Transaction) => void;
+}) {
+  const [amount, setAmount] = useState(String(tx.amount_minor));
+  const [type, setType] = useState(tx.transaction_type);
+  const [merchantName, setMerchantName] = useState(tx.merchant_name ?? "");
+  const [walletId, setWalletId] = useState(tx.wallet_id);
+  const [categoryId, setCategoryId] = useState(tx.category_id ?? "");
+  const [note, setNote] = useState(tx.note ?? "");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const visibleCategories = categories.filter((c) => c.type === type || c.type === "transfer");
+
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    const amountMinor = Math.round(Number(amount));
+    if (!Number.isFinite(amountMinor) || amountMinor <= 0) { setError("Nominal harus lebih dari 0."); return; }
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/transactions/${tx.id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          transaction_type: type,
+          amount_minor: amountMinor,
+          merchant_name: merchantName.trim() || null,
+          wallet_id: walletId,
+          category_id: categoryId || null,
+          note: note.trim() || null
+        })
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) { setError(data?.error ?? "Gagal menyimpan."); return; }
+      const updated = data.transaction as Record<string, unknown>;
+      onSaved({
+        ...tx,
+        ...updated,
+        amount_minor: Number(updated.amount_minor),
+        occurred_at: updated.occurred_at instanceof Date
+          ? (updated.occurred_at as Date).toISOString()
+          : String(updated.occurred_at)
+      } as Transaction);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/40 sm:items-center sm:p-4" role="dialog" aria-modal="true">
+      <form onSubmit={submit} className="flex w-full max-w-md flex-col rounded-t-2xl bg-surface shadow-lift sm:rounded-2xl" style={{ maxHeight: "min(90dvh, calc(100dvh - env(safe-area-inset-bottom, 0px)))" }}>
+        <div className="flex shrink-0 items-center justify-between px-5 pb-3 pt-5">
+          <h3 className="text-lg font-bold text-ink">Edit Transaksi</h3>
+          <button type="button" onClick={onClose} className="flex size-9 items-center justify-center rounded-full text-muted hover:bg-surface-container" aria-label="Tutup">
+            <X size={20} />
+          </button>
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-3">
+          <div className="space-y-3">
+            <div>
+              <span className="text-sm font-semibold text-muted">Tipe</span>
+              <SelectMenu ariaLabel="Tipe" value={type} onChange={(v) => { setType(v as Transaction["transaction_type"]); setCategoryId(""); }}
+                options={[{ value: "expense", label: "Pengeluaran" }, { value: "income", label: "Pemasukan" }, { value: "transfer", label: "Transfer" }]} />
+            </div>
+            <label className="block">
+              <span className="text-sm font-semibold text-muted">Nominal (Rp)</span>
+              <input className="mt-1 min-h-12 w-full rounded-lg border border-outline bg-surface px-3 focus:border-primary focus:outline-none" inputMode="numeric" value={amount} onChange={(e) => setAmount(e.target.value)} />
+            </label>
+            <label className="block">
+              <span className="text-sm font-semibold text-muted">Merchant</span>
+              <input className="mt-1 min-h-12 w-full rounded-lg border border-outline bg-surface px-3 focus:border-primary focus:outline-none" value={merchantName} onChange={(e) => setMerchantName(e.target.value)} placeholder="Nama merchant" />
+            </label>
+            <div>
+              <span className="text-sm font-semibold text-muted">Dompet</span>
+              <SelectMenu ariaLabel="Dompet" value={walletId} onChange={setWalletId} placeholder="Pilih dompet"
+                options={wallets.map((w) => ({ value: w.id, label: w.name }))} />
+            </div>
+            <div>
+              <span className="text-sm font-semibold text-muted">Kategori</span>
+              <SelectMenu ariaLabel="Kategori" value={categoryId} onChange={setCategoryId} placeholder="Tanpa kategori"
+                options={[{ value: "", label: "Tanpa kategori" }, ...visibleCategories.map((c) => ({ value: c.id, label: c.name }))]} />
+            </div>
+            <label className="block">
+              <span className="text-sm font-semibold text-muted">Catatan</span>
+              <input className="mt-1 min-h-12 w-full rounded-lg border border-outline bg-surface px-3 focus:border-primary focus:outline-none" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Opsional" />
+            </label>
+            {error ? <p className="rounded-lg bg-error-container p-3 text-sm text-on-error-container">{error}</p> : null}
+          </div>
+        </div>
+        <div className="shrink-0 px-5 pb-[calc(1.25rem+env(safe-area-inset-bottom,0px))] pt-3">
+          <button type="submit" disabled={busy} className="flex min-h-12 w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 font-bold text-white active:scale-[0.98] disabled:opacity-60">
+            {busy ? "Menyimpan..." : "Simpan Perubahan"}
+          </button>
+        </div>
+      </form>
     </div>
   );
 }
