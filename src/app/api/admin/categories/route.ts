@@ -9,7 +9,7 @@ const CategoryCreateSchema = z.object({
   name: z.string().min(1).max(80),
   icon: z.string().min(1).max(60),
   color: z.string().regex(/^#[0-9A-Fa-f]{6}$/, "Color must be a hex value like #C8FF00."),
-  type: z.enum(["expense", "income", "transfer"])
+  type: z.enum(["expense", "income"])
 });
 
 /**

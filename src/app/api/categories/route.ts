@@ -38,7 +38,7 @@ export async function GET(request: NextRequest) {
 
 const CategoryCreateSchema = z.object({
   name: z.string().min(1).max(80),
-  type: z.enum(["expense", "income", "transfer"]),
+  type: z.enum(["expense", "income"]),
   icon: z.string().max(80).optional(),
   color: z.string().max(30).optional()
 });
@@ -58,8 +58,7 @@ export async function POST(request: NextRequest) {
   // Default colors per type matching the app's palette
   const DEFAULT_COLOR: Record<string, string> = {
     expense: "#EF4444",
-    income: "#10B981",
-    transfer: "#6366F1"
+    income: "#10B981"
   };
 
   const { data, error } = await auth.db

@@ -6,12 +6,14 @@ export function AuthCard({
   title,
   subtitle,
   children,
-  footer
+  footer,
+  below
 }: {
   title: string;
   subtitle: string;
   children: ReactNode;
   footer: ReactNode;
+  below?: ReactNode;
 }) {
   return (
     <main className="relative flex min-h-dvh w-full items-center justify-center overflow-hidden bg-background px-5 py-10 text-ink">
@@ -35,6 +37,8 @@ export function AuthCard({
         </div>
 
         <div className="mt-6 text-center text-sm text-muted">{footer}</div>
+
+        {below ? <div className="mt-4">{below}</div> : null}
       </section>
     </main>
   );

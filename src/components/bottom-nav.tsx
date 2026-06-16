@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart3, Home, Plus, ReceiptText, WalletCards } from "lucide-react";
+import { BarChart3, Home, Plus, ReceiptText, Settings } from "lucide-react";
 import { useState } from "react";
 import { AddActionSheet } from "@/components/add-action-sheet";
 
@@ -10,7 +10,7 @@ const items = [
   { label: "Home", icon: Home, href: "/dashboard", match: ["/dashboard"] },
   { label: "History", icon: ReceiptText, href: "/transactions", match: ["/transactions"] },
   { label: "Reports", icon: BarChart3, href: "/reports", match: ["/reports"] },
-  { label: "Wallets", icon: WalletCards, href: "/wallets", match: ["/wallets"] }
+  { label: "Settings", icon: Settings, href: "/settings", match: ["/settings", "/wallets"] }
 ];
 
 export function BottomNav() {
@@ -46,14 +46,14 @@ function NavItem({ item, pathname }: { item: (typeof items)[number]; pathname: s
 
   return (
     <Link
-      className={`flex min-h-12 flex-col items-center justify-center gap-1 rounded-lg text-[11px] transition ${
-        active ? "bg-primary-container text-white" : "text-muted active:bg-surface-container"
+      className={`flex min-h-12 flex-col items-center justify-center gap-1 rounded-lg text-[11px] font-semibold transition ${
+        active ? "text-primary" : "text-muted active:bg-surface-container"
       }`}
       href={item.href}
       aria-current={active ? "page" : undefined}
     >
-      <Icon aria-hidden="true" size={18} strokeWidth={2} />
-      <span>{item.label}</span>
+      <Icon aria-hidden="true" size={18} strokeWidth={active ? 2.4 : 2} />
+      <span className={active ? "font-bold" : ""}>{item.label}</span>
     </Link>
   );
 }

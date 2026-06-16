@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { CATEGORY_ICON_OPTIONS, getCategoryIcon, getCategoryIconLabel } from "@/lib/category-icons";
 
 
-type CategoryType = "expense" | "income" | "transfer";
+type CategoryType = "expense" | "income";
 
 
 type Category = {
@@ -19,11 +19,10 @@ type Category = {
 
 const TYPE_LABELS: Record<CategoryType, string> = {
   expense: "Pengeluaran",
-  income: "Pemasukan",
-  transfer: "Transfer"
+  income: "Pemasukan"
 };
 
-const TYPE_OPTIONS: CategoryType[] = ["expense", "income", "transfer"];
+const TYPE_OPTIONS: CategoryType[] = ["expense", "income"];
 
 
 export function CategoryManager({ onStatus }: { onStatus: (message: string) => void }) {

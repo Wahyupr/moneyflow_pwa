@@ -13,7 +13,7 @@ const CategoryUpdateSchema = z
       .string()
       .regex(/^#[0-9A-Fa-f]{6}$/, "Color must be a hex value like #C8FF00.")
       .optional(),
-    type: z.enum(["expense", "income", "transfer"]).optional()
+    type: z.enum(["expense", "income"]).optional()
   })
   .refine((value) => Object.keys(value).length > 0, { message: "No fields to update." });
 

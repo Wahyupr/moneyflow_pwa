@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { AuthCard } from "@/components/auth/auth-card";
 import { AuthForm } from "@/components/auth/auth-form";
+import { InstallPromptCard } from "@/components/install-prompt-card";
 
 export default function LoginPage() {
   return (
     <AuthCard
+      below={<InstallPromptCard />}
       footer={
         <p>
           Don&apos;t have an account?{" "}

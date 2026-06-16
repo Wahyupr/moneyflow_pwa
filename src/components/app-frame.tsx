@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart3, Bell, Home, Mic, ReceiptText, Settings, ShieldCheck, WalletCards } from "lucide-react";
+import { BarChart3, Bell, Home, ReceiptText, Settings, ShieldCheck } from "lucide-react";
 import { useEffect, useState } from "react";
 import { BottomNav } from "@/components/bottom-nav";
 import { PrivacyProvider } from "@/components/privacy-provider";
@@ -15,9 +15,7 @@ type NavItem = { label: string; icon: LucideIcon; href: string };
 const sideNav: NavItem[] = [
   { label: "Home", icon: Home, href: "/dashboard" },
   { label: "History", icon: ReceiptText, href: "/transactions" },
-  { label: "Voice", icon: Mic, href: "/voice-input" },
   { label: "Reports", icon: BarChart3, href: "/reports" },
-  { label: "Wallets", icon: WalletCards, href: "/wallets" },
   { label: "Settings", icon: Settings, href: "/settings" }
 ];
 
@@ -68,7 +66,7 @@ export function AppFrame({
               <p className="text-xs text-muted">Modern Urban Finance</p>
             </div>
           </div>
-          <nav className="flex-1 space-y-2">
+          <nav className="flex-1 space-y-1">
             {navItems.map((item) => {
 
               const Icon = item.icon;
@@ -76,13 +74,18 @@ export function AppFrame({
 
               return (
                 <Link
-                  className={`flex min-h-12 w-full items-center gap-4 rounded-lg px-4 text-sm font-semibold transition active:scale-[0.98] ${
-                    active ? "bg-primary-container text-white" : "text-muted hover:bg-surface-low"
+                  className={`relative flex min-h-12 w-full items-center gap-4 px-5 py-2 text-sm transition active:scale-[0.98] ${
+                    active ? "font-bold text-primary" : "font-semibold text-muted hover:bg-surface-low hover:text-ink"
                   }`}
                   href={item.href}
                   key={item.label}
+                  aria-current={active ? "page" : undefined}
                 >
-                  <Icon aria-hidden="true" size={19} />
+                  <span
+                    aria-hidden="true"
+                    className={`absolute left-0 top-1/2 h-7 w-1 -translate-y-1/2 rounded-r-full bg-primary transition-opacity ${active ? "opacity-100" : "opacity-0"}`}
+                  />
+                  <Icon aria-hidden="true" size={19} strokeWidth={active ? 2.4 : 2} />
                   {item.label}
                 </Link>
               );
