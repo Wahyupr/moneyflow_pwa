@@ -39,7 +39,11 @@ const ALLOWED_TABLES = new Set([
   "subscription_entitlements",
   "users",
   "wallet_invites",
-  "daily_insights"
+  "daily_insights",
+  "receivables",
+  "receivable_payments",
+  "debts",
+  "debt_payments"
 ]);
 
 function assertTable(table: string) {

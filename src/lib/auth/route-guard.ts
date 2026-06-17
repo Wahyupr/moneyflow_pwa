@@ -7,7 +7,9 @@ const protectedPagePrefixes = [
   "/reminders",
   "/settings",
   "/voice-input",
-  "/ai-transaction-review"
+  "/ai-transaction-review",
+  "/hutang",
+  "/piutang"
 ];
 
 const publicPagePaths = new Set(["/", "/login", "/register", "/verify-email", "/forgot-password"]);

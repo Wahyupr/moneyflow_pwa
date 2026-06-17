@@ -23,3 +23,24 @@ export function getReportWindowStart(input: { plan: PlanTier; now: Date }): stri
 
   return new Date(Date.UTC(input.now.getUTCFullYear(), input.now.getUTCMonth() - 3, 1)).toISOString().slice(0, 10);
 }
+
+export function canAccessHutangPiutang(plan: PlanTier): Result {
+  if (plan !== "premium") {
+    return { ok: false, reason: "Hutang & Piutang adalah fitur Premium." };
+  }
+  return { ok: true };
+}
+
+export const DEBT_CATEGORIES: string[] = [
+  "KPR",
+  "Cicilan Kendaraan",
+  "Pinjaman Pribadi",
+  "Kartu Kredit",
+  "Pinjaman Pendidikan",
+  "Pinjaman Online",
+  "Pinjaman Bisnis",
+  "Pinjaman Teman atau Keluarga",
+  "Cicilan Elektronik",
+  "Renovasi Rumah",
+  "Pinjaman Medis"
+];

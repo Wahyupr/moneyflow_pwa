@@ -4,6 +4,8 @@ import {
   Bell,
   ChevronDown,
   ChevronRight,
+  HandCoins,
+  Landmark,
   List,
   LogOut,
   Pencil,
@@ -143,6 +145,38 @@ export default function SettingsPage() {
           <div className="relative min-w-0 flex-1">
             <p className="font-bold text-ink">Dompet</p>
             <p className="truncate text-sm text-muted">Kelola saldo, kartu &amp; dompet bersama</p>
+          </div>
+          <ChevronRight className="relative shrink-0 text-muted" size={18} />
+        </Link>
+
+        {/* QUICK ACCESS — Hutang */}
+        <Link
+          href="/hutang"
+          className="relative flex items-center gap-4 overflow-hidden rounded-2xl bg-surface p-4 shadow-card transition active:scale-[0.99]"
+        >
+          <div className="pointer-events-none absolute -right-10 -top-10 size-32 rounded-full bg-tertiary/10 blur-2xl" />
+          <div className="relative flex size-12 items-center justify-center rounded-2xl bg-tertiary/15 text-tertiary">
+            <Landmark size={22} />
+          </div>
+          <div className="relative min-w-0 flex-1">
+            <p className="font-bold text-ink">Hutang</p>
+            <p className="truncate text-sm text-muted">KPR, cicilan &amp; pinjaman lainnya</p>
+          </div>
+          <ChevronRight className="relative shrink-0 text-muted" size={18} />
+        </Link>
+
+        {/* QUICK ACCESS — Piutang */}
+        <Link
+          href="/piutang"
+          className="relative flex items-center gap-4 overflow-hidden rounded-2xl bg-surface p-4 shadow-card transition active:scale-[0.99]"
+        >
+          <div className="pointer-events-none absolute -right-10 -top-10 size-32 rounded-full bg-income/10 blur-2xl" />
+          <div className="relative flex size-12 items-center justify-center rounded-2xl bg-income/10 text-income">
+            <HandCoins size={22} />
+          </div>
+          <div className="relative min-w-0 flex-1">
+            <p className="font-bold text-ink">Piutang</p>
+            <p className="truncate text-sm text-muted">Pinjaman yang Anda berikan ke orang lain</p>
           </div>
           <ChevronRight className="relative shrink-0 text-muted" size={18} />
         </Link>

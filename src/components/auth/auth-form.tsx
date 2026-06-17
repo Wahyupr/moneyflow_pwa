@@ -23,7 +23,6 @@ const oauthErrorMessages: Record<string, string> = {
 export function AuthForm({ mode }: { mode: AuthMode }) {
   const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [status, setStatus] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [oauthLoading, setOauthLoading] = useState(false);
   const isRegister = mode === "register";
@@ -69,7 +68,6 @@ export function AuthForm({ mode }: { mode: AuthMode }) {
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setStatus(null);
 
     const formData = new FormData(event.currentTarget);
     const validation = isRegister
@@ -108,6 +106,7 @@ export function AuthForm({ mode }: { mode: AuthMode }) {
           return;
         }
         setErrors(json.errors ?? { form: json.error ?? "Authentication failed." });
+        setSubmitting(false);
         return;
       }
 
@@ -116,25 +115,22 @@ export function AuthForm({ mode }: { mode: AuthMode }) {
 
       if (json.requiresEmailConfirmation) {
         const verifyEmail = (json.email as string | undefined) ?? String(formData.get("email") ?? "");
-        setStatus("Akun dibuat. Memeriksa kode verifikasi…");
         if (typeof window !== "undefined") {
           window.location.href = `/verify-email?email=${encodeURIComponent(verifyEmail)}`;
         }
         return;
       }
 
-
-      setStatus(redirectPath ? "Signed in. Opening dashboard." : "Account created. Check your email if confirmation is enabled.");
-
+      // Keep the button in its loading state until the redirect fires — the
+      // spinner on the submit button is the user's only feedback here, so we
+      // intentionally do not reset `submitting` or surface a status string.
       if (redirectPath && typeof window !== "undefined") {
-
         window.setTimeout(() => {
           window.location.href = redirectPath;
         }, 500);
       }
     } catch {
       setErrors({ form: "Network error. Please try again." });
-    } finally {
       setSubmitting(false);
     }
   }
@@ -189,15 +185,23 @@ export function AuthForm({ mode }: { mode: AuthMode }) {
       ) : null}
 
       {errors.form ? <p className="rounded-lg bg-error-container p-3 text-sm text-on-error-container">{errors.form}</p> : null}
-      {status ? <p className="rounded-lg bg-surface-container p-3 text-sm text-primary">{status}</p> : null}
 
       <button
         className="flex min-h-12 w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 text-base font-bold text-white shadow-card transition hover:bg-primary-container active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
         disabled={submitting}
         type="submit"
       >
-        {submitting ? "Please wait" : isRegister ? "Sign Up" : "Sign In"}
-        <ArrowRight aria-hidden="true" size={18} />
+        {submitting ? (
+          <>
+            <Loader2 aria-hidden="true" className="animate-spin" size={18} />
+            Please wait
+          </>
+        ) : (
+          <>
+            {isRegister ? "Sign Up" : "Sign In"}
+            <ArrowRight aria-hidden="true" size={18} />
+          </>
+        )}
       </button>
 
       {!isRegister ? (

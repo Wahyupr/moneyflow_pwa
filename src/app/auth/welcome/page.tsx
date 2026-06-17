@@ -1,16 +1,60 @@
 "use client";
 
-import { CheckCircle2, Loader2, ShieldCheck } from "lucide-react";
-import Link from "next/link";
+import {
+  ArrowRight,
+  Bell,
+  Brain,
+  CheckCircle2,
+  Clock,
+  Crown,
+  FileText,
+  Loader2,
+  Sparkles,
+  Wallet,
+  type LucideIcon
+} from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-const REDIRECT_DELAY_MS = 1400;
+type PlanTier = "free" | "premium";
+type Stage = "loading" | "premium";
 
-type Stage = "securing" | "ready";
+type PremiumFeature = {
+  icon: LucideIcon;
+  label: string;
+  sublabel: string;
+  inDevelopment?: boolean;
+};
+
+const PREMIUM_FEATURES: PremiumFeature[] = [
+  {
+    icon: Wallet,
+    label: "Dompet tanpa batas",
+    sublabel: "Buat dompet sebanyak yang Anda butuhkan"
+  },
+  {
+    icon: Brain,
+    label: "AI Insight di Dashboard",
+    sublabel: "Refill insight tanpa batas harian"
+  },
+  {
+    icon: FileText,
+    label: "AI Insight di Laporan",
+    sublabel: "Analisis mendalam tanpa batas"
+  },
+  {
+    icon: Clock,
+    label: "Hutang & Piutang",
+    sublabel: "Kelola pinjaman masuk & keluar dengan progress pelunasan"
+  },
+  {
+    icon: Bell,
+    label: "Pengingat Jatuh Tempo",
+    sublabel: "Notifikasi otomatis untuk langganan & tagihan rutin"
+  }
+];
 
 export default function WelcomePage() {
-  const [stage, setStage] = useState<Stage>("securing");
-  const [progress, setProgress] = useState(8);
+  const [stage, setStage] = useState<Stage>("loading");
   const nextRef = useRef<string>("/dashboard");
 
   useEffect(() => {
@@ -22,78 +66,126 @@ export default function WelcomePage() {
       nextRef.current = target;
     }
 
-    const startedAt = Date.now();
+    let cancelled = false;
 
-    const progressTimer = window.setInterval(() => {
-      const elapsed = Date.now() - startedAt;
-      const ratio = Math.min(1, elapsed / REDIRECT_DELAY_MS);
-      setProgress(Math.round(8 + 88 * easeOutCubic(ratio)));
-    }, 60);
+    async function bootstrap() {
+      let plan: PlanTier = "free";
+      try {
+        const res = await fetch("/api/profile", { cache: "no-store" });
+        if (res.ok) {
+          const json = await res.json();
+          plan = (json.entitlement?.plan as PlanTier) ?? "free";
+        }
+      } catch {
+        // Fall back to free flow (immediate redirect) if profile fetch fails.
+      }
 
-    const stageTimer = window.setTimeout(() => setStage("ready"), 650);
+      if (cancelled) return;
 
-    const redirectTimer = window.setTimeout(() => {
+      if (plan === "premium") {
+        setStage("premium");
+        return;
+      }
+
+      // Free plan: skip any interstitial and head straight to the app.
       window.location.replace(nextRef.current);
-    }, REDIRECT_DELAY_MS + 200);
+    }
+
+    void bootstrap();
 
     return () => {
-      window.clearInterval(progressTimer);
-      window.clearTimeout(stageTimer);
-      window.clearTimeout(redirectTimer);
+      cancelled = true;
     };
   }, []);
 
+  function continueToNext() {
+    window.location.replace(nextRef.current);
+  }
+
+  if (stage === "premium") {
+    return <PremiumCelebrationDialog onContinue={continueToNext} />;
+  }
+
   return (
-    <main className="relative flex min-h-dvh w-full items-center justify-center overflow-hidden bg-background px-5 py-10 text-ink">
-      <div className="pointer-events-none absolute -left-24 -top-24 size-80 rounded-full bg-primary-container/30 blur-3xl" />
-      <div className="pointer-events-none absolute -right-24 bottom-0 size-72 rounded-full bg-tertiary/25 blur-3xl" />
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(60%_40%_at_50%_0%,rgba(200,255,0,0.06),transparent)]" />
-
-      <section className="relative w-full max-w-md text-center">
-        <div className="mb-6 flex justify-center">
-          <Link href="/" className="transition active:scale-95">
-            <img src="/brand-mark.svg" alt="MoneyFlow" className="size-14 rounded-2xl shadow-card" />
-          </Link>
-        </div>
-
-        <div className="relative mx-auto mb-6 flex size-24 items-center justify-center">
-          <span className="absolute inset-0 animate-ping rounded-full bg-primary/15" aria-hidden="true" />
-          <span className="absolute inset-2 rounded-full bg-primary/10" aria-hidden="true" />
-          <div className="relative flex size-20 items-center justify-center rounded-full bg-primary text-white shadow-lift">
-            {stage === "securing" ? (
-              <Loader2 aria-hidden="true" className="animate-spin" size={34} strokeWidth={2.4} />
-            ) : (
-              <CheckCircle2 aria-hidden="true" size={34} strokeWidth={2.4} />
-            )}
-          </div>
-        </div>
-
-        <h1 className="text-2xl font-bold text-ink">
-          {stage === "securing" ? "Menyambungkan akun…" : "Berhasil masuk"}
-        </h1>
-        <p className="mx-auto mt-2 max-w-xs text-sm leading-6 text-muted">
-          {stage === "securing"
-            ? "Kami sedang menyiapkan sesi aman dan membuka dashboard MoneyFlow Anda."
-            : "Sesi siap. Anda akan dialihkan ke dashboard sekarang."}
-        </p>
-
-        <div className="mx-auto mt-7 h-1.5 w-full max-w-xs overflow-hidden rounded-full bg-surface-container">
-          <div
-            aria-hidden="true"
-            className="h-full rounded-full bg-gradient-to-r from-primary to-tertiary transition-[width] duration-100 ease-out"
-            style={{ width: `${progress}%` }}
-          />
-        </div>
-
-        <div className="mt-4 flex items-center justify-center gap-2 text-xs font-medium text-muted">
-          <ShieldCheck aria-hidden="true" size={14} className="text-primary" />
-          <span>Sesi terenkripsi · {progress}%</span>
-        </div>
-      </section>
+    <main className="relative flex min-h-dvh w-full items-center justify-center bg-background">
+      <Loader2 aria-hidden="true" className="size-6 animate-spin text-primary" />
     </main>
   );
 }
 
-function easeOutCubic(t: number): number {
-  return 1 - Math.pow(1 - t, 3);
+function PremiumCelebrationDialog({ onContinue }: { onContinue: () => void }) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-5 py-8 backdrop-blur-sm"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="premium-welcome-title"
+    >
+      <div className="relative w-full max-w-sm rounded-2xl bg-surface p-6 shadow-lift">
+        <div className="text-center">
+          <div className="relative mx-auto mb-3 flex size-16 items-center justify-center">
+            <span className="absolute inset-0 animate-ping rounded-full bg-tertiary/25" aria-hidden="true" />
+            <div className="relative flex size-16 items-center justify-center rounded-full bg-gradient-to-br from-primary to-tertiary text-white shadow-card">
+              <Crown aria-hidden="true" size={26} strokeWidth={2.4} />
+            </div>
+          </div>
+
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-tertiary/15 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.12em] text-tertiary">
+            <Sparkles aria-hidden="true" size={12} />
+            Premium Aktif
+          </span>
+
+          <h2 id="premium-welcome-title" className="mt-3 text-xl font-bold text-ink">
+            Selamat!
+          </h2>
+          <p className="mx-auto mt-1.5 max-w-xs text-sm leading-5 text-muted">
+            Akun Anda telah berhasil di-upgrade ke Premium. Semua fitur premium sekarang aktif.
+          </p>
+        </div>
+
+        <ul className="mt-5 space-y-2">
+          {PREMIUM_FEATURES.map((feature) => {
+            const Icon = feature.icon;
+            return (
+              <li
+                key={feature.label}
+                className="flex items-start gap-3 rounded-xl border border-outline/40 bg-surface-container/40 p-2.5"
+              >
+                <span
+                  className={`flex size-8 shrink-0 items-center justify-center rounded-lg ${
+                    feature.inDevelopment ? "bg-warning/10 text-warning" : "bg-primary/10 text-primary"
+                  }`}
+                >
+                  <Icon aria-hidden="true" size={16} />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[13px] font-bold leading-tight text-ink">
+                    {feature.label}
+                    {feature.inDevelopment ? (
+                      <span className="ml-2 rounded-full bg-warning/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-warning">
+                        Segera
+                      </span>
+                    ) : null}
+                  </p>
+                  <p className="mt-0.5 text-xs leading-tight text-muted">{feature.sublabel}</p>
+                </div>
+                {!feature.inDevelopment ? (
+                  <CheckCircle2 aria-hidden="true" size={16} className="mt-0.5 shrink-0 text-tertiary" />
+                ) : null}
+              </li>
+            );
+          })}
+        </ul>
+
+        <button
+          type="button"
+          onClick={onContinue}
+          className="mt-5 flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-primary px-4 font-bold text-white shadow-card transition hover:bg-primary-container active:scale-[0.98]"
+        >
+          Mulai
+          <ArrowRight aria-hidden="true" size={18} />
+        </button>
+      </div>
+    </div>
+  );
 }
