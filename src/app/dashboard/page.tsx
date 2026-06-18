@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowDownRight, ArrowUpRight, Eye, EyeOff, TrendingUp } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, Eye, EyeOff, HandCoins, Landmark, Store, Tags, TrendingUp, WalletCards } from "lucide-react";
 import { useEffect, useState } from "react";
 import { AppFrame } from "@/components/app-frame";
 import { DailyInsightCard } from "@/components/daily-insight-card";
@@ -189,6 +189,8 @@ function DashboardContent() {
 
       <DailyInsightCard />
 
+      <MenuUtama />
+
       <section className="mt-6">
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-lg font-bold text-ink">Dompet Saya</h2>
@@ -277,5 +279,47 @@ function DashboardSkeleton() {
       <div className="h-16 animate-pulse rounded-lg bg-surface-container" />
       <div className="h-16 animate-pulse rounded-lg bg-surface-container" />
     </div>
+  );
+}
+
+type MenuTile = {
+  href: string;
+  label: string;
+  icon: typeof WalletCards;
+  tint: string;
+  iconWrap: string;
+};
+
+const MENU_TILES: MenuTile[] = [
+  { href: "/wallets", label: "Dompet", icon: WalletCards, tint: "bg-primary/8", iconWrap: "bg-primary/10 text-primary" },
+  { href: "/hutang", label: "Hutang", icon: Landmark, tint: "bg-tertiary/10", iconWrap: "bg-tertiary/15 text-tertiary" },
+  { href: "/piutang", label: "Piutang", icon: HandCoins, tint: "bg-income/10", iconWrap: "bg-income/10 text-income" },
+  { href: "/merchants", label: "Merchant", icon: Store, tint: "bg-secondary/10", iconWrap: "bg-secondary/10 text-secondary" },
+  { href: "/categories", label: "Kategori", icon: Tags, tint: "bg-primary-dark/8", iconWrap: "bg-primary-dark/10 text-primary-dark" }
+];
+
+function MenuUtama() {
+  return (
+    <section className="mt-5">
+      <h2 className="mb-2 px-1 text-xs font-bold uppercase tracking-wider text-muted">Menu Utama</h2>
+      <div className="grid grid-cols-3 gap-2 sm:grid-cols-5 sm:gap-3">
+        {MENU_TILES.map((tile) => {
+          const Icon = tile.icon;
+          return (
+            <Link
+              key={tile.href}
+              href={tile.href}
+              className="group relative flex flex-col items-center gap-2 overflow-hidden rounded-2xl bg-surface p-3 shadow-card transition active:scale-[0.97] sm:p-4"
+            >
+              <div className={`pointer-events-none absolute -right-6 -top-6 size-20 rounded-full ${tile.tint} blur-xl`} />
+              <div className={`relative flex size-11 items-center justify-center rounded-2xl ${tile.iconWrap} sm:size-12`}>
+                <Icon size={20} />
+              </div>
+              <span className="relative text-xs font-bold text-ink sm:text-sm">{tile.label}</span>
+            </Link>
+          );
+        })}
+      </div>
+    </section>
   );
 }

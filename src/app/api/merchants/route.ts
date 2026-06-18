@@ -2,13 +2,20 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { z } from "zod";
 import { requireApiUser } from "@/lib/api/auth";
+import { isValidLogoReference } from "@/lib/merchant-logo";
 import { query } from "@/lib/db/pool";
 
 export const runtime = "nodejs";
 
+const logoReference = z
+  .string()
+  .max(2048)
+  .refine(isValidLogoReference, { message: "Logo harus berupa URL http(s) atau path yang valid." });
+
 const MerchantCreateSchema = z.object({
   name: z.string().min(1).max(120),
-  category_id: z.string().uuid().nullable().optional()
+  category_id: z.string().uuid().nullable().optional(),
+  logo_url: logoReference.nullable().optional()
 });
 
 /**
@@ -52,6 +59,7 @@ export async function POST(request: NextRequest) {
     .insert({
       name: parsed.data.name.trim(),
       category_id: parsed.data.category_id ?? null,
+      logo_url: parsed.data.logo_url ?? null,
       is_system: false,
       created_by: auth.user.id  // user-owned merchants are scoped to creator
     })
