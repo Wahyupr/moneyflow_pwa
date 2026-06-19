@@ -2,10 +2,12 @@
 
 import { AlertTriangle, Landmark, Plus, WalletCards } from "lucide-react";
 import Link from "next/link";
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { createElement, useCallback, useEffect, useState, type FormEvent } from "react";
 import { AppFrame } from "@/components/app-frame";
 import { usePrivacy } from "@/components/privacy-provider";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { SelectMenu } from "@/components/ui/select-menu";
+import { getCategoryIcon } from "@/lib/category-icons";
 import { formatCurrency } from "@/lib/money";
 import { DebtCard, type Debt } from "./components";
 import { DebtFormSheet } from "./form-sheet";
@@ -15,6 +17,17 @@ type Summary = {
   total_paid_minor: number;
   total_remaining_minor: number;
   total_monthly_installment_minor: number;
+};
+
+type WalletOption = { id: string; name: string };
+type CategoryOption = { id: string; name: string; type: "expense" | "income" | "transfer"; icon: string | null };
+
+type PaymentPayload = {
+  amount_minor: number;
+  record_transaction?: boolean;
+  wallet_id?: string | null;
+  category_id?: string | null;
+  merchant_name?: string | null;
 };
 
 export default function HutangPage() {
@@ -36,6 +49,27 @@ function HutangContent() {
   const [payTarget, setPayTarget] = useState<Debt | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Debt | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [wallets, setWallets] = useState<WalletOption[]>([]);
+  const [categories, setCategories] = useState<CategoryOption[]>([]);
+
+  const loadWalletsAndCategories = useCallback(async () => {
+    try {
+      const [walletsRes, categoriesRes] = await Promise.all([
+        fetch("/api/wallets", { cache: "no-store" }),
+        fetch("/api/categories", { cache: "no-store" })
+      ]);
+      if (walletsRes.ok) {
+        const json = await walletsRes.json();
+        setWallets(((json.wallets ?? []) as Array<{ id: string; name: string }>).map((w) => ({ id: w.id, name: w.name })));
+      }
+      if (categoriesRes.ok) {
+        const json = await categoriesRes.json();
+        setCategories((json.categories ?? []) as CategoryOption[]);
+      }
+    } catch {
+      // Non-fatal: payment can still be recorded without wallet integration.
+    }
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -69,7 +103,8 @@ function HutangContent() {
 
   useEffect(() => {
     void load();
-  }, [load]);
+    void loadWalletsAndCategories();
+  }, [load, loadWalletsAndCategories]);
 
   async function archive(id: string) {
     setBusyId(id);
@@ -86,13 +121,13 @@ function HutangContent() {
     }
   }
 
-  async function recordPayment(debt: Debt, amountMinor: number) {
+  async function recordPayment(debt: Debt, payload: PaymentPayload) {
     setBusyId(debt.id);
     try {
       const res = await fetch(`/api/debts/${debt.id}/payments`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ amount_minor: amountMinor })
+        body: JSON.stringify(payload)
       });
       if (!res.ok) {
         const data = await res.json().catch(() => null);
@@ -173,8 +208,10 @@ function HutangContent() {
         <PaymentDialog
           debt={payTarget}
           busy={busyId === payTarget.id}
+          wallets={wallets}
+          categories={categories}
           onCancel={() => setPayTarget(null)}
-          onConfirm={(amount) => recordPayment(payTarget, amount)}
+          onConfirm={(payload) => recordPayment(payTarget, payload)}
           displayAmount={displayAmount}
         />
       ) : null}
@@ -244,21 +281,30 @@ function SummaryCard({
 function PaymentDialog({
   debt,
   busy,
+  wallets,
+  categories,
   onCancel,
   onConfirm,
   displayAmount
 }: {
   debt: Debt;
   busy: boolean;
+  wallets: WalletOption[];
+  categories: CategoryOption[];
   onCancel: () => void;
-  onConfirm: (amountMinor: number) => void;
+  onConfirm: (payload: PaymentPayload) => void;
   displayAmount: (value: string) => string;
 }) {
   const [amount, setAmount] = useState("");
   const [bungaPct, setBungaPct] = useState("");
   const [adjType, setAdjType] = useState<"fee" | "discount">("fee");
   const [adjAmount, setAdjAmount] = useState("");
+  const [recordTx, setRecordTx] = useState(false);
+  const [walletId, setWalletId] = useState("");
+  const [categoryId, setCategoryId] = useState("");
   const [error, setError] = useState<string | null>(null);
+
+  const expenseCategories = categories.filter((c) => c.type === "expense");
 
 
   const remaining = debt.remaining_amount_minor;
@@ -298,7 +344,16 @@ function PaymentDialog({
       setError("Nominal pokok melebihi sisa hutang.");
       return;
     }
-    onConfirm(totalMinor);
+    if (recordTx && !walletId) {
+      setError("Pilih dompet untuk mencatat transaksi.");
+      return;
+    }
+    onConfirm({
+      amount_minor: totalMinor,
+      record_transaction: recordTx && Boolean(walletId),
+      wallet_id: recordTx ? walletId || null : null,
+      category_id: recordTx ? categoryId || null : null
+    });
   }
 
 
@@ -425,6 +480,58 @@ function PaymentDialog({
             </div>
           </div>
         ) : null}
+
+        <div className="mt-3 rounded-lg border border-outline p-3">
+          <label className="flex items-center justify-between gap-3">
+            <span className="text-sm font-semibold text-ink">Catat ke transaksi & kurangi dompet</span>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={recordTx}
+              onClick={() => { setRecordTx((v) => !v); setError(null); }}
+              className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition ${
+                recordTx ? "bg-primary" : "bg-surface-container"
+              }`}
+            >
+              <span className={`inline-block size-5 transform rounded-full bg-white shadow transition ${recordTx ? "translate-x-5" : "translate-x-0.5"}`} />
+            </button>
+          </label>
+
+          {recordTx ? (
+            <div className="mt-3 space-y-3">
+              <div className="block">
+                <span className="text-xs font-semibold text-muted">Dompet</span>
+                <SelectMenu
+                  ariaLabel="Dompet"
+                  value={walletId}
+                  onChange={(v) => { setWalletId(v); setError(null); }}
+                  placeholder={wallets.length > 0 ? "Pilih dompet" : "Belum ada dompet"}
+                  options={wallets.map((w) => ({ value: w.id, label: w.name }))}
+                />
+              </div>
+              <div className="block">
+                <span className="text-xs font-semibold text-muted">Kategori</span>
+                <SelectMenu
+                  ariaLabel="Kategori"
+                  value={categoryId}
+                  onChange={setCategoryId}
+                  placeholder="Tanpa kategori"
+                  options={[
+                    { value: "", label: "Tanpa kategori" },
+                    ...expenseCategories.map((c) => ({
+                      value: c.id,
+                      label: c.name,
+                      icon: createElement(getCategoryIcon(c.icon), { size: 16 })
+                    }))
+                  ]}
+                />
+              </div>
+              <p className="text-[11px] text-muted">Transaksi pengeluaran sebesar total dibayar akan dibuat dan mengurangi saldo dompet terpilih.</p>
+            </div>
+          ) : (
+            <p className="mt-1 text-[11px] text-muted">Nonaktif: pembayaran hanya dicatat di hutang, tidak mengurangi dompet.</p>
+          )}
+        </div>
 
         {error ? <p className="mt-2 rounded-lg bg-error-container p-2 text-sm text-on-error-container">{error}</p> : null}
 
