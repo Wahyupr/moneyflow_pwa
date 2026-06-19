@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, Calendar, CalendarClock, CreditCard, Landmark, Plus, Trash2, WalletCards, X } from "lucide-react";
+import { AlertTriangle, Calendar, CalendarClock, ChevronDown, ChevronUp, CreditCard, Info, Landmark, Plus, Trash2, WalletCards, X } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { AppFrame } from "@/components/app-frame";
@@ -19,11 +19,35 @@ type Debt = {
   paid_amount_minor: number;
   remaining_amount_minor: number;
   monthly_installment_minor: number | null;
+  installment_months: number | null;
+  interest_rate_per_month_bps: number | null;
+  total_interest_minor: number | null;
+  total_with_interest_minor: number | null;
+  interest_rate_total_pct: number | null;
+  remaining_with_interest_minor: number | null;
   next_due_date: string | null;
   target_paid_off_date: string | null;
   notes: string | null;
   status: string;
 };
+
+// ─── Installment calculator (flat rate) ────────────────────────────────────
+// interest_rate_per_month_bps: basis points, 1 bps = 0.01%
+// monthly = ceil((principal + principal × rate × months) / months)
+function calcFlatMonthly(principal: number, months: number, bpsPerMonth: number): number {
+  const rate = bpsPerMonth / 10000;
+  const totalInterest = principal * rate * months;
+  return Math.ceil((principal + totalInterest) / months);
+}
+
+// Reverse: given principal, monthly, tenor → derive interest total & rate
+function derivedInterest(principal: number, monthly: number, months: number) {
+  const totalPay = monthly * months;
+  const totalInterest = Math.max(0, totalPay - principal);
+  const pctTotal = principal > 0 ? (totalInterest / principal) * 100 : 0;
+  const pctPerMonth = months > 0 ? pctTotal / months : 0;
+  return { totalPay, totalInterest, pctTotal, pctPerMonth };
+}
 
 type Summary = {
   total_principal_minor: number;
