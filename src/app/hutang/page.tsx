@@ -256,7 +256,10 @@ function PaymentDialog({
 }) {
   const [amount, setAmount] = useState("");
   const [bungaPct, setBungaPct] = useState("");
+  const [adjType, setAdjType] = useState<"fee" | "discount">("fee");
+  const [adjAmount, setAdjAmount] = useState("");
   const [error, setError] = useState<string | null>(null);
+
 
   const remaining = debt.remaining_amount_minor;
   const halfInstallment = debt.monthly_installment_minor
@@ -280,7 +283,10 @@ function PaymentDialog({
   const principalMinor = Math.round(Number(amount) || 0);
   const pct = Math.max(0, Math.min(100, Number(bungaPct) || 0));
   const bungaMinor = pct > 0 ? Math.round((principalMinor * pct) / 100) : 0;
-  const totalMinor = principalMinor + bungaMinor;
+  const adjMinor = Math.max(0, Math.round(Number(adjAmount) || 0));
+  const adjSigned = adjType === "fee" ? adjMinor : -adjMinor;
+  const totalMinor = Math.max(0, principalMinor + bungaMinor + adjSigned);
+  const hasBreakdown = bungaMinor > 0 || adjMinor > 0;
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -294,6 +300,7 @@ function PaymentDialog({
     }
     onConfirm(totalMinor);
   }
+
 
   return (
     <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/40 p-4 sm:items-center" role="dialog" aria-modal="true">
@@ -356,16 +363,62 @@ function PaymentDialog({
           />
         </label>
 
-        {bungaMinor > 0 ? (
+        <div className="mt-3">
+          <span className="text-sm font-semibold text-muted">Biaya Admin / Diskon — opsional</span>
+          <div className="mt-1 flex gap-2">
+            <div className="flex shrink-0 overflow-hidden rounded-lg border border-outline">
+              <button
+                type="button"
+                onClick={() => { setAdjType("fee"); setError(null); }}
+                className={`min-h-12 px-3 text-sm font-semibold transition ${
+                  adjType === "fee" ? "bg-primary text-white" : "bg-surface-container text-ink"
+                }`}
+              >
+                Biaya
+              </button>
+              <button
+                type="button"
+                onClick={() => { setAdjType("discount"); setError(null); }}
+                className={`min-h-12 px-3 text-sm font-semibold transition ${
+                  adjType === "discount" ? "bg-primary text-white" : "bg-surface-container text-ink"
+                }`}
+              >
+                Diskon
+              </button>
+            </div>
+            <input
+              className="min-h-12 w-full rounded-lg border border-outline bg-surface px-3 focus:border-primary focus:outline-none"
+              inputMode="numeric"
+              value={adjAmount}
+              onChange={(e) => { setAdjAmount(e.target.value); setError(null); }}
+              placeholder="2500"
+            />
+          </div>
+          <span className="mt-1 block text-xs text-muted">
+            {adjType === "fee" ? "Biaya admin ditambahkan ke total bayar." : "Diskon mengurangi total bayar."}
+          </span>
+        </div>
+
+        {hasBreakdown ? (
           <div className="mt-3 rounded-lg bg-surface-container px-3 py-2 text-xs">
             <div className="flex items-center justify-between">
               <span className="text-muted">Pokok</span>
               <span className="font-semibold text-ink">{displayAmount(formatCurrency(principalMinor, "IDR"))}</span>
             </div>
-            <div className="mt-1 flex items-center justify-between">
-              <span className="text-muted">Bunga ({pct}%)</span>
-              <span className="font-semibold text-ink">{displayAmount(formatCurrency(bungaMinor, "IDR"))}</span>
-            </div>
+            {bungaMinor > 0 ? (
+              <div className="mt-1 flex items-center justify-between">
+                <span className="text-muted">Bunga ({pct}%)</span>
+                <span className="font-semibold text-ink">{displayAmount(formatCurrency(bungaMinor, "IDR"))}</span>
+              </div>
+            ) : null}
+            {adjMinor > 0 ? (
+              <div className="mt-1 flex items-center justify-between">
+                <span className="text-muted">{adjType === "fee" ? "Biaya Admin" : "Diskon"}</span>
+                <span className={`font-semibold ${adjType === "fee" ? "text-ink" : "text-income"}`}>
+                  {adjType === "fee" ? "+" : "−"}{displayAmount(formatCurrency(adjMinor, "IDR"))}
+                </span>
+              </div>
+            ) : null}
             <div className="mt-1.5 flex items-center justify-between border-t border-outline pt-1.5">
               <span className="font-semibold text-ink">Total Dibayar</span>
               <span className="font-bold text-primary">{displayAmount(formatCurrency(totalMinor, "IDR"))}</span>
