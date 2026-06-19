@@ -68,9 +68,14 @@ export async function provisionUser(input: { userId: string; displayName?: strin
      on conflict (id) do update set display_name = coalesce(excluded.display_name, profiles.display_name)`,
     [input.userId, input.displayName?.trim() || null]
   );
+  // Grant every new user a 1-month Premium free trial. We store it as an active
+  // premium entitlement whose current_period_end is one month out; the gating
+  // queries treat an entitlement whose period has lapsed as free (see the
+  // `current_period_end is null or current_period_end > now()` filters), so the
+  // trial automatically downgrades to free after a month without a cron job.
   await query(
-    `insert into subscription_entitlements (user_id, plan, status)
-     values ($1, 'free', 'active')
+    `insert into subscription_entitlements (user_id, plan, status, current_period_end)
+     values ($1, 'premium', 'active', now() + interval '1 month')
      on conflict (user_id) do nothing`,
     [input.userId]
   );

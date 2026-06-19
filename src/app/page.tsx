@@ -1,5 +1,21 @@
 import Link from "next/link";
-import { ArrowRight, BarChart3, Mic, PencilLine, ReceiptText, ShieldCheck, Sparkles, Store, Wallet } from "lucide-react";
+import {
+  ArrowRight,
+  BarChart3,
+  Bell,
+  HandCoins,
+  Landmark,
+  Mic,
+  PencilLine,
+  ReceiptText,
+  ShieldCheck,
+  Sparkles,
+  Store,
+  Wallet,
+  WifiOff
+} from "lucide-react";
+import { Reveal } from "@/components/landing/reveal";
+
 
 
 export const metadata = {
@@ -12,10 +28,12 @@ export default function LandingPage() {
     <main className="min-h-dvh bg-background text-ink">
       <LandingNav />
       <Hero />
+      <StatsBand />
       <Features />
       <HowItWorks />
       <CtaSection />
       <LandingFooter />
+
     </main>
   );
 }
@@ -49,27 +67,28 @@ function Hero() {
     <section className="relative overflow-hidden">
       {/* Soft brand gradient blobs for a modern, non-flat backdrop. */}
       <div aria-hidden="true" className="pointer-events-none absolute inset-0">
-        <div className="absolute -left-24 -top-24 size-72 rounded-full bg-primary/20 blur-3xl" />
-        <div className="absolute -right-16 top-20 size-72 rounded-full bg-income/20 blur-3xl" />
+        <div className="lp-blob absolute -left-24 -top-24 size-72 rounded-full bg-primary/20 blur-3xl" />
+        <div className="lp-blob absolute -right-16 top-20 size-72 rounded-full bg-income/20 blur-3xl" style={{ animationDelay: "-6s" }} />
+        <div className="lp-blob absolute bottom-0 left-1/3 size-64 rounded-full bg-secondary/15 blur-3xl" style={{ animationDelay: "-12s" }} />
       </div>
 
       <div className="relative mx-auto grid max-w-6xl items-center gap-12 px-5 py-16 md:grid-cols-2 md:py-24">
-        <div>
+        <div className="lp-hero-in">
           <span className="inline-flex items-center gap-2 rounded-full border border-outline bg-surface px-3 py-1 text-xs font-bold text-primary shadow-card">
             <Sparkles size={13} />
             Catat keuangan pakai AI
           </span>
           <h1 className="mt-5 text-4xl font-extrabold leading-tight tracking-tight md:text-5xl">
             Catat keuangan{" "}
-            <span className="bg-gradient-to-r from-primary to-income bg-clip-text text-transparent">secepat bicara.</span>
+            <span className="lp-gradient-text bg-gradient-to-r from-primary via-income to-secondary bg-clip-text text-transparent">secepat bicara.</span>
           </h1>
           <p className="mt-4 max-w-md text-base leading-relaxed text-muted">
             Ucapkan transaksimu, foto struk, atau catat manual. MoneyFlow merapikan dompet, kategori, dan merchant secara otomatis — khusus untuk gaya keuangan orang Indonesia.
           </p>
           <div className="mt-7 flex flex-wrap gap-3">
-            <Link className="flex min-h-12 items-center gap-2 rounded-xl bg-primary px-6 font-bold text-white shadow-lift transition active:scale-[0.98]" href="/register">
+            <Link className="group flex min-h-12 items-center gap-2 rounded-xl bg-primary px-6 font-bold text-white shadow-lift transition hover:shadow-[0_16px_50px_rgba(22,104,220,0.4)] active:scale-[0.98]" href="/register">
               Mulai Gratis
-              <ArrowRight size={18} />
+              <ArrowRight size={18} className="transition-transform group-hover:translate-x-1" />
             </Link>
             <Link className="flex min-h-12 items-center rounded-xl border border-outline bg-surface px-6 font-bold text-ink transition hover:bg-surface-low active:scale-[0.98]" href="/login">
               Sudah punya akun
@@ -78,16 +97,20 @@ function Hero() {
           <p className="mt-4 text-xs text-muted">Gratis dipakai • Tanpa kartu kredit • Bahasa Indonesia</p>
         </div>
 
-        <HeroPreview />
+        <div className="lp-hero-in" style={{ animationDelay: "0.15s" }}>
+          <HeroPreview />
+        </div>
       </div>
     </section>
   );
 }
 
+
 /** Stylized phone mock showing a voice-capture result — concrete, not generic. */
 function HeroPreview() {
   return (
-    <div className="relative mx-auto w-full max-w-sm">
+    <div className="lp-float relative mx-auto w-full max-w-sm">
+      <span aria-hidden className="lp-pulse-ring absolute -right-3 -top-3 size-16 rounded-full bg-income/30" />
       <div className="rounded-[2rem] border border-outline bg-surface p-5 shadow-lift">
         <div className="flex items-center justify-between">
           <span className="text-sm font-bold text-muted">Input Suara</span>
@@ -155,11 +178,60 @@ const FEATURES = [
   },
   {
     icon: BarChart3,
-    title: "Laporan & Insight",
-    body: "Lihat arus kas bulanan, kategori boros, dan tren pengeluaran lewat ringkasan yang mudah dibaca.",
+    title: "Laporan & Ekspor Excel",
+    body: "Lihat arus kas bulanan, kategori boros, dan tren pengeluaran — lalu ekspor ke Excel untuk arsip atau pajak.",
     tone: "text-expense bg-expense/10"
+  },
+  {
+    icon: Landmark,
+    title: "Hutang & Piutang",
+    body: "Pantau cicilan, tenor, dan bunga. Catat pembayaran yang langsung mengurangi sisa hutang dan saldo dompet.",
+    tone: "text-primary bg-primary/10"
+  },
+  {
+    icon: HandCoins,
+    title: "Pinjaman Teman",
+    body: "Lacak siapa berutang padamu dan kapan jatuh tempo, lengkap dengan riwayat pembayaran yang rapi.",
+    tone: "text-income bg-income/10"
+  },
+  {
+    icon: Bell,
+    title: "Pengingat Tagihan",
+    body: "Atur reminder tagihan rutin agar tidak telat bayar — tandai lunas sekali ketuk saat sudah dibayar.",
+    tone: "text-warning bg-warning/10"
+  },
+  {
+    icon: WifiOff,
+    title: "PWA & Offline",
+    body: "Pasang seperti aplikasi di ponsel. Tetap bisa mencatat saat offline — data tersinkron begitu online kembali.",
+    tone: "text-transfer bg-transfer/10"
   }
 ] as const;
+
+const STATS = [
+  { value: "3 cara", label: "Suara, struk, & manual" },
+  { value: "< 5 dtk", label: "Per transaksi" },
+  { value: "100%", label: "Bahasa Indonesia" },
+  { value: "Offline", label: "Tetap jalan tanpa internet" }
+] as const;
+
+function StatsBand() {
+  return (
+    <section className="border-y border-outline/60 bg-surface/60">
+      <div className="mx-auto grid max-w-6xl grid-cols-2 gap-4 px-5 py-8 md:grid-cols-4">
+        {STATS.map((stat, index) => (
+          <Reveal key={stat.label} delay={index * 80} className="text-center">
+            <p className="lp-gradient-text bg-gradient-to-r from-primary to-income bg-clip-text text-2xl font-extrabold text-transparent md:text-3xl">
+              {stat.value}
+            </p>
+            <p className="mt-1 text-xs font-semibold text-muted md:text-sm">{stat.label}</p>
+          </Reveal>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 
 function Features() {
   return (
@@ -169,17 +241,14 @@ function Features() {
         <p className="mt-3 text-muted">Pilih cara tercepat sesuai momen — semuanya rapi otomatis ke dompet dan kategori yang tepat.</p>
       </div>
       <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {FEATURES.map((feature) => (
-          <article
-            key={feature.title}
-            className="group rounded-2xl border border-outline bg-surface p-6 shadow-card transition hover:-translate-y-1 hover:shadow-lift"
-          >
-            <span className={`flex size-12 items-center justify-center rounded-xl ${feature.tone}`}>
+        {FEATURES.map((feature, index) => (
+          <Reveal key={feature.title} delay={(index % 3) * 90} as="article" className="group rounded-2xl border border-outline bg-surface p-6 shadow-card transition hover:-translate-y-1 hover:shadow-lift">
+            <span className={`flex size-12 items-center justify-center rounded-xl ${feature.tone} transition-transform group-hover:scale-110`}>
               <feature.icon size={22} />
             </span>
             <h3 className="mt-4 text-lg font-bold">{feature.title}</h3>
             <p className="mt-2 text-sm leading-relaxed text-muted">{feature.body}</p>
-          </article>
+          </Reveal>
         ))}
       </div>
     </section>
@@ -201,12 +270,12 @@ function HowItWorks() {
           <p className="mt-3 text-muted">Tanpa spreadsheet, tanpa ribet. MoneyFlow mengurus detailnya.</p>
         </div>
         <div className="mt-12 grid gap-4 md:grid-cols-3">
-          {STEPS.map((item) => (
-            <div key={item.step} className="rounded-2xl border border-outline bg-surface p-6 shadow-card">
+          {STEPS.map((item, index) => (
+            <Reveal key={item.step} delay={index * 120} className="relative rounded-2xl border border-outline bg-surface p-6 shadow-card transition hover:-translate-y-1 hover:shadow-lift">
               <span className="text-4xl font-extrabold text-primary/25">{item.step}</span>
               <h3 className="mt-2 text-lg font-bold">{item.title}</h3>
               <p className="mt-2 text-sm leading-relaxed text-muted">{item.body}</p>
-            </div>
+            </Reveal>
           ))}
         </div>
       </div>

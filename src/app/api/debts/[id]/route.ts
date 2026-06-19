@@ -21,7 +21,7 @@ const PatchSchema = z
 
 async function requirePremium(userId: string) {
   const result = await query<{ plan: string | null }>(
-    "select plan from subscription_entitlements where user_id = $1 and status = 'active'",
+    "select plan from subscription_entitlements where user_id = $1 and status = 'active' and (current_period_end is null or current_period_end > now())",
     [userId]
   );
   const plan = (result.rows[0]?.plan ?? "free") as "free" | "premium";

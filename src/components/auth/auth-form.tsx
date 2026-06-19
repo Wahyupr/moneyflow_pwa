@@ -204,34 +204,30 @@ export function AuthForm({ mode }: { mode: AuthMode }) {
         )}
       </button>
 
-      {!isRegister ? (
-        <>
-          <div className="flex items-center py-2">
-            <div className="h-px flex-1 bg-outline" />
-            <span className="mx-4 text-xs font-medium text-muted">or continue with</span>
-            <div className="h-px flex-1 bg-outline" />
-          </div>
-          <button
-            className="flex min-h-12 w-full items-center justify-center gap-2 rounded-lg border border-outline bg-surface text-base font-semibold text-ink transition hover:bg-surface-low active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
-            disabled={oauthLoading}
-            onClick={startGoogleOAuth}
-            type="button"
-          >
-            {oauthLoading ? (
-              <>
-                <Loader2 aria-hidden="true" className="animate-spin" size={18} />
-                Connecting to Google
-              </>
-            ) : (
-              <>
-                <GoogleMark />
-                Google
-              </>
-            )}
-          </button>
-        </>
+      <div className="flex items-center py-2">
+        <div className="h-px flex-1 bg-outline" />
+        <span className="mx-4 text-xs font-medium text-muted">atau lanjutkan dengan</span>
+        <div className="h-px flex-1 bg-outline" />
+      </div>
+      <button
+        className="flex min-h-12 w-full items-center justify-center gap-2 rounded-lg border border-outline bg-surface text-base font-semibold text-ink transition hover:bg-surface-low active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+        disabled={oauthLoading}
+        onClick={startGoogleOAuth}
+        type="button"
+      >
+        {oauthLoading ? (
+          <>
+            <Loader2 aria-hidden="true" className="animate-spin" size={18} />
+            Menghubungkan ke Google…
+          </>
+        ) : (
+          <>
+            <GoogleMark />
+            Login / Sign up dengan Google
+          </>
+        )}
+      </button>
 
-      ) : null}
     </form>
     </>
   );

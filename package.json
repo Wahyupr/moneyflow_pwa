@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "npm run clean && next dev",
+    "dev": "npm run clean && next dev --port 3001",
     "dev:clean": "npm run dev",
     "build": "npm run clean && next build",
     "start": "next start",

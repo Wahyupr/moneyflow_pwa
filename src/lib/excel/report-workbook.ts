@@ -20,6 +20,45 @@ import type { ReportData, ReportWindow } from "@/lib/reports-data";
 import type { ParsedReportInsight } from "@/lib/ai/report-insight";
 import { formatCurrency } from "@/lib/money";
 
+/**
+ * The workbook's amount cells historically divided every stored value by 100,
+ * assuming a 2-decimal "cents" convention. But IDR is stored as WHOLE rupiah
+ * (0 fraction digits), so dividing by 100 shrank every figure 100× (e.g.
+ * 663.609 rendered as 6.636). Rather than rewrite ~20 division sites (some of
+ * which are genuine percentages that must keep /100), we pre-scale only the
+ * monetary *_minor fields so the existing `/100` math lands on the correct
+ * value: for IDR we multiply by 100 first; for 2-decimal currencies we leave
+ * the cents untouched.
+ */
+function scaleReportData(data: ReportData): ReportData {
+  const currency = data.transactions[0]?.currency ?? "IDR";
+  const factor = currency === "IDR" ? 100 : 1;
+  if (factor === 1) return data;
+
+  return {
+    ...data,
+    totals: {
+      ...data.totals,
+      income_minor: data.totals.income_minor * factor,
+      expense_minor: data.totals.expense_minor * factor,
+      net_minor: data.totals.net_minor * factor
+    },
+    previous_totals: {
+      income_minor: data.previous_totals.income_minor * factor,
+      expense_minor: data.previous_totals.expense_minor * factor,
+      net_minor: data.previous_totals.net_minor * factor
+    },
+    by_category: data.by_category.map((c) => ({ ...c, expense_minor: c.expense_minor * factor })),
+    top_merchants: data.top_merchants.map((m) => ({ ...m, expense_minor: m.expense_minor * factor })),
+    trend: data.trend.map((t) => ({
+      ...t,
+      income_minor: t.income_minor * factor,
+      expense_minor: t.expense_minor * factor
+    })),
+    transactions: data.transactions.map((tx) => ({ ...tx, amount_minor: tx.amount_minor * factor }))
+  };
+}
+
 const SHEET_THEME = {
   summary: { tab: "FFF97316", header: "FFF97316", light: "FFFED7AA" }, // orange
   categories: { tab: "FF3B82F6", header: "FF3B82F6", light: "FFBFDBFE" }, // blue
@@ -37,10 +76,12 @@ const BOLD_WHITE: Partial<ExcelJS.Style> = {
 };
 
 export async function buildReportWorkbook(
-  data: ReportData,
+  rawData: ReportData,
   insight: ParsedReportInsight | null,
   options: { userName: string | null; aiModelLabel: string | null }
 ): Promise<Buffer> {
+  // Normalize amounts so the sheets' /100 divisions render correct rupiah.
+  const data = scaleReportData(rawData);
   const wb = new ExcelJS.Workbook();
   wb.creator = "Moneyflow";
   wb.created = new Date();
