@@ -16,7 +16,16 @@ type Summary = {
   total_principal_minor: number;
   total_paid_minor: number;
   total_remaining_minor: number;
+  total_remaining_with_interest_minor: number;
   total_monthly_installment_minor: number;
+};
+
+const EMPTY_SUMMARY: Summary = {
+  total_principal_minor: 0,
+  total_paid_minor: 0,
+  total_remaining_minor: 0,
+  total_remaining_with_interest_minor: 0,
+  total_monthly_installment_minor: 0
 };
 
 type WalletOption = { id: string; name: string };
@@ -41,7 +50,7 @@ export default function HutangPage() {
 function HutangContent() {
   const { displayAmount } = usePrivacy();
   const [debts, setDebts] = useState<Debt[]>([]);
-  const [summary, setSummary] = useState<Summary>({ total_principal_minor: 0, total_paid_minor: 0, total_remaining_minor: 0, total_monthly_installment_minor: 0 });
+  const [summary, setSummary] = useState<Summary>(EMPTY_SUMMARY);
   const [plan, setPlan] = useState<"free" | "premium" | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -90,7 +99,7 @@ function HutangContent() {
       if (res.ok) {
         const json = await res.json();
         setDebts((json.debts ?? []) as Debt[]);
-        setSummary((json.summary ?? { total_principal_minor: 0, total_paid_minor: 0, total_remaining_minor: 0, total_monthly_installment_minor: 0 }) as Summary);
+        setSummary((json.summary ?? EMPTY_SUMMARY) as Summary);
       } else {
         setError("Gagal memuat data hutang.");
       }
@@ -155,6 +164,7 @@ function HutangContent() {
 
       <SummaryCard
         remainingMinor={summary.total_remaining_minor}
+        remainingWithInterestMinor={summary.total_remaining_with_interest_minor}
         paidMinor={summary.total_paid_minor}
         principalMinor={summary.total_principal_minor}
         monthlyInstallmentMinor={summary.total_monthly_installment_minor}
@@ -235,6 +245,7 @@ function HutangContent() {
 
 function SummaryCard({
   remainingMinor,
+  remainingWithInterestMinor,
   paidMinor,
   principalMinor,
   monthlyInstallmentMinor,
@@ -242,16 +253,23 @@ function SummaryCard({
   displayAmount
 }: {
   remainingMinor: number;
+  remainingWithInterestMinor: number;
   paidMinor: number;
   principalMinor: number;
   monthlyInstallmentMinor: number;
   progressPct: number;
   displayAmount: (value: string) => string;
 }) {
+  const interestExtra = Math.max(0, remainingWithInterestMinor - remainingMinor);
   return (
     <section className="overflow-hidden rounded-2xl bg-gradient-to-br from-ink to-primary-container p-5 text-white shadow-card">
-      <p className="text-xs font-semibold uppercase tracking-wider text-white/80">Total Sisa Hutang</p>
+      <p className="text-xs font-semibold uppercase tracking-wider text-white/80">Total Sisa Hutang Pokok</p>
       <p className="mt-1 text-3xl font-bold">{displayAmount(formatCurrency(remainingMinor, "IDR"))}</p>
+      {interestExtra > 0 ? (
+        <p className="mt-1 text-xs font-semibold text-white/80">
+          Sisa + bunga: {displayAmount(formatCurrency(remainingWithInterestMinor, "IDR"))}
+        </p>
+      ) : null}
 
       <div className="mt-4">
         <div className="flex items-end justify-between">

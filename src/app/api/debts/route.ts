@@ -139,10 +139,19 @@ export async function GET(request: NextRequest) {
       acc.total_principal_minor += row.total_amount_minor;
       acc.total_paid_minor += row.paid_amount_minor;
       acc.total_remaining_minor += row.remaining_amount_minor;
+      // Remaining including interest: use the interest-aware value when available,
+      // otherwise fall back to the principal-only remaining for debts without a tenor.
+      acc.total_remaining_with_interest_minor += row.remaining_with_interest_minor ?? row.remaining_amount_minor;
       acc.total_monthly_installment_minor += row.monthly_installment_minor ?? 0;
       return acc;
     },
-    { total_principal_minor: 0, total_paid_minor: 0, total_remaining_minor: 0, total_monthly_installment_minor: 0 }
+    {
+      total_principal_minor: 0,
+      total_paid_minor: 0,
+      total_remaining_minor: 0,
+      total_remaining_with_interest_minor: 0,
+      total_monthly_installment_minor: 0
+    }
   );
 
   return NextResponse.json({ debts: rows, summary });
