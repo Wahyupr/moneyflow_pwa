@@ -70,6 +70,13 @@ export default function VoiceInputPage() {
   const userStoppedRef = useRef(true);
   const hardStopTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const tickTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Text finalized in PREVIOUS recognition sessions (a session ends whenever the
+  // browser fires onend and we auto-restart). `event.results` resets each session,
+  // so we keep prior text here and prepend it.
+  const committedRef = useRef("");
+  // Final text of the CURRENT session, rebuilt fresh on every onresult event so
+  // we never double-append the cumulative results array.
+  const sessionFinalRef = useRef("");
 
   useEffect(() => {
     const SpeechRecognitionCtor =
@@ -110,21 +117,27 @@ export default function VoiceInputPage() {
     };
 
     recognition.onresult = (event) => {
-      let finalChunk = "";
+      // `event.results` is CUMULATIVE for the current session — it already
+      // contains every result so far. So we REBUILD the session's final text
+      // from scratch each event instead of appending (appending double-counts
+      // and produces "...mandiri...mandiri"). Prior sessions live in committedRef.
+      let sessionFinal = "";
       let interimChunk = "";
       for (let i = 0; i < event.results.length; i++) {
         const result = event.results[i];
         const text = result[0]?.transcript ?? "";
         if (result.isFinal) {
-          finalChunk += text;
+          sessionFinal += text;
         } else {
           interimChunk += text;
         }
       }
-      // Accumulate finals across multiple events (continuous mode fires many).
-      if (finalChunk) {
-        setFinalTranscript((prev) => (prev ? `${prev} ` : "") + finalChunk.trim());
-      }
+      sessionFinalRef.current = sessionFinal.trim();
+      const combined = [committedRef.current, sessionFinalRef.current]
+        .map((part) => part.trim())
+        .filter(Boolean)
+        .join(" ");
+      setFinalTranscript(combined);
       setInterimTranscript(interimChunk);
     };
 
@@ -142,6 +155,16 @@ export default function VoiceInputPage() {
     };
 
     recognition.onend = () => {
+      // A session just ended. Fold its final text into committedRef because the
+      // next session's `event.results` starts empty — otherwise the restart
+      // would wipe what was already said.
+      if (sessionFinalRef.current) {
+        committedRef.current = [committedRef.current, sessionFinalRef.current]
+          .map((part) => part.trim())
+          .filter(Boolean)
+          .join(" ");
+        sessionFinalRef.current = "";
+      }
       // Browser ended recognition. If the user didn't ask to stop, restart so
       // long silences or background noise don't prematurely end the session.
       if (!userStoppedRef.current) {
@@ -197,6 +220,8 @@ export default function VoiceInputPage() {
     setPreview(null);
     setFinalTranscript("");
     setInterimTranscript("");
+    committedRef.current = "";
+    sessionFinalRef.current = "";
     userStoppedRef.current = false;
     try {
       recognitionRef.current.start();

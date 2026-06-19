@@ -1,10 +1,11 @@
 "use client";
 
-import { Save } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Save, Store } from "lucide-react";
+import { createElement, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AppFrame } from "@/components/app-frame";
 import { SelectMenu } from "@/components/ui/select-menu";
+import { getCategoryIcon } from "@/lib/category-icons";
 
 type TransactionType = "expense" | "income";
 
@@ -19,6 +20,13 @@ type CategoryOption = {
   id: string;
   name: string;
   type: "expense" | "income" | "transfer";
+  icon: string | null;
+};
+
+type MerchantOption = {
+  id: string;
+  name: string;
+  logo_url: string | null;
 };
 
 export default function NewTransactionPage() {
@@ -29,13 +37,22 @@ export default function NewTransactionPage() {
   );
 }
 
+function MerchantLogo({ logoUrl }: { logoUrl: string | null }) {
+  if (logoUrl) {
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img src={logoUrl} alt="" className="size-5 rounded-full object-contain" />;
+  }
+  return <Store size={16} />;
+}
+
 function NewTransactionForm() {
   const router = useRouter();
   const [wallets, setWallets] = useState<WalletOption[]>([]);
   const [categories, setCategories] = useState<CategoryOption[]>([]);
+  const [merchants, setMerchants] = useState<MerchantOption[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const [name, setName] = useState("");
+  const [merchantName, setMerchantName] = useState("");
   const [amount, setAmount] = useState("");
   const [type, setType] = useState<TransactionType>("expense");
   const [walletId, setWalletId] = useState("");
@@ -48,16 +65,19 @@ function NewTransactionForm() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [walletsRes, categoriesRes] = await Promise.all([
+      const [walletsRes, categoriesRes, merchantsRes] = await Promise.all([
         fetch("/api/wallets"),
-        fetch("/api/categories")
+        fetch("/api/categories"),
+        fetch("/api/merchants")
       ]);
 
       const walletList: WalletOption[] = walletsRes.ok ? (await walletsRes.json()).wallets ?? [] : [];
       const categoryList: CategoryOption[] = categoriesRes.ok ? (await categoriesRes.json()).categories ?? [] : [];
+      const merchantList: MerchantOption[] = merchantsRes.ok ? (await merchantsRes.json()).merchants ?? [] : [];
 
       setWallets(walletList);
       setCategories(categoryList);
+      setMerchants(merchantList);
       if (walletList.length > 0) {
         setWalletId((current) => current || walletList[0].id);
       }
@@ -101,7 +121,7 @@ function NewTransactionForm() {
           amount_minor: amountvalue,
           currency: "IDR",
           occurred_at: new Date().toISOString(),
-          merchant_name: name.trim() ? name.trim() : null,
+          merchant_name: merchantName.trim() ? merchantName.trim() : null,
           note: note.trim() ? note.trim() : null,
           input_method: "manual"
         })
@@ -141,7 +161,24 @@ function NewTransactionForm() {
 
   return (
     <div className="mt-5 space-y-4 rounded-xl bg-surface p-4 shadow-card">
-      <Field label="Nama transaksi" placeholder="Makan siang" value={name} onChange={setName} />
+      <div className="block">
+        <span className="text-sm font-semibold text-muted">Merchant</span>
+        <SelectMenu
+          ariaLabel="Merchant"
+          value={merchantName}
+          onChange={setMerchantName}
+          placeholder={merchants.length > 0 ? "Pilih merchant" : "Belum ada merchant"}
+          options={[
+            { value: "", label: "Tanpa merchant" },
+            ...merchants.map((merchant) => ({
+              value: merchant.name,
+              label: merchant.name,
+              icon: <MerchantLogo logoUrl={merchant.logo_url} />
+            }))
+          ]}
+        />
+      </div>
+
       <Field label="Nominal (Rp)" placeholder="50000" inputMode="numeric" value={amount} onChange={setAmount} />
 
       <div className="block">
@@ -180,7 +217,11 @@ function NewTransactionForm() {
           placeholder={visibleCategories.length > 0 ? "Tanpa kategori" : "Belum ada kategori"}
           options={[
             { value: "", label: "Tanpa kategori" },
-            ...visibleCategories.map((category) => ({ value: category.id, label: category.name }))
+            ...visibleCategories.map((category) => ({
+              value: category.id,
+              label: category.name,
+              icon: createElement(getCategoryIcon(category.icon), { size: 16 })
+            }))
           ]}
         />
       </div>
