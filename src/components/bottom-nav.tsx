@@ -19,11 +19,12 @@ export function BottomNav() {
 
   return (
     <>
-      <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-surface-container bg-surface/95 px-2 pb-[max(env(safe-area-inset-bottom),0.5rem)] pt-2 shadow-[0_-6px_24px_rgba(11,28,48,0.06)] backdrop-blur md:hidden">
+      <nav id="bottom-navigation" className="fixed inset-x-0 bottom-0 z-50 border-t border-surface-container bg-surface/95 px-2 pb-[max(env(safe-area-inset-bottom),0.5rem)] pt-2 shadow-[0_-6px_24px_rgba(11,28,48,0.06)] backdrop-blur md:hidden">
         <div className="mx-auto grid max-w-md grid-cols-5 items-end gap-1">
           <NavItem item={items[0]} pathname={pathname} />
           <NavItem item={items[1]} pathname={pathname} />
           <button
+            id="floating-action-button"
             className="-mt-8 flex size-16 flex-col items-center justify-center rounded-full bg-primary text-white shadow-lift transition active:scale-95"
             onClick={() => setAddOpen(true)}
             type="button"
@@ -31,7 +32,9 @@ export function BottomNav() {
           >
             <Plus aria-hidden="true" size={28} strokeWidth={2.4} />
           </button>
-          <NavItem item={items[2]} pathname={pathname} />
+          <span id="report-menu">
+            <NavItem item={items[2]} pathname={pathname} />
+          </span>
           <NavItem item={items[3]} pathname={pathname} />
         </div>
       </nav>

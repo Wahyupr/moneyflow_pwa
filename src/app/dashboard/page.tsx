@@ -5,6 +5,8 @@ import { ArrowDownRight, ArrowUpRight, Eye, EyeOff, HandCoins, Landmark, Store, 
 import { useEffect, useState } from "react";
 import { AppFrame } from "@/components/app-frame";
 import { DailyInsightCard } from "@/components/daily-insight-card";
+import { OnboardingTour } from "@/components/onboarding/onboarding-tour";
+import { PwaInstallPrompt } from "@/components/onboarding/pwa-install-prompt";
 import { usePrivacy } from "@/components/privacy-provider";
 import { TransactionRow } from "@/components/transaction-row";
 import { WalletCard } from "@/components/wallet-card";
@@ -71,6 +73,8 @@ export default function DashboardPage() {
 
   return (
     <AppFrame title={greeting} subtitle={fullName ? `Hai! ${fullName}` : "Hai!"}>
+      <OnboardingTour />
+      <PwaInstallPrompt />
       <DashboardContent />
     </AppFrame>
   );
@@ -191,7 +195,7 @@ function DashboardContent() {
 
       <MenuUtama />
 
-      <section className="mt-6">
+      <section id="wallet-list" className="mt-6">
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-lg font-bold text-ink">Dompet Saya</h2>
           <Link className="min-h-10 rounded-lg px-3 py-2 text-sm font-bold text-primary active:bg-surface-container" href="/wallets">
