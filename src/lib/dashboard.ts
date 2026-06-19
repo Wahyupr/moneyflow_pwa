@@ -61,7 +61,12 @@ export function buildDashboardViewModel(input: {
 }) {
   const monthly = summarizeMonthly(input.transactions, input.month);
   const previous = summarizeMonthly(input.previousTransactions ?? [], previousMonth(input.month));
-  const totalBalance = input.wallets.reduce((sum, wallet) => sum + wallet.balance_minor, 0);
+  // Credit cards represent a liability (debt), not owned cash, so they are
+  // excluded from the total balance figure to avoid distorting net assets.
+  const totalBalance = input.wallets.reduce(
+    (sum, wallet) => (wallet.type === "credit_card" ? sum : sum + wallet.balance_minor),
+    0
+  );
 
   const incomeDeltaPercent = deltaPercent(monthly.totals.income_minor, previous.totals.income_minor);
   const expenseDeltaPercent = deltaPercent(monthly.totals.expense_minor, previous.totals.expense_minor);
