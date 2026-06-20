@@ -12,6 +12,11 @@ import {
 } from "@/lib/auth/users";
 import { validateLoginInput, validateRegisterInput } from "@/lib/auth-validation";
 import { sendVerificationEmail } from "@/lib/email/resend";
+import { query } from "@/lib/db/pool";
+
+// Brute-force protection constants
+const MAX_ATTEMPTS = 5;
+const LOCK_MINUTES = 15;
 
 export const runtime = "nodejs";
 
@@ -41,10 +46,45 @@ export async function POST(request: NextRequest) {
 async function loginWithApi(input: { email: string; password: string }) {
   try {
     const user = await findUserByEmail(input.email);
+
+    // Check account lockout BEFORE verifying password so we don't waste bcrypt
+    // cycles and also avoid leaking "account exists" information.
+    if (user) {
+      const lockedRow = await query<{ locked_until: string | null }>(
+        "select locked_until from users where id = $1",
+        [user.id]
+      );
+      const lockedUntil = lockedRow.rows[0]?.locked_until
+        ? new Date(lockedRow.rows[0].locked_until)
+        : null;
+      if (lockedUntil && lockedUntil > new Date()) {
+        const remainingMs = lockedUntil.getTime() - Date.now();
+        const remainingMin = Math.ceil(remainingMs / 60_000);
+        return NextResponse.json(
+          { error: `Akun dikunci sementara karena terlalu banyak percobaan login. Coba lagi dalam ${remainingMin} menit.` },
+          { status: 429 }
+        );
+      }
+    }
+
     const passwordOk = await verifyPassword(input.password, user?.password_hash);
 
     // Uniform invalid-credentials response (no enumeration of which factor failed).
     if (!user || !passwordOk) {
+      // Increment failed attempts and potentially lock the account.
+      if (user) {
+        await query(
+          `update users
+           set failed_login_attempts = failed_login_attempts + 1,
+               locked_until = case
+                 when failed_login_attempts + 1 >= $1
+                 then now() + ($2 * interval '1 minute')
+                 else null
+               end
+           where id = $3`,
+          [MAX_ATTEMPTS, LOCK_MINUTES, user.id]
+        );
+      }
       return NextResponse.json({ error: "Email atau kata sandi salah." }, { status: 401 });
     }
 
@@ -54,6 +94,12 @@ async function loginWithApi(input: { email: string; password: string }) {
         { status: 403 }
       );
     }
+
+    // Successful login — reset the failure counter.
+    await query(
+      "update users set failed_login_attempts = 0, locked_until = null where id = $1",
+      [user.id]
+    );
 
     return issueSession(user);
   } catch (error) {
