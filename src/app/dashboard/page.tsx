@@ -5,8 +5,9 @@ import { ArrowDownRight, ArrowUpRight, Eye, EyeOff, HandCoins, Landmark, Store, 
 import { useEffect, useState } from "react";
 import { AppFrame } from "@/components/app-frame";
 import { DailyInsightCard } from "@/components/daily-insight-card";
-import { OnboardingTour } from "@/components/onboarding/onboarding-tour";
 import { PwaInstallPrompt } from "@/components/onboarding/pwa-install-prompt";
+import { startTour } from "@/components/onboarding/onboarding-tour";
+import { isOnboardingCompleted } from "@/lib/onboarding";
 import { usePrivacy } from "@/components/privacy-provider";
 import { TransactionRow } from "@/components/transaction-row";
 import { WalletCard } from "@/components/wallet-card";
@@ -41,6 +42,12 @@ function timeGreeting(hour: number): string {
 export default function DashboardPage() {
   const [fullName, setFullName] = useState<string | null>(null);
   const [greeting, setGreeting] = useState("Selamat datang");
+  // "free" | "premium" | null (null = still loading)
+  const [plan, setPlan] = useState<string | null>(null);
+  // tourActive: true while the Driver.js tour is running; blocks PWA install prompt
+  const [tourActive, setTourActive] = useState(false);
+  // showWelcomeCard: shown for premium users before they click "Mulai"
+  const [showWelcomeCard, setShowWelcomeCard] = useState(false);
 
   useEffect(() => {
     setGreeting(timeGreeting(new Date().getHours()));
@@ -48,35 +55,87 @@ export default function DashboardPage() {
 
   useEffect(() => {
     let active = true;
-
     fetch("/api/profile")
-      .then(async (response) => {
-        if (!response.ok) {
-          throw new Error("Gagal memuat profil.");
-        }
-        return response.json();
-      })
+      .then(async (r) => (r.ok ? r.json() : null))
       .then((json) => {
-        if (active) {
-          const name = json?.profile?.display_name as string | undefined;
-          setFullName(name && name.trim().length > 0 ? name : null);
+        if (!active) return;
+        const name = json?.profile?.display_name as string | undefined;
+        setFullName(name?.trim() || null);
+        // entitlement is included in the profile response
+        const entPlan: string = json?.entitlement?.plan ?? "free";
+        // Check expiry: if current_period_end is in the past, downgrade to free
+        const periodEnd: string | null = json?.entitlement?.current_period_end ?? null;
+        const effectivePlan = (entPlan === "premium" && periodEnd && new Date(periodEnd) <= new Date())
+          ? "free" : entPlan;
+        setPlan(effectivePlan);
+
+        // Only show onboarding if not yet completed
+        if (!isOnboardingCompleted()) {
+          if (effectivePlan === "premium") {
+            setShowWelcomeCard(true);
+          } else {
+            // Free: auto-start after a brief delay
+            setTourActive(true);
+            window.setTimeout(() => startTour(() => setTourActive(false)), 800);
+          }
         }
       })
       .catch(() => {
-        // Keep the default greeting when the profile cannot be loaded.
+        if (active) setPlan("free");
       });
-
-    return () => {
-      active = false;
-    };
+    return () => { active = false; };
   }, []);
+
+  function handleStartTour() {
+    setShowWelcomeCard(false);
+    setTourActive(true);
+    startTour(() => setTourActive(false));
+  }
+
+  function handleSkipTour() {
+    setShowWelcomeCard(false);
+  }
 
   return (
     <AppFrame title={greeting} subtitle={fullName ? `Hai! ${fullName}` : "Hai!"}>
-      <OnboardingTour />
-      <PwaInstallPrompt />
+      {showWelcomeCard ? (
+        <WelcomeCard onStart={handleStartTour} onSkip={handleSkipTour} />
+      ) : null}
+      {!tourActive ? <PwaInstallPrompt /> : null}
       <DashboardContent />
     </AppFrame>
+  );
+}
+
+function WelcomeCard({ onStart, onSkip }: { onStart: () => void; onSkip: () => void }) {
+  return (
+    <div className="mb-4 mt-3 overflow-hidden rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/8 to-secondary/8 p-5 shadow-card">
+      <div className="flex items-start gap-4">
+        <span className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-primary/15 text-2xl">👋</span>
+        <div className="min-w-0 flex-1">
+          <p className="font-bold text-ink">Selamat datang di MoneyFlow!</p>
+          <p className="mt-1 text-sm leading-5 text-muted">
+            Mau kami tunjukkan cara pakainya? Butuh kurang dari 1 menit.
+          </p>
+          <div className="mt-4 flex gap-3">
+            <button
+              type="button"
+              onClick={onStart}
+              className="flex min-h-10 flex-1 items-center justify-center rounded-xl bg-primary px-4 text-sm font-bold text-white shadow-card active:scale-[0.98]"
+            >
+              Mulai Tour
+            </button>
+            <button
+              type="button"
+              onClick={onSkip}
+              className="min-h-10 rounded-xl border border-outline px-4 text-sm font-semibold text-muted active:scale-[0.98]"
+            >
+              Lewati
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
