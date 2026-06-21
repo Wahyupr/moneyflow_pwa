@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { hashPassword } from "@/lib/auth/password";
-import { createUser, findUserByEmail, issueVerificationCode } from "@/lib/auth/users";
+import { createUser, findUserByEmail, getActiveVerificationCode, issueVerificationCode } from "@/lib/auth/users";
 import { validateRegisterInput } from "@/lib/auth-validation";
 import { sendVerificationEmail } from "@/lib/email/resend";
+import { OTP_RESEND_COOLDOWN_SECONDS } from "@/lib/auth/otp";
 
 export const runtime = "nodejs";
 
@@ -32,9 +33,21 @@ export async function POST(request: NextRequest) {
       const code = await issueVerificationCode(user.id);
       await safeSendVerification(email, code);
     } else if (!existing.email_verified_at) {
-      // Account exists but unverified: re-issue a code so the user can finish.
-      const code = await issueVerificationCode(existing.id);
-      await safeSendVerification(email, code);
+      // Account exists but unverified: only re-issue a code if the cooldown has
+      // elapsed. This prevents the active code from being deleted on every
+      // re-submit while a valid one is still in-flight (and avoids burning the
+      // email quota unnecessarily).
+      const existingCode = await getActiveVerificationCode(existing.id);
+      const elapsed = existingCode
+        ? (Date.now() - new Date(existingCode.last_sent_at).getTime()) / 1000
+        : Infinity;
+
+      if (elapsed >= OTP_RESEND_COOLDOWN_SECONDS) {
+        const code = await issueVerificationCode(existing.id);
+        await safeSendVerification(email, code);
+      }
+      // Within cooldown: the existing code is still valid; the verify-email
+      // screen lets the user request a resend manually after the window expires.
     }
     // If the account exists and is already verified, do nothing but still
     // return the same neutral response below.
