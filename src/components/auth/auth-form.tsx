@@ -223,7 +223,7 @@ export function AuthForm({ mode }: { mode: AuthMode }) {
         ) : (
           <>
             <GoogleMark />
-            Login / Sign up dengan Google
+            Login / Sign up with Google
           </>
         )}
       </button>
