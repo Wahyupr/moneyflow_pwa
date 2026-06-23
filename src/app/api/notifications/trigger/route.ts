@@ -109,6 +109,15 @@ export async function POST(request: NextRequest) {
         staleIds.push(sub.id);
       }
     }
+
+    // Log every successfully sent notification so users can view history
+    if (subs.length > 0) {
+      await query(
+        `insert into notification_logs (user_id, title, body, url)
+         values ($1, $2, $3, $4)`,
+        [reminder.user_id, title, body, "/reminders"]
+      );
+    }
   }
 
   // Clean up expired subscriptions

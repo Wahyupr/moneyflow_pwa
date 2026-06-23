@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowDownRight, ArrowUpRight, Eye, EyeOff, HandCoins, Landmark, Store, Tags, TrendingUp, WalletCards } from "lucide-react";
+import { AlarmClock, ArrowDownRight, ArrowUpRight, Eye, EyeOff, HandCoins, Landmark, Store, Tags, TrendingUp, WalletCards } from "lucide-react";
 import { useEffect, useState } from "react";
 import { AppFrame } from "@/components/app-frame";
 import { DailyInsightCard } from "@/components/daily-insight-card";
@@ -357,6 +357,7 @@ const MENU_TILES: MenuTile[] = [
   { href: "/wallets", label: "Dompet", icon: WalletCards, tint: "bg-primary/8", iconWrap: "bg-primary/10 text-primary" },
   { href: "/hutang", label: "Hutang", icon: Landmark, tint: "bg-tertiary/10", iconWrap: "bg-tertiary/15 text-tertiary" },
   { href: "/piutang", label: "Piutang", icon: HandCoins, tint: "bg-income/10", iconWrap: "bg-income/10 text-income" },
+  { href: "/reminders", label: "Pengingat", icon: AlarmClock, tint: "bg-expense/8", iconWrap: "bg-expense/10 text-expense" },
   { href: "/merchants", label: "Merchant", icon: Store, tint: "bg-secondary/10", iconWrap: "bg-secondary/10 text-secondary" },
   { href: "/categories", label: "Kategori", icon: Tags, tint: "bg-primary-dark/8", iconWrap: "bg-primary-dark/10 text-primary-dark" }
 ];
