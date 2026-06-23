@@ -8,16 +8,17 @@
  *  4. Everything else             → Network-first, fall back to cache, then offline page
  */
 
-const SHELL_CACHE   = "mf-shell-v3";
-const STATIC_CACHE  = "mf-static-v3";
-const API_CACHE     = "mf-api-v3";
+const SHELL_CACHE   = "mf-shell-v4";
+const STATIC_CACHE  = "mf-static-v4";
+const API_CACHE     = "mf-api-v4";
 
 // App shell files pre-cached on install
 const SHELL_FILES = [
   "/",
   "/dashboard",
   "/manifest.webmanifest",
-  "/brand-mark.svg"
+  "/logo/icon-192.png",
+  "/logo/brand-mark.svg"
 ];
 
 // API paths we cache for offline read access
@@ -142,8 +143,8 @@ self.addEventListener("push", (event) => {
   event.waitUntil(
     self.registration.showNotification(data.title, {
       body: data.body,
-      icon: "/brand-mark.svg",
-      badge: "/brand-mark.svg",
+      icon: "/logo/icon-192.png",
+      badge: "/logo/notification-badge-96.png",
       tag: "reminder",
       renotify: true,
       data: { url: data.url ?? "/reminders" }

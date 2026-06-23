@@ -144,7 +144,7 @@ export function PwaInstallPrompt() {
         <div className="flex items-center justify-between bg-gradient-to-r from-primary to-primary-container px-4 py-3">
           <div className="flex items-center gap-3">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/brand-mark.svg" alt="MoneyFlow" className="size-9 rounded-xl" />
+            <img src="/logo/brand-mark.svg" alt="MoneyFlow" className="size-9 rounded-xl" />
             <div>
               <p className="font-bold text-white">Pasang MoneyFlow</p>
               <p className="text-xs text-white/75">Akses cepat langsung dari Home Screen</p>

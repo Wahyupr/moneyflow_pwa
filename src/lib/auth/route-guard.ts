@@ -23,7 +23,9 @@ const publicApiPrefixes = [
   "/api/auth/google",
   "/api/auth/verify",
   "/api/auth/resend",
-  "/api/auth/forgot-password"
+  "/api/auth/forgot-password",
+  // Cron endpoint — secured by CRON_SECRET bearer token, not user session
+  "/api/notifications/trigger"
 ];
 
 

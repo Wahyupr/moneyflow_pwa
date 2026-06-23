@@ -49,13 +49,16 @@ export async function POST(request: NextRequest) {
        r.name,
        r.amount_minor::text,
        r.currency,
-       (date_trunc('day', r.next_run_at at time zone 'UTC')
-        - date_trunc('day', now() at time zone 'UTC'))::int / 86400 as days_until
+       extract(epoch from (
+         date_trunc('day', r.next_run_at at time zone 'UTC')
+         - date_trunc('day', now() at time zone 'UTC')
+       ))::int / 86400 as days_until
      from recurring_rules r
      where r.is_active = true
-       and (date_trunc('day', r.next_run_at at time zone 'UTC')
-            - date_trunc('day', now() at time zone 'UTC'))
-            = (r.remind_days_before * interval '1 day')`
+       and extract(epoch from (
+             date_trunc('day', r.next_run_at at time zone 'UTC')
+             - date_trunc('day', now() at time zone 'UTC')
+           ))::int / 86400 = r.remind_days_before`
   );
 
   if (dueReminders.length === 0) {
