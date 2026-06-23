@@ -11,6 +11,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { AppFrame } from "@/components/app-frame";
 import { MerchantManager } from "@/components/merchant-manager";
+import { PushNotificationManager } from "@/components/push-notification-manager";
 
 type ProfilePayload = {
   user?: { email?: string | null };
@@ -142,21 +143,19 @@ export default function SettingsPage() {
           </>
         ) : null}
 
-        {/* NOTIFICATIONS — placeholder info row */}
+        {/* NOTIFICATIONS */}
         <section className="overflow-hidden rounded-2xl bg-surface shadow-card">
-          <div className="flex items-center justify-between gap-3 p-4">
-            <div className="flex items-center gap-3">
-              <div className="flex size-10 items-center justify-center rounded-xl bg-surface-container text-primary">
-                <Bell size={18} />
-              </div>
-              <div>
-                <p className="font-bold text-ink">Notifikasi</p>
-                <p className="text-sm text-muted">Reminder &amp; alert transaksi</p>
-              </div>
+          <div className="flex items-center gap-3 p-4 pb-3">
+            <div className="flex size-10 items-center justify-center rounded-xl bg-surface-container text-primary">
+              <Bell size={18} />
             </div>
-            <span className="rounded-full bg-surface-container px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-muted">
-              Segera
-            </span>
+            <div>
+              <p className="font-bold text-ink">Notifikasi</p>
+              <p className="text-sm text-muted">Reminder &amp; alert tagihan</p>
+            </div>
+          </div>
+          <div className="px-4 pb-4">
+            <PushNotificationManager />
           </div>
         </section>
 

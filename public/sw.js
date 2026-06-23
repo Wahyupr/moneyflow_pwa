@@ -127,6 +127,53 @@ function offlineApiResponse() {
   );
 }
 
+// ── Push Notifications ────────────────────────────────────────────────────────
+
+self.addEventListener("push", (event) => {
+  if (!event.data) return;
+
+  let data = { title: "MoneyFlow", body: "Kamu punya pengingat tagihan.", url: "/reminders" };
+  try {
+    data = { ...data, ...event.data.json() };
+  } catch {
+    data.body = event.data.text();
+  }
+
+  event.waitUntil(
+    self.registration.showNotification(data.title, {
+      body: data.body,
+      icon: "/brand-mark.svg",
+      badge: "/brand-mark.svg",
+      tag: "reminder",
+      renotify: true,
+      data: { url: data.url ?? "/reminders" }
+    })
+  );
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const targetUrl = event.notification.data?.url ?? "/reminders";
+
+  event.waitUntil(
+    self.clients
+      .matchAll({ type: "window", includeUncontrolled: true })
+      .then((clients) => {
+        // Focus existing tab if open
+        for (const client of clients) {
+          if (client.url.includes(self.location.origin) && "focus" in client) {
+            client.navigate(targetUrl);
+            return client.focus();
+          }
+        }
+        // Otherwise open a new window
+        if (self.clients.openWindow) {
+          return self.clients.openWindow(targetUrl);
+        }
+      })
+  );
+});
+
 function offlinePage() {
   return new Response(
     `<!DOCTYPE html><html lang="id"><head><meta charset="utf-8">
