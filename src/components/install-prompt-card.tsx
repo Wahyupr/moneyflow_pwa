@@ -51,12 +51,16 @@ export function InstallPromptCard() {
   const [installed, setInstalled] = useState(false);
   const [dismissedAt, setDismissedAtState] = useState(0);
   const [prompting, setPrompting] = useState(false);
-  // iOS is a stable per-device property; compute once.
-  const [ios] = useState(detectIOS);
+  const [ios, setIos] = useState(false);
+  // mounted ensures we never render anything until client state is known,
+  // preventing SSR/client hydration mismatches from localStorage / UA checks.
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
     setInstalled(isStandaloneDisplay());
     setDismissedAtState(getDismissedAt());
+    setIos(detectIOS());
 
     const onBefore = (event: Event) => {
       event.preventDefault();
@@ -101,7 +105,9 @@ export function InstallPromptCard() {
     setDismissedAtState(Date.now());
   }
 
-  if (!visible) return null;
+  // Never render on server or before mount — all visibility checks depend on
+  // client-only APIs (localStorage, navigator, matchMedia).
+  if (!mounted || !visible) return null;
 
   return (
     <div className="relative overflow-hidden rounded-xl border border-white/60 bg-white/85 p-4 shadow-card backdrop-blur-xl">

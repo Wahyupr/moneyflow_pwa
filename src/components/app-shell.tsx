@@ -47,7 +47,8 @@ export function AppShell() {
     <div className="min-h-dvh bg-background text-ink md:flex">
       <aside className="hidden h-dvh w-64 shrink-0 flex-col border-r border-surface-container bg-surface px-4 py-6 md:sticky md:top-0 md:flex">
         <div className="mb-8 flex items-center gap-3 px-2">
-          <img src="/brand-mark.svg" alt="MoneyFlow" className="size-10 rounded-lg" />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo/brand-mark.svg" alt="MoneyFlow" className="size-10 rounded-lg" />
           <div>
             <h1 className="text-xl font-bold text-primary">MoneyFlow</h1>
             <p className="text-xs text-muted">Modern Urban Finance</p>
@@ -85,7 +86,8 @@ export function AppShell() {
       <main className="mx-auto w-full max-w-3xl px-5 pb-28 pt-[max(env(safe-area-inset-top),1rem)] md:px-8 md:pb-10">
         <header className="sticky top-0 z-40 -mx-5 mb-4 flex items-center justify-between bg-background/95 px-5 py-2 backdrop-blur md:static md:mx-0 md:bg-transparent md:px-0">
           <div className="flex items-center gap-3">
-            <img src="/brand-mark.svg" alt="MoneyFlow" className="size-10 rounded-lg md:hidden" />
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/logo/brand-mark.svg" alt="MoneyFlow" className="size-10 rounded-lg md:hidden" />
             <div>
               <p className="text-sm text-muted">Hai, Nara</p>
               <h1 className="text-xl font-bold text-primary">MoneyFlow</h1>

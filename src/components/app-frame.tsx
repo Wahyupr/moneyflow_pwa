@@ -60,7 +60,8 @@ export function AppFrame({
       <div className="min-h-dvh bg-background text-ink md:flex">
         <aside className="hidden h-dvh w-64 shrink-0 flex-col border-r border-surface-container bg-surface px-4 py-6 md:sticky md:top-0 md:flex">
           <div className="mb-8 flex items-center gap-3 px-2">
-            <img src="/brand-mark.svg" alt="MoneyFlow" className="size-10 rounded-lg" />
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/logo/brand-mark.svg" alt="MoneyFlow" className="size-10 rounded-lg" />
             <div>
               <h1 className="text-xl font-bold text-primary">MoneyFlow</h1>
               <p className="text-xs text-muted">Modern Urban Finance</p>

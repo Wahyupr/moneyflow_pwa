@@ -1,6 +1,5 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { WalletCards } from "lucide-react";
 
 export function AuthCard({
   title,
@@ -22,9 +21,8 @@ export function AuthCard({
 
       <section className="relative w-full max-w-md">
         <div className="mb-8 flex flex-col items-center text-center">
-          <div className="mb-4 flex size-16 items-center justify-center rounded-full bg-primary-container text-white shadow-card">
-            <WalletCards aria-hidden="true" size={34} strokeWidth={2.2} />
-          </div>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo/icon-192.png" alt="MoneyFlow" className="mb-4 size-16 rounded-2xl shadow-card" />
           <Link className="text-2xl font-bold text-primary" href="/">
             MoneyFlow
           </Link>

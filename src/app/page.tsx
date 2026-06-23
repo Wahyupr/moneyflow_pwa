@@ -14,6 +14,7 @@ import {
   Wallet,
   WifiOff
 } from "lucide-react";
+// Note: Wallet is still used in FEATURES array for "Multi Dompet" feature card
 import { Reveal } from "@/components/landing/reveal";
 
 
@@ -43,9 +44,8 @@ function LandingNav() {
     <nav className="sticky top-0 z-50 border-b border-outline/60 bg-background/80 backdrop-blur-md">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-4">
         <div className="flex items-center gap-2">
-          <span className="flex size-9 items-center justify-center rounded-xl bg-primary text-white shadow-card">
-            <Wallet size={18} />
-          </span>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo/brand-mark.svg" alt="MoneyFlow" className="size-9 rounded-xl" />
           <span className="text-lg font-extrabold tracking-tight">MoneyFlow</span>
         </div>
         <div className="flex items-center gap-2">
@@ -312,12 +312,11 @@ function LandingFooter() {
     <footer className="border-t border-outline/60">
       <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-5 py-8 sm:flex-row">
         <div className="flex items-center gap-2">
-          <span className="flex size-7 items-center justify-center rounded-lg bg-primary text-white">
-            <Wallet size={14} />
-          </span>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo/brand-mark.svg" alt="MoneyFlow" className="size-7 rounded-lg" />
           <span className="font-bold">MoneyFlow</span>
         </div>
-        <p className="text-sm text-muted">© {new Date().getFullYear()} MoneyFlow. Dibuat untuk Indonesia.</p>
+        <p className="text-sm text-muted">© {new Date().getFullYear()} MoneyFlow. Dibuat oleh Wahyu Pratama.</p>
         <div className="flex gap-4 text-sm font-semibold text-muted">
           <Link className="hover:text-ink" href="/login">Masuk</Link>
           <Link className="hover:text-ink" href="/register">Daftar</Link>
