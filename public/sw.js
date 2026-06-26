@@ -8,9 +8,9 @@
  *  4. Everything else             → Network-first, fall back to cache, then offline page
  */
 
-const SHELL_CACHE   = "mf-shell-v4";
-const STATIC_CACHE  = "mf-static-v4";
-const API_CACHE     = "mf-api-v4";
+const SHELL_CACHE   = "mf-shell-v5";
+const STATIC_CACHE  = "mf-static-v5";
+const API_CACHE     = "mf-api-v5";
 
 // App shell files pre-cached on install
 const SHELL_FILES = [

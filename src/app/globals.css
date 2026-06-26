@@ -8,6 +8,38 @@
   --font-mono: "Plus Jakarta Sans", "SFMono-Regular", Consolas, monospace;
   color-scheme: light;
   letter-spacing: 0;
+
+  /* Light mode colors */
+  --color-background: #f8f9ff;
+  --color-ink: #0b1c30;
+  --color-muted: #3d4250;
+  --color-outline: #c0c9da;
+  --color-surface: #ffffff;
+  --color-surface-low: #eff4ff;
+  --color-surface-container: #e5eeff;
+  --color-surface-highest: #d3e4fe;
+  --color-primary: #1668DC;
+  --color-primary-container: #3B9EFF;
+  --color-secondary: #3B9EFF;
+  --color-tertiary: #0A3B8C;
+}
+
+.dark {
+  color-scheme: dark;
+
+  /* Dark mode colors */
+  --color-background: #0d1117;
+  --color-ink: #e6edf3;
+  --color-muted: #8b949e;
+  --color-outline: #30363d;
+  --color-surface: #161b22;
+  --color-surface-low: #1c2128;
+  --color-surface-container: #21262d;
+  --color-surface-highest: #2d333b;
+  --color-primary: #58a6ff;
+  --color-primary-container: #388bfd;
+  --color-secondary: #79c0ff;
+  --color-tertiary: #a5c9ff;
 }
 
 * {
@@ -149,16 +181,16 @@ select {
 
 html {
   min-height: 100%;
-  background: #f8f9ff;
+  background: var(--color-background);
 }
 
 body {
   min-height: 100%;
   margin: 0;
-  background: linear-gradient(180deg, #f8f9ff 0%, #eff4ff 48%, #f8f9ff 100%);
+  background: linear-gradient(180deg, var(--color-background) 0%, var(--color-surface-low) 48%, var(--color-background) 100%);
   font-family: var(--font-sans);
   letter-spacing: 0;
-  color: #0b1c30;
+  color: var(--color-ink);
 }
 
 button,

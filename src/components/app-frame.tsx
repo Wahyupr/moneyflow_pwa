@@ -6,23 +6,27 @@ import {
   AlarmClock,
   BarChart3,
   Bell,
+  ChevronLeft,
+  ChevronRight,
   HandCoins,
   Home,
   Landmark,
   Mic,
+  Moon,
+  PencilLine,
   PiggyBank,
-  Plus,
   ReceiptText,
   ScanLine,
   Settings,
   ShieldCheck,
   Store,
+  Sun,
   Tags,
   UserRound,
   WalletCards
 } from "lucide-react";
+import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
-import { AddActionSheet } from "@/components/add-action-sheet";
 import { BottomNav } from "@/components/bottom-nav";
 import { ChatWidget } from "@/components/chat-widget";
 import { PrivacyProvider } from "@/components/privacy-provider";
@@ -47,6 +51,7 @@ const financeNav: NavItem[] = [
 ];
 
 const toolNav: NavItem[] = [
+  { label: "Input Manual", icon: PencilLine, href: "/transactions/new" },
   { label: "Input Suara", icon: Mic, href: "/voice-input" },
   { label: "Scan Struk", icon: ScanLine, href: "/scan-receipt" },
   { label: "Merchant", icon: Store, href: "/merchants" },
@@ -59,46 +64,17 @@ const bottomNav: NavItem[] = [
 
 const adminNavItem: NavItem = { label: "Admin", icon: ShieldCheck, href: "/admin" };
 
-/** A "Catat Transaksi" button that opens the AddActionSheet.
- *  `compact` = slim pill used in the top-bar; default = full-width sidebar button. */
-function DesktopAddButton({ compact = false }: { compact?: boolean }) {
-  const [open, setOpen] = useState(false);
-
-  return (
-    <>
-      {compact ? (
-        <button
-          type="button"
-          onClick={() => setOpen(true)}
-          className="flex h-9 items-center gap-1.5 rounded-full bg-primary px-3 text-sm font-bold text-white shadow-card transition hover:opacity-90 active:scale-[0.98]"
-          aria-label="Catat Transaksi"
-        >
-          <Plus size={15} strokeWidth={2.5} aria-hidden="true" />
-          <span>Catat</span>
-        </button>
-      ) : (
-        <button
-          type="button"
-          onClick={() => setOpen(true)}
-          className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-2.5 text-sm font-bold text-white shadow-card transition active:scale-[0.98] hover:opacity-90"
-        >
-          <Plus size={16} strokeWidth={2.5} aria-hidden="true" />
-          Catat Transaksi
-        </button>
-      )}
-      <AddActionSheet open={open} onClose={() => setOpen(false)} />
-    </>
-  );
-}
-
-function SideNavLink({ item, pathname }: { item: NavItem; pathname: string }) {
+function SideNavLink({ item, pathname, collapsed }: { item: NavItem; pathname: string; collapsed: boolean }) {
   const Icon = item.icon;
   const active = pathname === item.href ||
     (item.matchPrefix ? pathname.startsWith(`${item.href}/`) : false);
 
   return (
     <Link
+      title={collapsed ? item.label : undefined}
       className={`relative flex min-h-10 w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition active:scale-[0.98] ${
+        collapsed ? "justify-center" : ""
+      } ${
         active
           ? "bg-primary/10 font-bold text-primary"
           : "font-medium text-muted hover:bg-surface-low hover:text-ink"
@@ -107,7 +83,7 @@ function SideNavLink({ item, pathname }: { item: NavItem; pathname: string }) {
       aria-current={active ? "page" : undefined}
     >
       <Icon aria-hidden="true" size={17} strokeWidth={active ? 2.4 : 2} />
-      {item.label}
+      {!collapsed && item.label}
     </Link>
   );
 }
@@ -126,6 +102,8 @@ export function AppFrame({
   const pathname = usePathname() ?? "/";
   const [isAdmin, setIsAdmin] = useState(false);
   const [displayName, setDisplayName] = useState<string>("...");
+  const [collapsed, setCollapsed] = useState(false);
+  const { resolvedTheme, setTheme } = useTheme();
 
   useEffect(() => {
     let active = true;
@@ -146,64 +124,96 @@ export function AppFrame({
       <div className="min-h-dvh bg-background text-ink lg:flex">
 
         {/* ── Desktop Sidebar ── */}
-        <aside className="hidden h-dvh w-64 shrink-0 flex-col border-r border-surface-container bg-surface lg:sticky lg:top-0 lg:flex">
+        <aside className={`hidden h-dvh shrink-0 flex-col border-r border-surface-container bg-surface transition-all duration-300 lg:sticky lg:top-0 lg:flex ${collapsed ? "w-16" : "w-64"}`}>
 
-          {/* Logo */}
-          <div className="flex items-center gap-3 border-b border-surface-container px-4 py-4">
+          {/* Logo + toggle */}
+          <div className={`flex items-center border-b border-surface-container px-3 py-4 ${collapsed ? "justify-center" : "gap-3 px-4"}`}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/logo/brand-mark.svg" alt="MoneyFlow" className="size-9 rounded-xl" />
-            <div>
-              <h1 className="text-base font-extrabold leading-none text-primary">MoneyFlow</h1>
-              <p className="mt-0.5 text-[10px] text-muted">Modern Urban Finance</p>
-            </div>
-          </div>
-
-          {/* Quick action button */}
-          <div className="px-4 pt-4 pb-2">
-            <DesktopAddButton />
+            <img src="/logo/brand-mark.svg" alt="MoneyFlow" className="size-9 shrink-0 rounded-xl" />
+            {!collapsed && (
+              <div className="min-w-0 flex-1">
+                <h1 className="text-base font-extrabold leading-none text-primary">MoneyFlow</h1>
+                <p className="mt-0.5 text-[10px] text-muted">Modern Urban Finance</p>
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={() => setCollapsed((c) => !c)}
+              className="ml-auto flex size-7 shrink-0 items-center justify-center rounded-lg text-muted hover:bg-surface-low hover:text-ink"
+              aria-label={collapsed ? "Perluas sidebar" : "Ciutkan sidebar"}
+            >
+              {collapsed ? <ChevronRight size={15} /> : <ChevronLeft size={15} />}
+            </button>
           </div>
 
           {/* Scrollable nav */}
-          <nav className="flex-1 overflow-y-auto px-3 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <nav className="flex-1 overflow-y-auto px-2 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
 
-            <p className="mb-1 px-2 text-[10px] font-bold uppercase tracking-widest text-muted/60">Utama</p>
+            {!collapsed && <p className="mb-1 px-2 text-[10px] font-bold uppercase tracking-widest text-muted/60">Utama</p>}
+            {collapsed && <div className="my-1 h-px bg-surface-container" />}
             {mainNav.map((item) => (
-              <SideNavLink key={item.href} item={item} pathname={pathname} />
+              <SideNavLink key={item.href} item={item} pathname={pathname} collapsed={collapsed} />
             ))}
 
-            <p className="mb-1 mt-4 px-2 text-[10px] font-bold uppercase tracking-widest text-muted/60">Keuangan</p>
+            {!collapsed && <p className="mb-1 mt-4 px-2 text-[10px] font-bold uppercase tracking-widest text-muted/60">Keuangan</p>}
+            {collapsed && <div className="my-2 h-px bg-surface-container" />}
             {financeNav.map((item) => (
-              <SideNavLink key={item.href} item={item} pathname={pathname} />
+              <SideNavLink key={item.href} item={item} pathname={pathname} collapsed={collapsed} />
             ))}
 
-            <p className="mb-1 mt-4 px-2 text-[10px] font-bold uppercase tracking-widest text-muted/60">Alat</p>
+            {!collapsed && <p className="mb-1 mt-4 px-2 text-[10px] font-bold uppercase tracking-widest text-muted/60">Alat</p>}
+            {collapsed && <div className="my-2 h-px bg-surface-container" />}
             {toolNav.map((item) => (
-              <SideNavLink key={item.href} item={item} pathname={pathname} />
+              <SideNavLink key={item.href} item={item} pathname={pathname} collapsed={collapsed} />
             ))}
 
             {isAdmin && (
               <>
-                <p className="mb-1 mt-4 px-2 text-[10px] font-bold uppercase tracking-widest text-muted/60">Admin</p>
-                <SideNavLink item={adminNavItem} pathname={pathname} />
+                {!collapsed && <p className="mb-1 mt-4 px-2 text-[10px] font-bold uppercase tracking-widest text-muted/60">Admin</p>}
+                {collapsed && <div className="my-2 h-px bg-surface-container" />}
+                <SideNavLink item={adminNavItem} pathname={pathname} collapsed={collapsed} />
               </>
             )}
           </nav>
 
           {/* Bottom: settings + user */}
-          <div className="border-t border-surface-container px-3 py-3 space-y-1 shrink-0">
+          <div className="border-t border-surface-container px-2 py-3 space-y-1 shrink-0">
             {bottomNav.map((item) => (
-              <SideNavLink key={item.href} item={item} pathname={pathname} />
+              <SideNavLink key={item.href} item={item} pathname={pathname} collapsed={collapsed} />
             ))}
-            <div className="flex items-center gap-3 rounded-lg px-3 py-2">
-              <div className="flex size-8 items-center justify-center rounded-full bg-primary/10 text-primary">
-                <UserRound size={16} aria-hidden="true" />
+            {/* Dark mode toggle */}
+            <button
+              type="button"
+              title={collapsed ? (resolvedTheme === "dark" ? "Mode Terang" : "Mode Malam") : undefined}
+              onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
+              className={`relative flex min-h-10 w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-muted transition hover:bg-surface-low hover:text-ink active:scale-[0.98] ${collapsed ? "justify-center" : ""}`}
+              aria-label={resolvedTheme === "dark" ? "Aktifkan mode terang" : "Aktifkan mode malam"}
+            >
+              {resolvedTheme === "dark"
+                ? <Sun size={17} strokeWidth={2} aria-hidden="true" />
+                : <Moon size={17} strokeWidth={2} aria-hidden="true" />
+              }
+              {!collapsed && (resolvedTheme === "dark" ? "Mode Terang" : "Mode Malam")}
+            </button>
+            {!collapsed && (
+              <div className="flex items-center gap-3 rounded-lg px-3 py-2">
+                <div className="flex size-8 items-center justify-center rounded-full bg-primary/10 text-primary">
+                  <UserRound size={16} aria-hidden="true" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-xs font-bold text-ink">{displayName}</p>
+                  <p className="text-[10px] text-muted">Akun saya</p>
+                </div>
+                <Bell size={15} className="text-muted" aria-hidden="true" />
               </div>
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-xs font-bold text-ink">{displayName}</p>
-                <p className="text-[10px] text-muted">Akun saya</p>
+            )}
+            {collapsed && (
+              <div title={displayName} className="flex justify-center rounded-lg py-2">
+                <div className="flex size-8 items-center justify-center rounded-full bg-primary/10 text-primary">
+                  <UserRound size={16} aria-hidden="true" />
+                </div>
               </div>
-              <Bell size={15} className="text-muted" aria-hidden="true" />
-            </div>
+            )}
           </div>
         </aside>
 
@@ -216,7 +226,6 @@ export function AppFrame({
               <h1 className="text-xl font-bold text-ink">{title ?? "Dashboard"}</h1>
             </div>
             <div className="flex items-center gap-3">
-              <DesktopAddButton compact />
               <Link
                 href="/notifications"
                 className="flex size-9 items-center justify-center rounded-full bg-surface text-muted shadow-card hover:text-primary"

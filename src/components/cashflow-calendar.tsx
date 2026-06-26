@@ -49,6 +49,10 @@ export function CashflowCalendar({ hidden }: { hidden: boolean }) {
   const daysInMonth = new Date(year, month, 0).getDate();
   const today = new Date().toISOString().slice(0, 10);
 
+  // Build full grid: leading empties + date cells, padded to complete rows
+  const totalCells = firstDay + daysInMonth;
+  const trailingCells = totalCells % 7 === 0 ? 0 : 7 - (totalCells % 7);
+
   return (
     <section className="mt-6 rounded-xl bg-surface shadow-card overflow-hidden">
       {/* Header */}
@@ -63,9 +67,9 @@ export function CashflowCalendar({ hidden }: { hidden: boolean }) {
       </div>
 
       {/* Day-of-week headers */}
-      <div className="grid grid-cols-7 border-b border-outline/30">
+      <div className="grid grid-cols-7 border-b border-surface-container">
         {DAYS.map((d) => (
-          <span key={d} className="py-1 text-center text-[10px] font-bold uppercase text-muted">{d}</span>
+          <span key={d} className="py-1.5 text-center text-[10px] font-bold uppercase tracking-wide text-muted">{d}</span>
         ))}
       </div>
 
@@ -73,10 +77,13 @@ export function CashflowCalendar({ hidden }: { hidden: boolean }) {
       {loading ? (
         <div className="h-52 animate-pulse bg-surface-container/50 m-2 rounded-lg" />
       ) : (
-        <div className="grid grid-cols-7 divide-x divide-y divide-outline/20">
+        <div className="grid grid-cols-7">
           {/* Empty leading cells */}
           {Array.from({ length: firstDay }).map((_, i) => (
-            <div key={`empty-${i}`} className="min-h-[4.5rem] bg-surface-container/20" />
+            <div
+              key={`empty-${i}`}
+              className="min-h-[4.5rem] border-b border-r border-surface-container bg-surface-low/30"
+            />
           ))}
 
           {/* Date cells */}
@@ -88,42 +95,50 @@ export function CashflowCalendar({ hidden }: { hidden: boolean }) {
             const income = info?.income_minor ?? 0;
             const expense = info?.expense_minor ?? 0;
             const hasData = income > 0 || expense > 0;
+            const col = (firstDay + i) % 7;
+            const isLastCol = col === 6;
 
             return (
               <div
                 key={dayStr}
-                className={`min-h-[4.5rem] flex flex-col items-center pt-1.5 pb-1 px-0.5 gap-0.5 ${isToday ? "bg-primary/5" : ""}`}
+                className={`min-h-[4.5rem] flex flex-col items-center pt-1.5 pb-1 px-0.5 gap-0.5 border-b border-surface-container ${!isLastCol ? "border-r" : ""} ${isToday ? "bg-primary/5" : ""}`}
               >
                 {/* Date number */}
                 <span className={`flex size-5 items-center justify-center rounded-full text-[11px] font-bold leading-none ${isToday ? "bg-primary text-white" : "text-ink"}`}>
                   {dayNum}
                 </span>
 
-                {/* Amounts — always visible when data exists */}
-                {hasData ? (
+                {/* Amounts */}
+                {hasData && (
                   <div className="flex w-full flex-col items-center gap-px">
-                    {income > 0 ? (
+                    {income > 0 && (
                       <span className={`w-full truncate text-center text-[9px] font-bold leading-tight ${hidden ? "text-muted" : "text-income"}`}>
                         {hidden ? "••" : `+${compact(income)}`}
                       </span>
-                    ) : null}
-                    {expense > 0 ? (
+                    )}
+                    {expense > 0 && (
                       <span className={`w-full truncate text-center text-[9px] font-bold leading-tight ${hidden ? "text-muted" : "text-expense"}`}>
                         {hidden ? "••" : `-${compact(expense)}`}
                       </span>
-                    ) : null}
+                    )}
                   </div>
-                ) : (
-                  <span className="h-4" />
                 )}
               </div>
             );
           })}
+
+          {/* Trailing empty cells to complete the last row */}
+          {Array.from({ length: trailingCells }).map((_, i) => (
+            <div
+              key={`trail-${i}`}
+              className={`min-h-[4.5rem] border-b border-surface-container bg-surface-low/30 ${i < trailingCells - 1 ? "border-r" : ""}`}
+            />
+          ))}
         </div>
       )}
 
       {/* Legend */}
-      <div className="flex items-center justify-center gap-4 px-4 py-2 border-t border-outline/20">
+      <div className="flex items-center justify-center gap-4 px-4 py-2 border-t border-surface-container">
         <span className="flex items-center gap-1 text-[10px] text-muted">
           <span className="font-bold text-income">+</span> Pemasukan
         </span>

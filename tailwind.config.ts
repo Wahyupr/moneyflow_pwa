@@ -2,21 +2,22 @@ import type { Config } from "tailwindcss";
 
 const config: Config = {
   content: ["./src/**/*.{ts,tsx}"],
+  darkMode: "class",
   theme: {
     extend: {
       colors: {
-        background: "#f8f9ff",
-        ink: "#0b1c30",
-        muted: "#3d4250",
-        outline: "#c0c9da",
-        surface: "#ffffff",
-        "surface-low": "#eff4ff",
-        "surface-container": "#e5eeff",
-        "surface-highest": "#d3e4fe",
-        primary: "#1668DC",
-        "primary-container": "#3B9EFF",
-        secondary: "#3B9EFF",
-        tertiary: "#0A3B8C",
+        background: "var(--color-background)",
+        ink: "var(--color-ink)",
+        muted: "var(--color-muted)",
+        outline: "var(--color-outline)",
+        surface: "var(--color-surface)",
+        "surface-low": "var(--color-surface-low)",
+        "surface-container": "var(--color-surface-container)",
+        "surface-highest": "var(--color-surface-highest)",
+        primary: "var(--color-primary)",
+        "primary-container": "var(--color-primary-container)",
+        secondary: "var(--color-secondary)",
+        tertiary: "var(--color-tertiary)",
 
         income: "#10B981",
         expense: "#EF4444",
