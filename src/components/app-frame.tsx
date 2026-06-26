@@ -243,8 +243,9 @@ export function AppFrame({
         </div>
 
         <BottomNav />
-        <ChatWidget />
       </div>
+      {/* Rendered outside the flex layout so it always stacks correctly on all viewports */}
+      <ChatWidget />
     </PrivacyProvider>
   );
 }

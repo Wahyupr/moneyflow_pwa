@@ -251,85 +251,116 @@ function DashboardContent() {
         </div>
       </section>
 
-      <SpendingChart
-        transactions={dashboard.recent_transactions}
-        month={new Date().toISOString().slice(0, 7)}
-        hidden={hidden}
-      />
-
-      <DailyInsightCard />
-
-      {/* Calendar — mobile only; desktop shows in right column */}
+      {/* ── Mobile layout ── */}
       <div className="lg:hidden">
-        <CashflowCalendar hidden={hidden} />
-      </div>
+        {/* 1. Insight */}
+        <DailyInsightCard />
 
-      {/* Menu tiles — mobile only; desktop has sidebar nav */}
-      <div className="lg:hidden">
+        {/* 2. Menu Utama */}
         <MenuUtama />
+
+        {/* 3. Grafik */}
+        <SpendingChart
+          transactions={dashboard.recent_transactions}
+          month={new Date().toISOString().slice(0, 7)}
+          hidden={hidden}
+        />
+
+        {/* 4. Arus Kas Harian */}
+        <CashflowCalendar hidden={hidden} />
+
+        {/* 5. Dompet — max 3 cards */}
+        <section className="mt-5" id="wallet-list">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-lg font-bold text-ink">Dompet Saya</h2>
+            <Link className="min-h-10 rounded-lg px-3 py-2 text-sm font-bold text-primary active:bg-surface-container" href="/wallets">
+              Lihat Semua
+            </Link>
+          </div>
+          {dashboard.wallets.length > 0 ? (
+            <div className="-mx-5 flex gap-3 overflow-x-auto px-5 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              {dashboard.wallets.slice(0, 3).map((wallet) => (
+                <WalletCard compact hidden={hidden} key={wallet.id} wallet={wallet} />
+              ))}
+            </div>
+          ) : (
+            <EmptyState message="Belum ada dompet. Tambahkan dompet pertama kamu." href="/wallets" cta="Tambah Dompet" />
+          )}
+        </section>
+
+        {/* 6. Transaksi Terbaru */}
+        <section className="mt-6">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-lg font-bold text-ink">Transaksi terbaru</h2>
+            <Link className="min-h-10 rounded-lg px-3 py-2 text-sm font-bold text-primary active:bg-surface-container" href="/transactions">
+              Lihat
+            </Link>
+          </div>
+          {dashboard.recent_transactions.length > 0 ? (
+            <div className="space-y-3">
+              {dashboard.recent_transactions.slice(0, 3).map((transaction) => (
+                <TransactionRow hidden={hidden} key={transaction.id} transaction={transaction} />
+              ))}
+            </div>
+          ) : (
+            <EmptyState message="Belum ada transaksi bulan ini." href="/transactions/new" cta="Catat Transaksi" />
+          )}
+        </section>
       </div>
 
-      <section className="mt-6 lg:hidden" id="wallet-list">
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-lg font-bold text-ink">Dompet Saya</h2>
-          <Link className="min-h-10 rounded-lg px-3 py-2 text-sm font-bold text-primary active:bg-surface-container" href="/wallets">
-            Lihat Semua
-          </Link>
-        </div>
-        {dashboard.wallets.length > 0 ? (
-          <div className="-mx-5 flex gap-3 overflow-x-auto px-5 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {dashboard.wallets.map((wallet) => (
-              <WalletCard compact hidden={hidden} key={wallet.id} wallet={wallet} />
-            ))}
-          </div>
-        ) : (
-          <EmptyState message="Belum ada dompet. Tambahkan dompet pertama kamu." href="/wallets" cta="Tambah Dompet" />
-        )}
-      </section>
+      {/* ── Desktop layout (center column only) ── */}
+      <div className="hidden lg:block">
+        <DailyInsightCard />
 
-      <section className="mt-6">
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-lg font-bold text-ink">Transaksi terbaru</h2>
-          <Link className="min-h-10 rounded-lg px-3 py-2 text-sm font-bold text-primary active:bg-surface-container" href="/transactions">
-            Lihat
-          </Link>
-        </div>
-        {dashboard.recent_transactions.length > 0 ? (
-          <div className="space-y-3">
-            {dashboard.recent_transactions.slice(0, 3).map((transaction) => (
-              <TransactionRow hidden={hidden} key={transaction.id} transaction={transaction} />
-            ))}
-          </div>
-        ) : (
-          <EmptyState message="Belum ada transaksi bulan ini." href="/transactions/new" cta="Catat Transaksi" />
-        )}
-      </section>
+        <SpendingChart
+          transactions={dashboard.recent_transactions}
+          month={new Date().toISOString().slice(0, 7)}
+          hidden={hidden}
+        />
 
-      {dashboard.budgets.length > 0 ? (
-        <section className="mt-6 rounded-xl bg-surface p-4 shadow-card lg:hidden">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-lg font-bold text-ink">Budget bulan ini</h2>
-            <p className="text-sm font-bold text-primary">{displayAmount(formatCurrency(dashboard.monthly.totals.net_minor, "IDR"))}</p>
+        <section className="mt-6">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-lg font-bold text-ink">Transaksi terbaru</h2>
+            <Link className="min-h-10 rounded-lg px-3 py-2 text-sm font-bold text-primary active:bg-surface-container" href="/transactions">
+              Lihat
+            </Link>
           </div>
-          <div className="space-y-4">
-            {dashboard.budgets.map((budget) => {
-              const progress = Math.min(100, Math.round((budget.used_minor / Math.max(budget.limit_minor, 1)) * 100));
-
-              return (
-                <div key={budget.id}>
-                  <div className="mb-2 flex items-center justify-between text-sm">
-                    <span className="font-medium text-ink">{budget.name}</span>
-                    <span className="font-semibold text-muted">{hidden ? "**%" : `${progress}%`}</span>
-                  </div>
-                  <div className="h-2 rounded-full bg-surface-container">
-                    <div className="h-full rounded-full" style={{ width: `${progress}%`, backgroundColor: budget.color }} />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+          {dashboard.recent_transactions.length > 0 ? (
+            <div className="space-y-3">
+              {dashboard.recent_transactions.slice(0, 3).map((transaction) => (
+                <TransactionRow hidden={hidden} key={transaction.id} transaction={transaction} />
+              ))}
+            </div>
+          ) : (
+            <EmptyState message="Belum ada transaksi bulan ini." href="/transactions/new" cta="Catat Transaksi" />
+          )}
         </section>
-      ) : null}
+
+        {dashboard.budgets.length > 0 ? (
+          <section className="mt-6 rounded-xl bg-surface p-4 shadow-card">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-lg font-bold text-ink">Budget bulan ini</h2>
+              <p className="text-sm font-bold text-primary">{displayAmount(formatCurrency(dashboard.monthly.totals.net_minor, "IDR"))}</p>
+            </div>
+            <div className="space-y-4">
+              {dashboard.budgets.map((budget) => {
+                const progress = Math.min(100, Math.round((budget.used_minor / Math.max(budget.limit_minor, 1)) * 100));
+                return (
+                  <div key={budget.id}>
+                    <div className="mb-2 flex items-center justify-between text-sm">
+                      <span className="font-medium text-ink">{budget.name}</span>
+                      <span className="font-semibold text-muted">{hidden ? "**%" : `${progress}%`}</span>
+                    </div>
+                    <div className="h-2 rounded-full bg-surface-container">
+                      <div className="h-full rounded-full" style={{ width: `${progress}%`, backgroundColor: budget.color }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        ) : null}
+      </div>
       </div>{/* end left column */}
 
       {/* ── Right column (desktop only) ── */}

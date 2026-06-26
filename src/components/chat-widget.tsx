@@ -16,6 +16,8 @@ type BotMsg = {
   role: "bot";
   text: string;
   preview?: Preview;
+  /** Original user message — needed to re-send with commit:true */
+  originalMessage?: string;
   saved?: boolean;
   error?: string;
 };
@@ -55,12 +57,19 @@ export function ChatWidget() {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: trimmed }),
+        body: JSON.stringify({ message: trimmed, commit: false }),
       });
       const data = await res.json() as { reply?: string; preview?: Preview; error?: string };
       setMessages((prev) => [
         ...prev,
-        { role: "bot", text: data.reply ?? data.error ?? "Terjadi kesalahan.", preview: data.preview },
+        {
+          role: "bot",
+          text: data.preview
+            ? "Transaksi terdeteksi, konfirmasi untuk menyimpan:"
+            : (data.reply ?? data.error ?? "Terjadi kesalahan."),
+          preview: data.preview,
+          originalMessage: trimmed,
+        },
       ]);
     } catch {
       setMessages((prev) => [...prev, { role: "bot", text: "Koneksi gagal, coba lagi." }]);
@@ -69,21 +78,30 @@ export function ChatWidget() {
     }
   }
 
-  async function confirmSave(msgIndex: number, preview: Preview) {
+  async function confirmSave(msgIndex: number) {
+    const msg = messages[msgIndex] as BotMsg;
+    const originalMessage = msg.originalMessage;
+    if (!originalMessage) return;
+
     setMessages((prev) =>
-      prev.map((m, i) => (i === msgIndex ? { ...m, text: "Menyimpan..." } : m))
+      prev.map((m, i) => (i === msgIndex ? { ...m, text: "Menyimpan...", preview: undefined } : m))
     );
     try {
+      // Re-send the original message without commit:false so API saves it
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ confirm: true, preview }),
+        body: JSON.stringify({ message: originalMessage }),
       });
-      const data = await res.json() as { saved?: boolean; error?: string };
+      const data = await res.json() as { transaction?: unknown; error?: string };
       setMessages((prev) =>
         prev.map((m, i) =>
           i === msgIndex
-            ? { ...m, text: data.saved ? "Transaksi berhasil disimpan!" : (data.error ?? "Gagal menyimpan."), saved: data.saved, preview: undefined }
+            ? {
+                ...m,
+                text: data.transaction ? "Transaksi berhasil disimpan!" : (data.error ?? "Gagal menyimpan."),
+                saved: !!data.transaction,
+              }
             : m
         )
       );
@@ -102,7 +120,8 @@ export function ChatWidget() {
           type="button"
           onClick={() => setOpen(true)}
           aria-label="Buka chat asisten"
-          className="fixed bottom-24 right-4 z-50 flex size-14 items-center justify-center rounded-full bg-primary text-white shadow-lg transition hover:opacity-90 active:scale-95 lg:bottom-8 lg:right-8"
+          suppressHydrationWarning
+          className="fixed bottom-[calc(3.5rem+max(env(safe-area-inset-bottom),0.5rem)+0.75rem)] right-4 z-[60] flex size-14 items-center justify-center rounded-full bg-primary text-white shadow-lg transition hover:opacity-90 active:scale-95 md:bottom-6 md:right-6 lg:bottom-8 lg:right-8"
         >
           <MessageCircle size={24} aria-hidden="true" />
         </button>
@@ -162,7 +181,7 @@ export function ChatWidget() {
                       <div className="mt-2 flex gap-2">
                         <button
                           type="button"
-                          onClick={() => confirmSave(idx, (msg as BotMsg).preview!)}
+                          onClick={() => confirmSave(idx)}
                           className="flex items-center gap-1 rounded-lg bg-primary px-3 py-1.5 text-xs font-bold text-white active:scale-95"
                         >
                           <CheckCircle size={12} /> Simpan

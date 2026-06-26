@@ -7,6 +7,14 @@ import { isAiConfigured, parseVoiceWithAi } from "@/lib/voice/ai";
 
 export const runtime = "nodejs";
 
+// Keywords that suggest the message is a transaction but is missing an amount
+const TRANSACTION_KEYWORDS: string[] = [
+  "beli", "bayar", "makan", "minum", "beli", "jajan", "nonton", "isi",
+  "transfer", "kirim", "tarik", "setor", "belanja", "beli", "ngopi", "kopi",
+  "bensin", "parkir", "ojek", "grab", "gojek", "tagihan", "bayar", "beli",
+  "nasi", "ayam", "soto", "bakso", "sate", "mie", "pizza", "burger"
+];
+
 const ChatSchema = z.object({
   message: z.string().min(1).max(500),
   /** When false, only parse and preview — do not save to DB. */
@@ -119,8 +127,26 @@ export async function POST(request: NextRequest) {
     used_ai: usedAi
   };
 
-  // Preview only
+  // Preview only — but only if we actually detected a valid transaction
   if (commit === false) {
+    if (parsed.amount_minor <= 0) {
+      // Decide if the message looks like a transaction missing an amount,
+      // or if it's completely off-topic.
+      const looksLikeTransaction =
+        parsed.category_hint !== null ||
+        parsed.wallet_hint !== null ||
+        TRANSACTION_KEYWORDS.some((kw) => message.toLowerCase().includes(kw));
+
+      if (looksLikeTransaction) {
+        return NextResponse.json({
+          reply: `Berapa nominalnya? Contoh: "${message} 25rb"`
+        });
+      }
+
+      return NextResponse.json({
+        reply: "Hei! Aku fokus membantu pencatatan keuangan kamu ya 💰\n\nCoba ketik transaksi seperti:\n• \"Kopi 25rb gopay\"\n• \"Makan siang 45rb\"\n• \"Gaji 5 juta\"\n• \"Bensin 50rb cash\""
+      });
+    }
     return NextResponse.json({ preview });
   }
 
