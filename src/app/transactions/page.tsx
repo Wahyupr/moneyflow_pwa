@@ -13,7 +13,7 @@ type TransactionRow = {
   category_id: string | null;
   merchant_name: string | null;
   payment_method: string | null;
-  transaction_type: "expense" | "income" | "transfer";
+  transaction_type: "expense" | "income";
   amount_minor: number;
   currency: string;
   occurred_at: string;
@@ -68,6 +68,12 @@ function TransactionsContent() {
 
   useEffect(() => {
     void load();
+
+    function handleVisibility() {
+      if (document.visibilityState === "visible") void load();
+    }
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => document.removeEventListener("visibilitychange", handleVisibility);
   }, [load]);
 
   const filtered = useMemo(() => {

@@ -11,7 +11,9 @@ const ProfilePatchSchema = z.object({
   default_currency: z.string().length(3).optional(),
   biometric_enabled: z.boolean().optional(),
   pin_lock_timer: z.enum(["30s", "1m", "5m", "always"]).optional(),
-  hide_nominal_default: z.boolean().optional()
+  hide_nominal_default: z.boolean().optional(),
+  salary_day: z.number().int().min(1).max(28).nullable().optional(),
+  budgeting_period_mode: z.enum(["salary_cycle", "calendar_month"]).optional()
 });
 
 export async function GET(request: NextRequest) {

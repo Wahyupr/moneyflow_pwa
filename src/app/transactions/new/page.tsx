@@ -133,6 +133,7 @@ function NewTransactionForm() {
         return;
       }
 
+      router.refresh();
       router.push("/transactions");
     } finally {
       setSaving(false);

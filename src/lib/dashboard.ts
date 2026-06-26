@@ -76,11 +76,51 @@ export function buildDashboardViewModel(input: {
   const incomeDelta: DashboardDelta = { percent: incomeDeltaPercent, positive: incomeDeltaPercent >= 0 };
   const expenseDelta: DashboardDelta = { percent: expenseDeltaPercent, positive: expenseDeltaPercent <= 0 };
 
+  // ── Budget-aware insight signals ─────────────────────────────────────────
+  const activeBudgets = input.budgets ?? [];
+  const overBudget = activeBudgets.filter(
+    (b) => b.limit_minor > 0 && b.used_minor >= b.limit_minor
+  );
+  const nearBudget = activeBudgets.filter(
+    (b) => b.limit_minor > 0 && b.used_minor < b.limit_minor &&
+      b.used_minor / b.limit_minor >= 0.8
+  );
+
+  // Pick the single most actionable insight message.
+  let insightSeverity: "warning" | "danger" | "info" = "info";
+  let insightTitle = "Insight Bulanan";
+  let insightMessage: string;
+
+  if (overBudget.length > 0) {
+    const names = overBudget.map((b) => b.name).join(", ");
+    insightSeverity = "danger";
+    insightTitle = "Budget Terlampaui 🚨";
+    insightMessage = `Budget ${names} sudah melebihi limit bulan ini. Tinjau pengeluaran kategori tersebut.`;
+  } else if (nearBudget.length > 0) {
+    const names = nearBudget.map((b) => b.name).join(", ");
+    insightSeverity = "warning";
+    insightTitle = "Budget Mendekati Limit ⚠️";
+    insightMessage = `Budget ${names} sudah ≥80% terpakai. Jaga pengeluaran tersisa agar tidak over.`;
+  } else if (expenseDeltaPercent > 20) {
+    insightSeverity = "warning";
+    insightTitle = "Pengeluaran Naik Signifikan";
+    insightMessage = `Pengeluaran naik ${expenseDeltaPercent}% dari bulan lalu. Cek kategori terboros.`;
+  } else if (expenseDeltaPercent > 0) {
+    insightSeverity = "info";
+    insightMessage = `Pengeluaran naik ${expenseDeltaPercent}% dari bulan lalu.`;
+  } else if (incomeDeltaPercent < -10) {
+    insightSeverity = "warning";
+    insightTitle = "Pemasukan Turun";
+    insightMessage = `Pemasukan turun ${Math.abs(incomeDeltaPercent)}% dari bulan lalu.`;
+  } else {
+    insightMessage = "Arus kas bulan ini terkendali. Tetap semangat! 💪";
+  }
+
   return {
     month: input.month,
     total_balance_minor: totalBalance,
     wallets: input.wallets,
-    budgets: input.budgets ?? [],
+    budgets: activeBudgets,
     income_delta: incomeDelta,
     expense_delta: expenseDelta,
     recent_transactions: input.transactions
@@ -90,12 +130,9 @@ export function buildDashboardViewModel(input: {
     ai_review_queue: input.drafts.filter((item) => item.draft.needs_review),
     monthly,
     insight: {
-      title: "Insight Bulanan",
-      severity: expenseDeltaPercent > 10 ? "warning" : "info",
-      message:
-        expenseDeltaPercent > 10
-          ? `Pengeluaran naik ${expenseDeltaPercent}% dari bulan lalu.`
-          : "Arus kas bulan ini terkendali."
+      title: insightTitle,
+      severity: insightSeverity,
+      message: insightMessage
     },
     privacy: {
       enabled: input.privacyEnabled,

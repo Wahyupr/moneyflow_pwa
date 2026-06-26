@@ -1,13 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { AlarmClock, ArrowDownRight, ArrowUpRight, Eye, EyeOff, HandCoins, Landmark, Store, Tags, TrendingUp, WalletCards } from "lucide-react";
-import { useEffect, useState } from "react";
+import { AlarmClock, ArrowDownRight, ArrowUpRight, Eye, EyeOff, HandCoins, Landmark, PiggyBank, Store, Tags, TrendingUp, WalletCards } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
 import { AppFrame } from "@/components/app-frame";
+import { CashflowCalendar } from "@/components/cashflow-calendar";
 import { DailyInsightCard } from "@/components/daily-insight-card";
 import { PwaInstallPrompt } from "@/components/onboarding/pwa-install-prompt";
 import { startTour } from "@/components/onboarding/onboarding-tour";
-import { isOnboardingCompleted } from "@/lib/onboarding";
+import { isOnboardingCompleted, markOnboardingCompleted } from "@/lib/onboarding";
 import { usePrivacy } from "@/components/privacy-provider";
 import { TransactionRow } from "@/components/transaction-row";
 import { WalletCard } from "@/components/wallet-card";
@@ -93,6 +94,7 @@ export default function DashboardPage() {
   }
 
   function handleSkipTour() {
+    markOnboardingCompleted();
     setShowWelcomeCard(false);
   }
 
@@ -158,36 +160,32 @@ function DashboardContent() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    let active = true;
-
-    fetch("/api/dashboard")
-      .then(async (response) => {
-        if (!response.ok) {
-          throw new Error("Gagal memuat dashboard.");
-        }
-        return response.json();
-      })
-      .then((json) => {
-        if (active) {
-          setDashboard(json.dashboard as DashboardViewModel);
-        }
-      })
-      .catch(() => {
-        if (active) {
-          setError("Tidak bisa memuat data dashboard.");
-        }
-      })
-      .finally(() => {
-        if (active) {
-          setLoading(false);
-        }
-      });
-
-    return () => {
-      active = false;
-    };
+  const load = useCallback(async () => {
+    try {
+      const response = await fetch("/api/dashboard", { cache: "no-store" });
+      if (!response.ok) throw new Error("Gagal memuat dashboard.");
+      const json = await response.json();
+      setDashboard(json.dashboard as DashboardViewModel);
+      setError(null);
+    } catch {
+      setError("Tidak bisa memuat data dashboard.");
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    void load();
+
+    // Re-fetch when user navigates back to this tab (e.g. after adding a transaction)
+    function handleVisibility() {
+      if (document.visibilityState === "visible") {
+        void load();
+      }
+    }
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => document.removeEventListener("visibilitychange", handleVisibility);
+  }, [load]);
 
   if (loading) {
     return <DashboardSkeleton />;
@@ -251,6 +249,8 @@ function DashboardContent() {
       </section>
 
       <DailyInsightCard />
+
+      <CashflowCalendar hidden={hidden} />
 
       <MenuUtama />
 
@@ -355,6 +355,7 @@ type MenuTile = {
 
 const MENU_TILES: MenuTile[] = [
   { href: "/wallets", label: "Dompet", icon: WalletCards, tint: "bg-primary/8", iconWrap: "bg-primary/10 text-primary" },
+  { href: "/budgets", label: "Budget", icon: PiggyBank, tint: "bg-income/8", iconWrap: "bg-income/10 text-income" },
   { href: "/hutang", label: "Hutang", icon: Landmark, tint: "bg-tertiary/10", iconWrap: "bg-tertiary/15 text-tertiary" },
   { href: "/piutang", label: "Piutang", icon: HandCoins, tint: "bg-income/10", iconWrap: "bg-income/10 text-income" },
   { href: "/reminders", label: "Pengingat", icon: AlarmClock, tint: "bg-expense/8", iconWrap: "bg-expense/10 text-expense" },

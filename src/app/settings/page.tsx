@@ -13,15 +13,24 @@ import { AppFrame } from "@/components/app-frame";
 import { MerchantManager } from "@/components/merchant-manager";
 import { PushNotificationManager } from "@/components/push-notification-manager";
 
+type BudgetingPeriodMode = "salary_cycle" | "calendar_month";
+
 type ProfilePayload = {
   user?: { email?: string | null };
-  profile?: { display_name?: string | null; role?: "user" | "admin" | null };
+  profile?: {
+    display_name?: string | null;
+    role?: "user" | "admin" | null;
+    salary_day?: number | null;
+    budgeting_period_mode?: BudgetingPeriodMode | null;
+  };
 };
 
 export default function SettingsPage() {
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<"user" | "admin">("user");
+  const [salaryDay, setSalaryDay] = useState("25");
+  const [budgetingPeriodMode, setBudgetingPeriodMode] = useState<BudgetingPeriodMode>("calendar_month");
   const [status, setStatus] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [savingProfile, setSavingProfile] = useState(false);
@@ -36,6 +45,10 @@ export default function SettingsPage() {
           setDisplayName(json.profile?.display_name ?? "");
           setEmail(json.user?.email ?? "");
           setRole(json.profile?.role === "admin" ? "admin" : "user");
+          setSalaryDay(String(json.profile?.salary_day ?? 25));
+          setBudgetingPeriodMode(
+            json.profile?.budgeting_period_mode === "salary_cycle" ? "salary_cycle" : "calendar_month"
+          );
         }
       })
       .catch(() => undefined)
@@ -57,10 +70,12 @@ export default function SettingsPage() {
         body: JSON.stringify({
           display_name: displayName,
           locale: "id-ID",
-          default_currency: "IDR"
+          default_currency: "IDR",
+          salary_day: Math.min(28, Math.max(1, Number.parseInt(salaryDay, 10) || 25)),
+          budgeting_period_mode: budgetingPeriodMode
         })
       });
-      setStatus(response.ok ? "Profile tersimpan." : "Gagal menyimpan profile.");
+      setStatus(response.ok ? "Profile & periode budgeting tersimpan." : "Gagal menyimpan profile.");
     } finally {
       setSavingProfile(false);
     }
@@ -100,7 +115,7 @@ export default function SettingsPage() {
             </div>
           </div>
 
-          <div className="relative mt-5 space-y-2">
+          <div className="relative mt-5 space-y-3">
             <label className="block">
               <span className="text-[11px] font-bold uppercase tracking-wider text-white/70">Nama tampilan</span>
               <input
@@ -110,6 +125,41 @@ export default function SettingsPage() {
                 placeholder="Nama kamu"
               />
             </label>
+
+            <div className="grid gap-3 md:grid-cols-2">
+              <label className="block">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-white/70">Mode periode budgeting</span>
+                <select
+                  className="mt-1 min-h-12 w-full rounded-xl border border-white/15 bg-white/10 px-4 text-white focus:border-white/40 focus:bg-white/15 focus:outline-none"
+                  value={budgetingPeriodMode}
+                  onChange={(event) => setBudgetingPeriodMode(event.target.value as BudgetingPeriodMode)}
+                >
+                  <option value="calendar_month" className="text-ink">
+                    Tanggal 1 - akhir bulan
+                  </option>
+                  <option value="salary_cycle" className="text-ink">
+                    Tanggal gajian ke tanggal gajian
+                  </option>
+                </select>
+              </label>
+
+              <label className="block">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-white/70">Tanggal gajian</span>
+                <input
+                  className="mt-1 min-h-12 w-full rounded-xl border border-white/15 bg-white/10 px-4 text-white placeholder:text-white/40 focus:border-white/40 focus:bg-white/15 focus:outline-none"
+                  type="number"
+                  min={1}
+                  max={28}
+                  value={salaryDay}
+                  onChange={(event) => setSalaryDay(event.target.value)}
+                  placeholder="Contoh: 25"
+                />
+              </label>
+            </div>
+
+            <p className="text-xs text-white/75">
+              Insight dan budgeting akan memakai periode ini sebagai acuan analisa bulanan.
+            </p>
             <button
               className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-white px-4 font-bold text-primary shadow-card transition active:scale-[0.98] disabled:opacity-60"
               onClick={saveProfile}
