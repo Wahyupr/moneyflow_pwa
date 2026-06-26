@@ -312,8 +312,8 @@ export default function VoiceInputPage() {
   }
 
   return (
-    <main className="relative flex min-h-dvh flex-col overflow-hidden bg-background px-5 py-6 text-ink">
-      {/* Ambient background — soft blobs for depth */}
+    <main className="relative min-h-dvh overflow-hidden bg-background px-5 py-6 text-ink lg:px-10">
+      {/* Ambient background */}
       <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden" aria-hidden="true">
         <div className="absolute -top-32 left-1/2 size-[28rem] -translate-x-1/2 rounded-full bg-primary/10 blur-3xl" />
         <div className={`absolute -bottom-40 right-[-6rem] size-[22rem] rounded-full bg-income/10 blur-3xl transition-opacity duration-700 ${listening ? "opacity-100" : "opacity-40"}`} />
@@ -338,7 +338,11 @@ export default function VoiceInputPage() {
         </button>
       </header>
 
-      <section className="mt-8 flex flex-1 flex-col items-center justify-center">
+      {/* Desktop: 2-column layout. Mobile: single column */}
+      <div className="mt-6 flex min-h-[calc(100dvh-8rem)] flex-col items-center justify-center gap-8 lg:flex-row lg:items-center lg:justify-center lg:gap-20">
+
+      {/* LEFT COLUMN — mic + transcript */}
+      <section className="flex w-full flex-col items-center lg:w-auto lg:min-w-[26rem] lg:max-w-md">
         {/* Mic button with layered animations */}
         <div className="relative flex h-56 items-center justify-center">
           {listening ? (
@@ -483,10 +487,20 @@ export default function VoiceInputPage() {
         ) : null}
       </section>
 
-      {/* Bottom action bar */}
-      <section className="pb-6 pt-4">
+      {/* RIGHT COLUMN — actions (desktop), stacked below on mobile */}
+      <section className="w-full pb-6 pt-4 lg:w-72 lg:shrink-0 lg:pt-0">
+        <div className="mb-4 hidden rounded-2xl border border-surface-container bg-surface p-5 shadow-card lg:block">
+          <p className="mb-1 text-xs font-bold uppercase tracking-widest text-muted">Cara pakai</p>
+          <ol className="mt-3 space-y-2 text-sm text-muted">
+            <li className="flex gap-2"><span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[10px] font-bold text-primary">1</span> Klik tombol mic di sebelah kiri</li>
+            <li className="flex gap-2"><span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[10px] font-bold text-primary">2</span> Ucapkan transaksi dalam bahasa Indonesia</li>
+            <li className="flex gap-2"><span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[10px] font-bold text-primary">3</span> Klik &ldquo;Proses&rdquo; untuk analisis AI</li>
+            <li className="flex gap-2"><span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[10px] font-bold text-primary">4</span> Review hasil lalu simpan</li>
+          </ol>
+        </div>
+
         {preview ? (
-          <div className="mx-auto flex w-full max-w-md gap-3">
+          <div className="flex w-full gap-3">
             <button
               className="min-h-12 flex-1 rounded-xl bg-surface px-4 font-bold text-primary shadow-card active:scale-[0.98]"
               onClick={() => setPreview(null)}
@@ -507,7 +521,7 @@ export default function VoiceInputPage() {
           </div>
         ) : (
           <button
-            className="mx-auto block min-h-12 w-full max-w-md rounded-xl bg-gradient-to-r from-primary to-primary-container px-4 font-bold text-white shadow-card active:scale-[0.98] disabled:opacity-60"
+            className="block min-h-12 w-full rounded-xl bg-gradient-to-r from-primary to-primary-container px-4 font-bold text-white shadow-card active:scale-[0.98] disabled:opacity-60"
             onClick={analyze}
             type="button"
             disabled={busy || !committedTranscript.trim()}
@@ -516,6 +530,8 @@ export default function VoiceInputPage() {
           </button>
         )}
       </section>
+
+      </div>{/* end 2-col wrapper */}
     </main>
   );
 }

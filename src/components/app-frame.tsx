@@ -103,7 +103,10 @@ export function AppFrame({
   const [isAdmin, setIsAdmin] = useState(false);
   const [displayName, setDisplayName] = useState<string>("...");
   const [collapsed, setCollapsed] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const { resolvedTheme, setTheme } = useTheme();
+
+  useEffect(() => { setMounted(true); }, []);
 
   useEffect(() => {
     let active = true;
@@ -181,19 +184,19 @@ export function AppFrame({
             {bottomNav.map((item) => (
               <SideNavLink key={item.href} item={item} pathname={pathname} collapsed={collapsed} />
             ))}
-            {/* Dark mode toggle */}
+            {/* Dark mode toggle — use mounted guard to avoid hydration mismatch */}
             <button
               type="button"
-              title={collapsed ? (resolvedTheme === "dark" ? "Mode Terang" : "Mode Malam") : undefined}
-              onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
+              title={collapsed ? (mounted && resolvedTheme === "dark" ? "Mode Terang" : "Mode Malam") : undefined}
+              onClick={() => setTheme(mounted && resolvedTheme === "dark" ? "light" : "dark")}
               className={`relative flex min-h-10 w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-muted transition hover:bg-surface-low hover:text-ink active:scale-[0.98] ${collapsed ? "justify-center" : ""}`}
-              aria-label={resolvedTheme === "dark" ? "Aktifkan mode terang" : "Aktifkan mode malam"}
+              aria-label={mounted && resolvedTheme === "dark" ? "Aktifkan mode terang" : "Aktifkan mode malam"}
             >
-              {resolvedTheme === "dark"
+              {mounted && resolvedTheme === "dark"
                 ? <Sun size={17} strokeWidth={2} aria-hidden="true" />
                 : <Moon size={17} strokeWidth={2} aria-hidden="true" />
               }
-              {!collapsed && (resolvedTheme === "dark" ? "Mode Terang" : "Mode Malam")}
+              {!collapsed && (mounted && resolvedTheme === "dark" ? "Mode Terang" : "Mode Malam")}
             </button>
             {!collapsed && (
               <div className="flex items-center gap-3 rounded-lg px-3 py-2">

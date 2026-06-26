@@ -6,13 +6,17 @@ import {
   CalendarRange,
   CheckCircle2,
   LogOut,
+  Monitor,
+  Moon,
   Pencil,
   Save,
   ShieldCheck,
+  Sun,
   Wallet2
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { useTheme } from "next-themes";
 import { AppFrame } from "@/components/app-frame";
 import { MerchantManager } from "@/components/merchant-manager";
 import { PushNotificationManager } from "@/components/push-notification-manager";
@@ -279,6 +283,9 @@ export default function SettingsPage() {
           <p className="rounded-xl bg-surface-container px-4 py-3 text-sm font-bold text-primary">{status}</p>
         ) : null}
 
+        {/* TAMPILAN — theme toggle */}
+        <ThemeSection />
+
         {/* DANGER ZONE */}
         <section className="rounded-2xl border border-expense/15 bg-expense/5 p-4">
           <p className="text-[11px] font-black uppercase tracking-wider text-expense">Danger Zone</p>
@@ -297,5 +304,52 @@ export default function SettingsPage() {
         </section>
       </div>
     </AppFrame>
+  );
+}
+
+function ThemeSection() {
+  const { theme, setTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => setMounted(true), []);
+
+  const options = [
+    { value: "light", label: "Terang", icon: <Sun size={18} /> },
+    { value: "dark", label: "Gelap", icon: <Moon size={18} /> },
+    { value: "system", label: "Sistem", icon: <Monitor size={18} /> },
+  ] as const;
+
+  return (
+    <section className="overflow-hidden rounded-2xl bg-surface shadow-card">
+      <div className="flex items-center gap-3 p-4 pb-3">
+        <div className="flex size-10 items-center justify-center rounded-xl bg-surface-container text-primary">
+          <Moon size={18} />
+        </div>
+        <div>
+          <p className="font-bold text-ink">Tampilan</p>
+          <p className="text-sm text-muted">Mode terang / gelap</p>
+        </div>
+      </div>
+      <div className="grid grid-cols-3 gap-2 px-4 pb-4">
+        {options.map((opt) => {
+          const active = mounted && theme === opt.value;
+          return (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => setTheme(opt.value)}
+              className={`flex flex-col items-center gap-2 rounded-xl border py-3 text-sm font-bold transition active:scale-95 ${
+                active
+                  ? "border-primary bg-primary/10 text-primary"
+                  : "border-outline bg-surface-container text-muted hover:border-primary/40"
+              }`}
+            >
+              {opt.icon}
+              {opt.label}
+            </button>
+          );
+        })}
+      </div>
+    </section>
   );
 }

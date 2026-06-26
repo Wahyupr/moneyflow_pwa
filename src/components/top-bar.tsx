@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { Bell, Download, Share, UserRound, X } from "lucide-react";
+import { Bell, Download, Moon, Share, Sun, UserRound, X } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useTheme } from "next-themes";
 import { detectBrowser, isRunningStandalone } from "@/lib/onboarding";
 
 type BeforeInstallPromptEvent = Event & {
@@ -69,6 +70,31 @@ function useIosInstallButton() {
   return { show, open, setOpen };
 }
 
+function ThemeToggle() {
+  const { resolvedTheme, setTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => setMounted(true), []);
+
+  if (!mounted) {
+    return <div className="size-10" />;
+  }
+
+  const isDark = resolvedTheme === "dark";
+
+  return (
+    <button
+      type="button"
+      onClick={() => setTheme(isDark ? "light" : "dark")}
+      className="flex size-10 items-center justify-center rounded-full bg-surface text-primary shadow-card transition active:scale-95"
+      aria-label={isDark ? "Ganti ke mode terang" : "Ganti ke mode gelap"}
+      title={isDark ? "Mode terang" : "Mode gelap"}
+    >
+      {isDark ? <Sun size={18} /> : <Moon size={18} />}
+    </button>
+  );
+}
+
 export function TopBar({ title = "MoneyFlow", subtitle }: { title?: string; subtitle?: string }) {
   const unread = useUnreadCount();
   const { show: showInstall, install, installing } = useInstallButton();
@@ -114,6 +140,7 @@ export function TopBar({ title = "MoneyFlow", subtitle }: { title?: string; subt
               <span className="hidden sm:inline">Pasang</span>
             </button>
           ) : null}
+          <ThemeToggle />
           <Link
             aria-label={unread > 0 ? `Notifikasi (${unread} belum dibaca)` : "Notifikasi"}
             className="relative flex size-10 items-center justify-center rounded-full bg-surface text-primary shadow-card active:scale-95"

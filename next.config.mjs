@@ -7,7 +7,8 @@ const projectRoot = dirname(fileURLToPath(import.meta.url));
 const nextConfig = {
   outputFileTracingRoot: projectRoot,
   reactStrictMode: true,
-  poweredByHeader: false
+  poweredByHeader: false,
+  transpilePackages: ["next-themes"]
 };
 
 export default nextConfig;
