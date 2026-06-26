@@ -102,52 +102,106 @@ function TransactionsContent() {
     return [...map.entries()].sort((a, b) => b[0].localeCompare(a[0]));
   }, [filtered]);
 
+  // Summary totals
+  const totalIncome = useMemo(() => filtered.filter(t => t.transaction_type === "income").reduce((sum, t) => sum + t.amount_minor, 0), [filtered]);
+  const totalExpense = useMemo(() => filtered.filter(t => t.transaction_type === "expense").reduce((sum, t) => sum + t.amount_minor, 0), [filtered]);
+
   return (
-    <div className="mt-5">
-      <h2 className="text-xl font-bold text-ink">Riwayat Transaksi</h2>
-      <div className="mt-3 flex min-h-14 items-center gap-3 rounded-xl bg-surface px-4 shadow-card">
-        <Search className="text-muted" size={20} />
-        <input
-          className="w-full border-0 bg-transparent text-base outline-none placeholder:text-muted focus:ring-0"
-          placeholder="Cari transaksi..."
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-        />
-      </div>
-      <div className="-mx-5 mt-4 flex gap-2 overflow-x-auto px-5 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {FILTERS.map((item) => (
-          <button
-            className={`min-h-10 whitespace-nowrap rounded-full border px-4 text-sm font-semibold ${
-              filter === item.value ? "border-primary bg-primary text-white" : "border-outline bg-surface text-muted"
-            }`}
-            key={item.value}
-            type="button"
-            onClick={() => setFilter(item.value)}
-          >
-            {item.label}
-          </button>
-        ))}
+    <div className="mt-5 lg:grid lg:grid-cols-[1fr_300px] lg:items-start lg:gap-6">
+      {/* ── Main list ── */}
+      <div>
+        <h2 className="text-xl font-bold text-ink lg:hidden">Riwayat Transaksi</h2>
+        <div className="mt-3 flex min-h-14 items-center gap-3 rounded-xl bg-surface px-4 shadow-card lg:mt-0">
+          <Search className="text-muted" size={20} />
+          <input
+            className="w-full border-0 bg-transparent text-base outline-none placeholder:text-muted focus:ring-0"
+            placeholder="Cari transaksi..."
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+          />
+        </div>
+        <div className="-mx-5 mt-4 flex gap-2 overflow-x-auto px-5 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:mx-0 lg:px-0">
+          {FILTERS.map((item) => (
+            <button
+              className={`min-h-10 whitespace-nowrap rounded-full border px-4 text-sm font-semibold ${
+                filter === item.value ? "border-primary bg-primary text-white" : "border-outline bg-surface text-muted"
+              }`}
+              key={item.value}
+              type="button"
+              onClick={() => setFilter(item.value)}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+
+        {loading ? (
+          <p className="mt-5 rounded-xl bg-surface p-5 text-center text-sm text-muted shadow-card">Memuat transaksi...</p>
+        ) : error ? (
+          <div className="mt-5 rounded-xl bg-surface p-5 text-center shadow-card">
+            <p className="text-sm font-semibold text-error">{error}</p>
+            <button className="mt-3 min-h-10 rounded-lg bg-surface-container px-4 text-sm font-bold text-primary active:scale-[0.98]" onClick={() => void load()} type="button">
+              Coba lagi
+            </button>
+          </div>
+        ) : groups.length === 0 ? (
+          <div className="mt-5 rounded-xl bg-surface p-6 text-center shadow-card">
+            <p className="font-semibold text-ink">Belum ada transaksi</p>
+            <p className="mt-1 text-sm text-muted">Catat transaksi pertama Anda untuk melihat riwayat di sini.</p>
+          </div>
+        ) : (
+          groups.map(([day, rows]) => (
+            <TransactionGroup key={day} label={formatDayLabel(day)} rows={rows} displayAmount={displayAmount} />
+          ))
+        )}
       </div>
 
-      {loading ? (
-        <p className="mt-5 rounded-xl bg-surface p-5 text-center text-sm text-muted shadow-card">Memuat transaksi...</p>
-      ) : error ? (
-        <div className="mt-5 rounded-xl bg-surface p-5 text-center shadow-card">
-          <p className="text-sm font-semibold text-error">{error}</p>
-          <button className="mt-3 min-h-10 rounded-lg bg-surface-container px-4 text-sm font-bold text-primary active:scale-[0.98]" onClick={() => void load()} type="button">
-            Coba lagi
-          </button>
+      {/* ── Desktop right sidebar ── */}
+      <aside className="hidden lg:sticky lg:top-[57px] lg:flex lg:flex-col lg:gap-4 lg:self-start">
+        {/* Summary card */}
+        <div className="rounded-xl bg-surface p-4 shadow-card">
+          <h3 className="mb-3 text-sm font-bold text-muted uppercase tracking-wide">Ringkasan</h3>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted">Total Transaksi</span>
+              <span className="font-bold text-ink">{filtered.length}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted">Pemasukan</span>
+              <span className="font-bold text-income">{displayAmount(formatCurrency(totalIncome, "IDR"))}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted">Pengeluaran</span>
+              <span className="font-bold text-expense">{displayAmount(formatCurrency(totalExpense, "IDR"))}</span>
+            </div>
+            <div className="border-t border-outline pt-2 flex items-center justify-between">
+              <span className="text-sm font-semibold text-muted">Selisih</span>
+              <span className={`font-bold ${totalIncome - totalExpense >= 0 ? "text-income" : "text-expense"}`}>
+                {displayAmount(formatCurrency(totalIncome - totalExpense, "IDR"))}
+              </span>
+            </div>
+          </div>
         </div>
-      ) : groups.length === 0 ? (
-        <div className="mt-5 rounded-xl bg-surface p-6 text-center shadow-card">
-          <p className="font-semibold text-ink">Belum ada transaksi</p>
-          <p className="mt-1 text-sm text-muted">Catat transaksi pertama Anda untuk melihat riwayat di sini.</p>
+
+        {/* Filter info */}
+        <div className="rounded-xl bg-surface p-4 shadow-card">
+          <h3 className="mb-3 text-sm font-bold text-muted uppercase tracking-wide">Filter Aktif</h3>
+          <div className="flex flex-wrap gap-2">
+            {FILTERS.map((item) => (
+              <button
+                key={item.value}
+                type="button"
+                onClick={() => setFilter(item.value)}
+                className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
+                  filter === item.value ? "border-primary bg-primary text-white" : "border-outline bg-surface-container text-muted hover:border-primary/50"
+                }`}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
         </div>
-      ) : (
-        groups.map(([day, rows]) => (
-          <TransactionGroup key={day} label={formatDayLabel(day)} rows={rows} displayAmount={displayAmount} />
-        ))
-      )}
+      </aside>
     </div>
   );
 }

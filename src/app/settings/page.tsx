@@ -2,10 +2,14 @@
 
 import {
   Bell,
+  CalendarDays,
+  CalendarRange,
+  CheckCircle2,
   LogOut,
   Pencil,
   Save,
-  ShieldCheck
+  ShieldCheck,
+  Wallet2
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -126,39 +130,101 @@ export default function SettingsPage() {
               />
             </label>
 
-            <div className="grid gap-3 md:grid-cols-2">
-              <label className="block">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-white/70">Mode periode budgeting</span>
-                <select
-                  className="mt-1 min-h-12 w-full rounded-xl border border-white/15 bg-white/10 px-4 text-white focus:border-white/40 focus:bg-white/15 focus:outline-none"
-                  value={budgetingPeriodMode}
-                  onChange={(event) => setBudgetingPeriodMode(event.target.value as BudgetingPeriodMode)}
+            {/* ── Budget Period Mode ── */}
+            <div>
+              <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-white/70">
+                Periode penghitungan budget
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                {/* Option A: Bulan Kalender */}
+                <button
+                  type="button"
+                  onClick={() => setBudgetingPeriodMode("calendar_month")}
+                  className={`relative flex flex-col items-start gap-2 rounded-2xl border p-3 text-left transition active:scale-[0.97] ${
+                    budgetingPeriodMode === "calendar_month"
+                      ? "border-white bg-white/20 shadow-md"
+                      : "border-white/20 bg-white/5 hover:bg-white/10"
+                  }`}
                 >
-                  <option value="calendar_month" className="text-ink">
-                    Tanggal 1 - akhir bulan
-                  </option>
-                  <option value="salary_cycle" className="text-ink">
-                    Tanggal gajian ke tanggal gajian
-                  </option>
-                </select>
-              </label>
+                  {budgetingPeriodMode === "calendar_month" && (
+                    <CheckCircle2 size={14} className="absolute right-2 top-2 text-white" />
+                  )}
+                  <div className="flex size-9 items-center justify-center rounded-xl bg-white/15">
+                    <CalendarDays size={18} className="text-white" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-white leading-tight">Bulan Kalender</p>
+                    <p className="mt-0.5 text-[11px] text-white/70 leading-snug">
+                      1 Jan – 31 Jan,<br />1 Feb – 28 Feb, dst.
+                    </p>
+                  </div>
+                </button>
 
-              <label className="block">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-white/70">Tanggal gajian</span>
-                <input
-                  className="mt-1 min-h-12 w-full rounded-xl border border-white/15 bg-white/10 px-4 text-white placeholder:text-white/40 focus:border-white/40 focus:bg-white/15 focus:outline-none"
-                  type="number"
-                  min={1}
-                  max={28}
-                  value={salaryDay}
-                  onChange={(event) => setSalaryDay(event.target.value)}
-                  placeholder="Contoh: 25"
-                />
-              </label>
+                {/* Option B: Siklus Gajian */}
+                <button
+                  type="button"
+                  onClick={() => setBudgetingPeriodMode("salary_cycle")}
+                  className={`relative flex flex-col items-start gap-2 rounded-2xl border p-3 text-left transition active:scale-[0.97] ${
+                    budgetingPeriodMode === "salary_cycle"
+                      ? "border-white bg-white/20 shadow-md"
+                      : "border-white/20 bg-white/5 hover:bg-white/10"
+                  }`}
+                >
+                  {budgetingPeriodMode === "salary_cycle" && (
+                    <CheckCircle2 size={14} className="absolute right-2 top-2 text-white" />
+                  )}
+                  <div className="flex size-9 items-center justify-center rounded-xl bg-white/15">
+                    <Wallet2 size={18} className="text-white" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-white leading-tight">Siklus Gajian</p>
+                    <p className="mt-0.5 text-[11px] text-white/70 leading-snug">
+                      Dari tgl gajian<br />ke tgl gajian berikutnya
+                    </p>
+                  </div>
+                </button>
+              </div>
             </div>
 
+            {/* ── Salary Day picker — only visible in salary_cycle mode ── */}
+            {budgetingPeriodMode === "salary_cycle" && (
+              <div className="rounded-2xl border border-white/20 bg-white/5 p-3">
+                <div className="mb-2 flex items-center gap-2">
+                  <CalendarRange size={15} className="text-white/80" />
+                  <p className="text-xs font-bold text-white">
+                    Tanggal berapa kamu biasanya gajian?
+                  </p>
+                </div>
+                <p className="mb-3 text-[11px] text-white/60">
+                  Pilih tanggal di bawah. Periode budget akan dimulai dari tanggal ini setiap bulan.
+                </p>
+                <div className="grid grid-cols-7 gap-1.5">
+                  {Array.from({ length: 28 }, (_, i) => i + 1).map((day) => {
+                    const selected = String(day) === salaryDay;
+                    return (
+                      <button
+                        key={day}
+                        type="button"
+                        onClick={() => setSalaryDay(String(day))}
+                        className={`flex h-9 w-full items-center justify-center rounded-xl text-sm font-bold transition active:scale-90 ${
+                          selected
+                            ? "bg-white text-primary shadow"
+                            : "bg-white/10 text-white/80 hover:bg-white/20"
+                        }`}
+                      >
+                        {day}
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="mt-2 text-[11px] text-white/60 text-center">
+                  Dipilih: <span className="font-bold text-white">Tanggal {salaryDay}</span>
+                </p>
+              </div>
+            )}
+
             <p className="text-xs text-white/75">
-              Insight dan budgeting akan memakai periode ini sebagai acuan analisa bulanan.
+              Pengaturan ini menentukan kapan periode budget dan analisa keuangan kamu dihitung ulang setiap bulan.
             </p>
             <button
               className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-white px-4 font-bold text-primary shadow-card transition active:scale-[0.98] disabled:opacity-60"

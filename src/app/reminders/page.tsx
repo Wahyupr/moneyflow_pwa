@@ -110,67 +110,103 @@ function RemindersContent() {
   }
 
   return (
-    <div className="mt-5 space-y-5">
-      {error ? <p className="rounded-lg bg-error-container p-3 text-sm font-semibold text-on-error-container">{error}</p> : null}
+    <div className="mt-5 lg:grid lg:grid-cols-[1fr_360px] lg:items-start lg:gap-6">
+      {/* ── Main list ── */}
+      <div className="space-y-5">
+        {error ? <p className="rounded-lg bg-error-container p-3 text-sm font-semibold text-on-error-container">{error}</p> : null}
 
-      {loading ? (
-        <p className="rounded-xl bg-surface p-5 text-center text-sm text-muted shadow-card">Memuat pengingat...</p>
-      ) : (
-        <>
-          {active.length > 0 ? (
+        {loading ? (
+          <p className="rounded-xl bg-surface p-5 text-center text-sm text-muted shadow-card">Memuat pengingat...</p>
+        ) : (
+          <>
+            {active.length > 0 ? (
+              <section>
+                <h3 className="mb-3 text-sm font-bold text-muted">PERLU PERHATIAN</h3>
+                <div className="space-y-3">
+                  {active.map((reminder) => (
+                    <ReminderCard
+                      key={reminder.id}
+                      reminder={reminder}
+                      busy={busyId === reminder.id}
+                      onPay={() => setConfirming(reminder)}
+                      onDelete={() => archiveReminder(reminder.id)}
+                      displayAmount={displayAmount}
+                      merchantLogoUrl={merchants.find((m) => m.id === reminder.merchant_id)?.logo_url ?? null}
+                      highlight
+                    />
+                  ))}
+                </div>
+              </section>
+            ) : null}
+
             <section>
-              <h3 className="mb-3 text-sm font-bold text-muted">PERLU PERHATIAN</h3>
-              <div className="space-y-3">
-                {active.map((reminder) => (
-                  <ReminderCard
-                    key={reminder.id}
-                    reminder={reminder}
-                    busy={busyId === reminder.id}
-                    onPay={() => setConfirming(reminder)}
-                    onDelete={() => archiveReminder(reminder.id)}
-                    displayAmount={displayAmount}
-                    merchantLogoUrl={merchants.find((m) => m.id === reminder.merchant_id)?.logo_url ?? null}
-                    highlight
-                  />
-                ))}
-              </div>
+              <h3 className="mb-3 text-sm font-bold text-muted">{others.length === 0 && active.length === 0 ? "PENGINGAT" : "JADWAL BERIKUTNYA"}</h3>
+              {others.length === 0 && active.length === 0 ? (
+                <div className="rounded-xl bg-surface p-6 text-center shadow-card">
+                  <p className="font-semibold text-ink">Belum ada pengingat</p>
+                  <p className="mt-1 text-sm text-muted">Buat pengingat untuk langganan rutin agar tidak terlewat.</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {others.map((reminder) => (
+                    <ReminderCard
+                      key={reminder.id}
+                      reminder={reminder}
+                      busy={busyId === reminder.id}
+                      onPay={() => setConfirming(reminder)}
+                      onDelete={() => archiveReminder(reminder.id)}
+                      displayAmount={displayAmount}
+                      merchantLogoUrl={merchants.find((m) => m.id === reminder.merchant_id)?.logo_url ?? null}
+                    />
+                  ))}
+                </div>
+              )}
             </section>
-          ) : null}
+          </>
+        )}
 
-          <section>
-            <h3 className="mb-3 text-sm font-bold text-muted">{others.length === 0 && active.length === 0 ? "PENGINGAT" : "JADWAL BERIKUTNYA"}</h3>
-            {others.length === 0 && active.length === 0 ? (
-              <div className="rounded-xl bg-surface p-6 text-center shadow-card">
-                <p className="font-semibold text-ink">Belum ada pengingat</p>
-                <p className="mt-1 text-sm text-muted">Buat pengingat untuk langganan rutin agar tidak terlewat.</p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {others.map((reminder) => (
-                  <ReminderCard
-                    key={reminder.id}
-                    reminder={reminder}
-                    busy={busyId === reminder.id}
-                    onPay={() => setConfirming(reminder)}
-                    onDelete={() => archiveReminder(reminder.id)}
-                    displayAmount={displayAmount}
-                    merchantLogoUrl={merchants.find((m) => m.id === reminder.merchant_id)?.logo_url ?? null}
-                  />
-                ))}
-              </div>
-            )}
-          </section>
-        </>
-      )}
+        {/* Add button — mobile only; desktop has it in right col */}
+        <button
+          className="flex min-h-14 w-full items-center justify-center gap-2 rounded-full bg-primary px-4 font-bold text-white shadow-card active:scale-[0.98] lg:hidden"
+          type="button"
+          onClick={() => setShowForm(true)}
+        >
+          <Plus size={20} />
+          Tambah Pengingat Baru
+        </button>
+      </div>
 
-      <button
-        className="flex min-h-14 w-full items-center justify-center gap-2 rounded-full bg-primary px-4 font-bold text-white shadow-card active:scale-[0.98]"
-        type="button"
-        onClick={() => setShowForm(true)}
-      >
-        <Plus size={20} />
-        Tambah Pengingat Baru
-      </button>
+      {/* ── Desktop right sidebar — inline form ── */}
+      <aside className="hidden lg:sticky lg:top-[57px] lg:flex lg:flex-col lg:gap-4 lg:self-start">
+        {/* Stats */}
+        <div className="rounded-xl bg-surface p-4 shadow-card">
+          <h3 className="mb-3 text-sm font-bold text-muted uppercase tracking-wide">Ringkasan</h3>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted">Total Pengingat</span>
+              <span className="font-bold text-ink">{reminders.length}</span>
+            </div>
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted">Perlu Perhatian</span>
+              <span className={`font-bold ${active.length > 0 ? "text-expense" : "text-income"}`}>{active.length}</span>
+            </div>
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted">Terjadwal</span>
+              <span className="font-bold text-muted">{others.length}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Add button */}
+        <button
+          className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 font-bold text-white shadow-card transition hover:opacity-90 active:scale-[0.98]"
+          type="button"
+          onClick={() => setShowForm(true)}
+        >
+          <Plus size={18} />
+          Tambah Pengingat Baru
+        </button>
+      </aside>
 
       {showForm ? (
         <ReminderFormSheet
@@ -395,8 +431,8 @@ function ReminderFormSheet({
   }
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/40 sm:items-center sm:p-4" role="dialog" aria-modal="true">
-      <form onSubmit={submit} className="flex w-full max-w-md flex-col rounded-t-2xl bg-surface shadow-lift sm:rounded-2xl" style={{ maxHeight: "min(90dvh, calc(100dvh - env(safe-area-inset-bottom, 0px)))" }}>
+    <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/40 sm:items-center sm:p-4 lg:items-center lg:p-6" role="dialog" aria-modal="true">
+      <form onSubmit={submit} className="flex w-full max-w-md flex-col rounded-t-2xl bg-surface shadow-lift sm:rounded-2xl lg:max-w-lg" style={{ maxHeight: "min(90dvh, calc(100dvh - env(safe-area-inset-bottom, 0px)))" }}>
         {/* Fixed header */}
         <div className="flex shrink-0 items-center justify-between px-5 pb-3 pt-5">
           <h3 className="text-lg font-bold text-ink">Pengingat Baru</h3>

@@ -5,10 +5,12 @@ import {
   Bell,
   Brain,
   CheckCircle2,
-  Clock,
   Crown,
   FileText,
+  HandCoins,
   Loader2,
+  Mic,
+  ReceiptText,
   Sparkles,
   Wallet,
   type LucideIcon
@@ -29,27 +31,37 @@ const PREMIUM_FEATURES: PremiumFeature[] = [
   {
     icon: Wallet,
     label: "Dompet tanpa batas",
-    sublabel: "Buat dompet sebanyak yang Anda butuhkan"
+    sublabel: "Buat dompet sebanyak yang kamu butuhkan"
+  },
+  {
+    icon: Mic,
+    label: "Input Suara AI",
+    sublabel: "AI parsing tanpa batas setiap hari"
+  },
+  {
+    icon: ReceiptText,
+    label: "Scan Struk",
+    sublabel: "Scan & ekstrak struk tanpa batas"
   },
   {
     icon: Brain,
-    label: "AI Insight di Dashboard",
-    sublabel: "Refill insight tanpa batas harian"
+    label: "AI Insight",
+    sublabel: "Insight dashboard & laporan tanpa batas"
   },
   {
-    icon: FileText,
-    label: "AI Insight di Laporan",
-    sublabel: "Analisis mendalam tanpa batas"
-  },
-  {
-    icon: Clock,
+    icon: HandCoins,
     label: "Hutang & Piutang",
-    sublabel: "Kelola pinjaman masuk & keluar dengan progress pelunasan"
+    sublabel: "Kelola pinjaman dengan progress pelunasan"
   },
   {
     icon: Bell,
-    label: "Pengingat Jatuh Tempo",
-    sublabel: "Notifikasi otomatis untuk langganan & tagihan rutin"
+    label: "Pengingat Tagihan",
+    sublabel: "Notifikasi otomatis untuk tagihan rutin"
+  },
+  {
+    icon: FileText,
+    label: "Laporan Lengkap",
+    sublabel: "Ekspor Excel & riwayat semua waktu"
   }
 ];
 
@@ -143,34 +155,34 @@ function PremiumCelebrationDialog({ onContinue }: { onContinue: () => void }) {
           </p>
         </div>
 
-        <ul className="mt-5 space-y-2">
+        <ul className="mt-4 grid grid-cols-2 gap-1.5">
           {PREMIUM_FEATURES.map((feature) => {
             const Icon = feature.icon;
             return (
               <li
                 key={feature.label}
-                className="flex items-start gap-3 rounded-xl border border-outline/40 bg-surface-container/40 p-2.5"
+                className="flex items-start gap-2 rounded-xl border border-outline/40 bg-surface-container/40 px-2.5 py-2"
               >
                 <span
-                  className={`flex size-8 shrink-0 items-center justify-center rounded-lg ${
+                  className={`mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-md ${
                     feature.inDevelopment ? "bg-warning/10 text-warning" : "bg-primary/10 text-primary"
                   }`}
                 >
-                  <Icon aria-hidden="true" size={16} />
+                  <Icon aria-hidden="true" size={13} />
                 </span>
                 <div className="min-w-0 flex-1">
-                  <p className="text-[13px] font-bold leading-tight text-ink">
+                  <p className="text-[11px] font-bold leading-tight text-ink">
                     {feature.label}
                     {feature.inDevelopment ? (
-                      <span className="ml-2 rounded-full bg-warning/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-warning">
+                      <span className="ml-1 rounded-full bg-warning/15 px-1.5 py-px text-[9px] font-semibold uppercase tracking-wider text-warning">
                         Segera
                       </span>
                     ) : null}
                   </p>
-                  <p className="mt-0.5 text-xs leading-tight text-muted">{feature.sublabel}</p>
+                  <p className="mt-px text-[10px] leading-tight text-muted">{feature.sublabel}</p>
                 </div>
                 {!feature.inDevelopment ? (
-                  <CheckCircle2 aria-hidden="true" size={16} className="mt-0.5 shrink-0 text-tertiary" />
+                  <CheckCircle2 aria-hidden="true" size={13} className="mt-0.5 shrink-0 text-tertiary" />
                 ) : null}
               </li>
             );

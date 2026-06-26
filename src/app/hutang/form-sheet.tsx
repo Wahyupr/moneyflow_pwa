@@ -129,10 +129,10 @@ export function DebtFormSheet({
   const tenorButtons = [...TENOR_PRESETS, "custom" as const];
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/40 sm:items-center sm:p-4" role="dialog" aria-modal="true">
+    <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/40 sm:items-center sm:p-4 lg:items-center lg:p-6" role="dialog" aria-modal="true">
       <form
         onSubmit={submit}
-        className="flex w-full max-w-md flex-col rounded-t-2xl bg-surface shadow-lift sm:rounded-2xl"
+        className="flex w-full max-w-md flex-col rounded-t-2xl bg-surface shadow-lift sm:rounded-2xl lg:max-w-lg"
         style={{ maxHeight: "min(90dvh, calc(100dvh - env(safe-area-inset-bottom, 0px)))" }}
       >
         <div className="flex shrink-0 items-center justify-between px-5 pb-3 pt-5">

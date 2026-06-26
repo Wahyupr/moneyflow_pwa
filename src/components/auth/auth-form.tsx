@@ -5,6 +5,7 @@ import { ArrowRight, Eye, EyeOff, Loader2, Lock, Mail, UserRound } from "lucide-
 import { useEffect, useState, type FormEvent } from "react";
 
 import { AuthField } from "@/components/auth/auth-field";
+import { GoogleTermsModal } from "@/components/auth/google-terms-modal";
 import { getAuthApiEndpoint, getPostAuthRedirect } from "@/lib/auth/client";
 import { validateLoginInput, validateRegisterInput } from "@/lib/auth-validation";
 
@@ -25,6 +26,7 @@ export function AuthForm({ mode }: { mode: AuthMode }) {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
   const [oauthLoading, setOauthLoading] = useState(false);
+  const [showTermsModal, setShowTermsModal] = useState(false);
   const isRegister = mode === "register";
 
   useEffect(() => {
@@ -46,19 +48,18 @@ export function AuthForm({ mode }: { mode: AuthMode }) {
     }
   }, []);
 
-  function startGoogleOAuth() {
-    if (oauthLoading || typeof window === "undefined") {
-      return;
-    }
-
-    setOauthLoading(true);
+  function openGoogleTerms() {
+    if (oauthLoading) return;
     setErrors({});
+    setShowTermsModal(true);
+  }
 
+  function confirmGoogleOAuth() {
+    if (oauthLoading || typeof window === "undefined") return;
+    setShowTermsModal(false);
+    setOauthLoading(true);
     const next = new URLSearchParams(window.location.search).get("next");
     const target = next ? `/api/auth/google?next=${encodeURIComponent(next)}` : "/api/auth/google";
-    // Give React a tick to paint the overlay before the browser starts the
-    // cross-origin navigation to Google. Without this delay, the hard redirect
-    // can win the race and the user sees a frozen form instead of feedback.
     window.setTimeout(() => {
       window.location.href = target;
     }, 350);
@@ -137,6 +138,13 @@ export function AuthForm({ mode }: { mode: AuthMode }) {
 
   return (
     <>
+      {showTermsModal ? (
+        <GoogleTermsModal
+          loading={oauthLoading}
+          onCancel={() => setShowTermsModal(false)}
+          onConfirm={confirmGoogleOAuth}
+        />
+      ) : null}
       {oauthLoading ? <GoogleConnectingOverlay /> : null}
       <form className="space-y-4" onSubmit={submit}>
       {isRegister ? <AuthField autoComplete="name" error={errors.fullName} icon={UserRound} id="fullName" label="Full Name" name="fullName" placeholder="Nara Putri" type="text" /> : null}
@@ -176,8 +184,10 @@ export function AuthForm({ mode }: { mode: AuthMode }) {
           <label className="flex items-start gap-3 text-sm leading-5 text-muted" htmlFor="acceptedTerms">
             <input className="mt-1 size-4 rounded border-outline text-primary focus:ring-primary" id="acceptedTerms" name="acceptedTerms" type="checkbox" />
             <span>
-              I agree to the <a className="font-semibold text-primary underline" href="#">Terms of Service</a> and{" "}
-              <a className="font-semibold text-primary underline" href="#">Privacy Policy</a>.
+              Saya menyetujui{" "}
+              <a className="font-semibold text-primary underline" href="/syarat-ketentuan" target="_blank" rel="noopener noreferrer">Syarat &amp; Ketentuan</a>{" "}
+              dan{" "}
+              <a className="font-semibold text-primary underline" href="/kebijakan-refund" target="_blank" rel="noopener noreferrer">Kebijakan Layanan</a>.
             </span>
           </label>
           {errors.acceptedTerms ? <p className="mt-2 text-sm text-error">{errors.acceptedTerms}</p> : null}
@@ -212,7 +222,7 @@ export function AuthForm({ mode }: { mode: AuthMode }) {
       <button
         className="flex min-h-12 w-full items-center justify-center gap-2 rounded-lg border border-outline bg-surface text-base font-semibold text-ink transition hover:bg-surface-low active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
         disabled={oauthLoading}
-        onClick={startGoogleOAuth}
+        onClick={openGoogleTerms}
         type="button"
       >
         {oauthLoading ? (

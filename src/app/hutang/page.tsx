@@ -159,50 +159,81 @@ function HutangContent() {
     : 0;
 
   return (
-    <div className="mt-5 space-y-5">
-      {error ? <p className="rounded-lg bg-error-container p-3 text-sm font-semibold text-on-error-container">{error}</p> : null}
+    <div className="mt-5 lg:grid lg:grid-cols-[1fr_320px] lg:items-start lg:gap-6">
+      {/* ── Main list ── */}
+      <div className="space-y-4">
+        {error ? <p className="rounded-lg bg-error-container p-3 text-sm font-semibold text-on-error-container">{error}</p> : null}
 
-      <SummaryCard
-        remainingMinor={summary.total_remaining_minor}
-        remainingWithInterestMinor={summary.total_remaining_with_interest_minor}
-        paidMinor={summary.total_paid_minor}
-        principalMinor={summary.total_principal_minor}
-        monthlyInstallmentMinor={summary.total_monthly_installment_minor}
-        progressPct={progressPct}
-        displayAmount={displayAmount}
-      />
-
-      {loading ? (
-        <p className="rounded-xl bg-surface p-5 text-center text-sm text-muted shadow-card">Memuat hutang...</p>
-      ) : debts.length === 0 ? (
-        <div className="rounded-xl bg-surface p-6 text-center shadow-card">
-          <Landmark aria-hidden="true" className="mx-auto size-10 text-muted" />
-          <p className="mt-2 font-semibold text-ink">Belum ada hutang</p>
-          <p className="mt-1 text-sm text-muted">Catat KPR, cicilan kendaraan, atau pinjaman lain untuk memantau pelunasan.</p>
+        {/* Summary card — mobile only; desktop shows in right col */}
+        <div className="lg:hidden">
+          <SummaryCard
+            remainingMinor={summary.total_remaining_minor}
+            remainingWithInterestMinor={summary.total_remaining_with_interest_minor}
+            paidMinor={summary.total_paid_minor}
+            principalMinor={summary.total_principal_minor}
+            monthlyInstallmentMinor={summary.total_monthly_installment_minor}
+            progressPct={progressPct}
+            displayAmount={displayAmount}
+          />
         </div>
-      ) : (
-        <div className="space-y-3">
-          {debts.map((debt) => (
-            <DebtCard
-              key={debt.id}
-              debt={debt}
-              busy={busyId === debt.id}
-              onPay={() => setPayTarget(debt)}
-              onDelete={() => setDeleteTarget(debt)}
-              displayAmount={displayAmount}
-            />
-          ))}
-        </div>
-      )}
 
-      <button
-        type="button"
-        className="flex min-h-14 w-full items-center justify-center gap-2 rounded-full bg-primary px-4 font-bold text-white shadow-card active:scale-[0.98]"
-        onClick={() => setShowForm(true)}
-      >
-        <Plus size={20} />
-        Tambah Hutang
-      </button>
+        {loading ? (
+          <p className="rounded-xl bg-surface p-5 text-center text-sm text-muted shadow-card">Memuat hutang...</p>
+        ) : debts.length === 0 ? (
+          <div className="rounded-xl bg-surface p-6 text-center shadow-card">
+            <Landmark aria-hidden="true" className="mx-auto size-10 text-muted" />
+            <p className="mt-2 font-semibold text-ink">Belum ada hutang</p>
+            <p className="mt-1 text-sm text-muted">Catat KPR, cicilan kendaraan, atau pinjaman lain untuk memantau pelunasan.</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {debts.map((debt) => (
+              <DebtCard
+                key={debt.id}
+                debt={debt}
+                busy={busyId === debt.id}
+                onPay={() => setPayTarget(debt)}
+                onDelete={() => setDeleteTarget(debt)}
+                displayAmount={displayAmount}
+              />
+            ))}
+          </div>
+        )}
+
+        {/* Add button — mobile only; desktop has it in right col */}
+        <button
+          type="button"
+          className="flex min-h-14 w-full items-center justify-center gap-2 rounded-full bg-primary px-4 font-bold text-white shadow-card active:scale-[0.98] lg:hidden"
+          onClick={() => setShowForm(true)}
+        >
+          <Plus size={20} />
+          Tambah Hutang
+        </button>
+      </div>
+
+      {/* ── Desktop right sidebar ── */}
+      <aside className="hidden lg:sticky lg:top-[57px] lg:flex lg:flex-col lg:gap-4 lg:self-start">
+        {/* Summary */}
+        <SummaryCard
+          remainingMinor={summary.total_remaining_minor}
+          remainingWithInterestMinor={summary.total_remaining_with_interest_minor}
+          paidMinor={summary.total_paid_minor}
+          principalMinor={summary.total_principal_minor}
+          monthlyInstallmentMinor={summary.total_monthly_installment_minor}
+          progressPct={progressPct}
+          displayAmount={displayAmount}
+        />
+
+        {/* Add button */}
+        <button
+          type="button"
+          className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 font-bold text-white shadow-card transition hover:opacity-90 active:scale-[0.98]"
+          onClick={() => setShowForm(true)}
+        >
+          <Plus size={18} />
+          Tambah Hutang Baru
+        </button>
+      </aside>
 
       {showForm ? (
         <DebtFormSheet

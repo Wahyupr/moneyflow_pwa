@@ -310,17 +310,29 @@ function CtaSection() {
 function LandingFooter() {
   return (
     <footer className="border-t border-outline/60">
-      <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-5 py-8 sm:flex-row">
-        <div className="flex items-center gap-2">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo/brand-mark.svg" alt="MoneyFlow" className="size-7 rounded-lg" />
-          <span className="font-bold">MoneyFlow</span>
+      <div className="mx-auto max-w-6xl px-5 py-10">
+        {/* Top row: brand + auth links */}
+        <div className="flex flex-col items-center justify-between gap-4 sm:flex-row">
+          <div className="flex items-center gap-2">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/logo/brand-mark.svg" alt="MoneyFlow" className="size-7 rounded-lg" />
+            <span className="font-bold">MoneyFlow</span>
+          </div>
+          <div className="flex gap-4 text-sm font-semibold text-muted">
+            <Link className="hover:text-ink" href="/login">Masuk</Link>
+            <Link className="hover:text-ink" href="/register">Daftar</Link>
+          </div>
         </div>
-        <p className="text-sm text-muted">© {new Date().getFullYear()} MoneyFlow. Dibuat oleh Wahyu Pratama.</p>
-        <div className="flex gap-4 text-sm font-semibold text-muted">
-          <Link className="hover:text-ink" href="/login">Masuk</Link>
-          <Link className="hover:text-ink" href="/register">Daftar</Link>
+
+        {/* Legal links */}
+        <div className="mt-6 flex flex-wrap justify-center gap-x-5 gap-y-2 text-sm font-semibold text-muted">
+          <Link className="hover:text-ink" href="/faq">FAQ</Link>
+          <Link className="hover:text-ink" href="/syarat-ketentuan">Syarat &amp; Ketentuan</Link>
+          <Link className="hover:text-ink" href="/kebijakan-refund">Kebijakan Refund</Link>
+          <Link className="hover:text-ink" href="/kontak">Kontak</Link>
         </div>
+
+        <p className="mt-6 text-center text-xs text-muted">© {new Date().getFullYear()} MoneyFlow. Hak cipta dilindungi.</p>
       </div>
     </footer>
   );

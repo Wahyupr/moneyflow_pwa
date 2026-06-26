@@ -75,7 +75,7 @@ export async function provisionUser(input: { userId: string; displayName?: strin
   // trial automatically downgrades to free after a month without a cron job.
   await query(
     `insert into subscription_entitlements (user_id, plan, status, current_period_end)
-     values ($1, 'premium', 'active', now() + interval '1 month')
+     values ($1, 'premium', 'active', now() + interval '7 days')
      on conflict (user_id) do nothing`,
     [input.userId]
   );

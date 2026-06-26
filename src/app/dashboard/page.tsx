@@ -13,6 +13,7 @@ import { usePrivacy } from "@/components/privacy-provider";
 import { TransactionRow } from "@/components/transaction-row";
 import { WalletCard } from "@/components/wallet-card";
 import { formatCurrency } from "@/lib/money";
+import { SpendingChart } from "@/components/spending-chart";
 import type { DashboardBudget, DashboardDelta, DashboardWallet } from "@/lib/dashboard";
 import type { LedgerTransaction } from "@/lib/types";
 
@@ -201,8 +202,10 @@ function DashboardContent() {
   }
 
   return (
-    <>
-      <section className="relative mt-3 overflow-hidden rounded-xl bg-surface p-5 shadow-card">
+    <div className="lg:grid lg:grid-cols-[1fr_320px] lg:items-start lg:gap-5 lg:pt-4">
+      {/* ── Center column ── */}
+      <div className="min-w-0">
+      <section className="relative mt-3 overflow-hidden rounded-xl bg-surface p-5 shadow-card lg:mt-0">
         <div className="absolute -right-12 -top-12 size-36 rounded-full bg-primary/10 blur-xl" />
         <div className="relative flex items-start justify-between gap-4">
           <div className="min-w-0">
@@ -248,13 +251,25 @@ function DashboardContent() {
         </div>
       </section>
 
+      <SpendingChart
+        transactions={dashboard.recent_transactions}
+        month={new Date().toISOString().slice(0, 7)}
+        hidden={hidden}
+      />
+
       <DailyInsightCard />
 
-      <CashflowCalendar hidden={hidden} />
+      {/* Calendar — mobile only; desktop shows in right column */}
+      <div className="lg:hidden">
+        <CashflowCalendar hidden={hidden} />
+      </div>
 
-      <MenuUtama />
+      {/* Menu tiles — mobile only; desktop has sidebar nav */}
+      <div className="lg:hidden">
+        <MenuUtama />
+      </div>
 
-      <section id="wallet-list" className="mt-6">
+      <section className="mt-6 lg:hidden" id="wallet-list">
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-lg font-bold text-ink">Dompet Saya</h2>
           <Link className="min-h-10 rounded-lg px-3 py-2 text-sm font-bold text-primary active:bg-surface-container" href="/wallets">
@@ -291,7 +306,7 @@ function DashboardContent() {
       </section>
 
       {dashboard.budgets.length > 0 ? (
-        <section className="mt-6 rounded-xl bg-surface p-4 shadow-card">
+        <section className="mt-6 rounded-xl bg-surface p-4 shadow-card lg:hidden">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-lg font-bold text-ink">Budget bulan ini</h2>
             <p className="text-sm font-bold text-primary">{displayAmount(formatCurrency(dashboard.monthly.totals.net_minor, "IDR"))}</p>
@@ -315,7 +330,65 @@ function DashboardContent() {
           </div>
         </section>
       ) : null}
-    </>
+      </div>{/* end left column */}
+
+      {/* ── Right column (desktop only) ── */}
+      <aside className="hidden lg:flex lg:flex-col lg:gap-4 lg:pt-0 lg:sticky lg:top-[57px] lg:self-start lg:max-h-[calc(100vh-57px)] lg:overflow-y-auto lg:[scrollbar-width:none]">
+        {/* Cashflow Calendar */}
+        <section className="rounded-xl bg-surface p-4 shadow-card">
+          <CashflowCalendar hidden={hidden} />
+        </section>
+
+        {/* Wallets */}
+        <section id="wallet-list" className="rounded-xl bg-surface p-4 shadow-card">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-base font-bold text-ink">Dompet Saya</h2>
+            <Link className="text-xs font-bold text-primary hover:underline" href="/wallets">Lihat Semua</Link>
+          </div>
+          {dashboard.wallets.length > 0 ? (
+            <div className="space-y-2">
+              {dashboard.wallets.map((wallet) => (
+                <WalletCard compact hidden={hidden} key={wallet.id} wallet={wallet} />
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-muted">Belum ada dompet.</p>
+          )}
+        </section>
+
+        {/* Budget */}
+        {dashboard.budgets.length > 0 ? (
+          <section className="rounded-xl bg-surface p-4 shadow-card">
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="text-base font-bold text-ink">Budget bulan ini</h2>
+              <Link className="text-xs font-bold text-primary hover:underline" href="/budgets">Kelola</Link>
+            </div>
+            <div className="space-y-3">
+              {dashboard.budgets.map((budget) => {
+                const progress = Math.min(100, Math.round((budget.used_minor / Math.max(budget.limit_minor, 1)) * 100));
+                const overBudget = progress >= 100;
+                return (
+                  <div key={budget.id}>
+                    <div className="mb-1.5 flex items-center justify-between text-xs">
+                      <span className="font-medium text-ink">{budget.name}</span>
+                      <span className={`font-semibold ${overBudget ? "text-expense" : "text-muted"}`}>
+                        {hidden ? "**%" : `${progress}%`}
+                      </span>
+                    </div>
+                    <div className="h-1.5 rounded-full bg-surface-container">
+                      <div
+                        className="h-full rounded-full transition-all"
+                        style={{ width: `${progress}%`, backgroundColor: overBudget ? "#EF4444" : budget.color }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        ) : null}
+      </aside>
+    </div>
   );
 }
 
