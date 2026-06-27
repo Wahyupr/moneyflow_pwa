@@ -20,6 +20,7 @@ import { usePrivacy } from "@/components/privacy-provider";
 import { SelectMenu } from "@/components/ui/select-menu";
 import { formatCurrency } from "@/lib/money";
 import { validateWalletInput, type WalletInput, type WalletType } from "@/lib/wallets";
+import { getProvider } from "@/lib/wallet-providers";
 
 const ROW_ICONS: Record<string, typeof Wallet> = {
   "credit-card": CreditCard,
@@ -641,27 +642,47 @@ function WalletRowItem({
   onShare: () => void;
 }) {
   const Icon = ROW_ICONS[wallet.icon] ?? Wallet;
-  const subtitle = wallet.institution_name || TYPE_LABELS[wallet.type];
   const balanceText = formatCurrency(wallet.balance_minor, "IDR");
+  const provider = wallet.institution_name ? getProvider(wallet.type, wallet.institution_name) : null;
 
   return (
     <li className="flex items-center gap-3 rounded-xl bg-surface p-3 shadow-card">
-      <span
-        className="flex size-10 shrink-0 items-center justify-center rounded-full text-white"
-        style={{ backgroundColor: wallet.color }}
-      >
-        <Icon size={18} aria-hidden="true" />
-      </span>
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2">
-          <p className="truncate font-semibold text-ink">{wallet.name}</p>
-          {wallet.is_shared ? <UsersRound size={14} className="shrink-0 text-muted" aria-label="Dompet bersama" /> : null}
-        </div>
-        <p className="truncate text-xs text-muted">{subtitle}</p>
+      {/* Icon circle with optional provider badge overlay */}
+      <div className="relative shrink-0">
+        <span
+          className="flex size-11 items-center justify-center rounded-full text-white"
+          style={{ backgroundColor: wallet.color }}
+        >
+          <Icon size={20} aria-hidden="true" />
+        </span>
+        {provider ? (
+          <span
+            className="absolute -bottom-1 -right-1 flex h-5 min-w-5 items-center justify-center rounded-md px-1 text-[9px] font-black leading-none tracking-wide"
+            style={{ background: provider.badgeBg, color: provider.badgeText }}
+          >
+            {provider.abbr}
+          </span>
+        ) : null}
       </div>
+
+      {/* Name + subtitle — allow wrapping instead of truncating */}
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-1.5">
+          <p className="line-clamp-2 font-semibold leading-tight text-ink">{wallet.name}</p>
+          {wallet.is_shared ? <UsersRound size={13} className="shrink-0 text-muted" aria-label="Dompet bersama" /> : null}
+        </div>
+        <p className="mt-0.5 break-words text-xs leading-snug text-muted">
+          {wallet.institution_name || TYPE_LABELS[wallet.type]}
+          {wallet.account_number ? ` · ${wallet.account_number}` : wallet.phone_number ? ` · ${wallet.phone_number}` : ""}
+        </p>
+      </div>
+
+      {/* Balance */}
       <p className="shrink-0 text-sm font-bold tabular-nums text-ink">
         {hidden ? "•".repeat(Math.min(balanceText.length, 8)) : balanceText}
       </p>
+
+      {/* Action buttons */}
       <div className="ml-1 flex shrink-0 items-center gap-1">
         <button
           className="flex size-9 items-center justify-center rounded-full text-primary active:bg-surface-container"
