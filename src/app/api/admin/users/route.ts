@@ -2,72 +2,98 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { z } from "zod";
 import { requireApiAdmin } from "@/lib/api/auth";
+import { query } from "@/lib/db/pool";
 
 export const runtime = "nodejs";
 
 const SubscriptionPatchSchema = z.object({
   user_id: z.string().uuid(),
-  plan: z.enum(["free", "premium"]),
+  plan: z.enum(["free", "premium", "pro"]),
   status: z.enum(["active", "past_due", "canceled"]).optional()
 });
 
 export async function GET(request: NextRequest) {
   const auth = await requireApiAdmin(request);
+  if ("response" in auth) return auth.response;
 
-  if ("response" in auth) {
-    return auth.response;
+  try {
+    const [profilesResult, entitlementsResult] = await Promise.all([
+      query<{
+        id: string;
+        display_name: string | null;
+        role: string;
+        default_currency: string;
+        created_at: string;
+      }>(
+        `select id, display_name, role, default_currency, created_at
+         from profiles
+         order by created_at desc`
+      ),
+      query<{
+        user_id: string;
+        plan: string;
+        status: string;
+        current_period_end: string | null;
+      }>(
+        `select user_id, plan, status, current_period_end
+         from subscription_entitlements`
+      )
+    ]);
+
+    const entitlementByUser = new Map(
+      entitlementsResult.rows.map((item) => [item.user_id, item])
+    );
+
+    const users = profilesResult.rows.map((profile) => ({
+      ...profile,
+      entitlement: entitlementByUser.get(profile.id) ?? {
+        plan: "free",
+        status: "active",
+        current_period_end: null
+      }
+    }));
+
+    return NextResponse.json({ users });
+  } catch (err) {
+    console.error("[admin/users GET]", err);
+    return NextResponse.json({ error: "Failed to fetch users." }, { status: 500 });
   }
-
-  const [{ data: profiles, error: profilesError }, { data: entitlements, error: entitlementsError }] = await Promise.all([
-    auth.db.from("profiles").select("id,display_name,role,default_currency,created_at").order("created_at", { ascending: false }),
-    auth.db.from("subscription_entitlements").select("user_id,plan,status,current_period_end")
-  ]);
-
-  if (profilesError || entitlementsError) {
-    return NextResponse.json({ error: profilesError?.message ?? entitlementsError?.message }, { status: 500 });
-  }
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const entitlementByUser = new Map((entitlements ?? []).map((item: any) => [item.user_id, item]));
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const users = (profiles ?? []).map((profile: any) => ({
-
-    ...profile,
-    entitlement: entitlementByUser.get(profile.id) ?? { plan: "free", status: "active", current_period_end: null }
-  }));
-
-  return NextResponse.json({ users });
 }
 
 export async function PATCH(request: NextRequest) {
   const auth = await requireApiAdmin(request);
-
-  if ("response" in auth) {
-    return auth.response;
-  }
+  if ("response" in auth) return auth.response;
 
   const parsed = SubscriptionPatchSchema.safeParse(await request.json().catch(() => null));
-
   if (!parsed.success) {
     return NextResponse.json({ error: "Invalid subscription payload." }, { status: 400 });
   }
 
-  const { data, error } = await auth.db
-    .from("subscription_entitlements")
-    .upsert(
-      {
-        user_id: parsed.data.user_id,
-        plan: parsed.data.plan,
-        status: parsed.data.status ?? "active"
-      },
-      { onConflict: "user_id" }
-    )
-    .select("user_id,plan,status,current_period_end")
-    .single();
+  try {
+    const result = await query<{
+      user_id: string;
+      plan: string;
+      status: string;
+      current_period_end: string | null;
+    }>(
+      `insert into subscription_entitlements (user_id, plan, status, current_period_end)
+       values ($1, $2, $3, null)
+       on conflict (user_id)
+       do update set
+         plan = excluded.plan,
+         status = excluded.status,
+         current_period_end = null
+       returning user_id, plan, status, current_period_end`,
+      [
+        parsed.data.user_id,
+        parsed.data.plan,
+        parsed.data.status ?? "active",
+      ]
+    );
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ entitlement: result.rows[0] });
+  } catch (err) {
+    console.error("[admin/users PATCH]", err);
+    return NextResponse.json({ error: "Failed to update subscription." }, { status: 500 });
   }
-
-  return NextResponse.json({ entitlement: data });
 }

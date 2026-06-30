@@ -43,7 +43,9 @@ const ALLOWED_TABLES = new Set([
   "receivables",
   "receivable_payments",
   "debts",
-  "debt_payments"
+  "debt_payments",
+  "plan_limits",
+  "payment_orders"
 ]);
 
 function assertTable(table: string) {

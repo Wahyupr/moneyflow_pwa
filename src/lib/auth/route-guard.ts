@@ -14,7 +14,7 @@ const protectedPagePrefixes = [
   "/categories"
 ];
 
-const publicPagePaths = new Set(["/", "/login", "/register", "/verify-email", "/forgot-password"]);
+const publicPagePaths = new Set(["/", "/login", "/register", "/verify-email", "/forgot-password", "/pricing", "/faq", "/kontak", "/syarat-ketentuan", "/kebijakan-refund"]);
 const publicPagePrefixes = ["/auth/callback"];
 const publicApiPrefixes = [
   "/api/auth/login",
@@ -25,7 +25,11 @@ const publicApiPrefixes = [
   "/api/auth/resend",
   "/api/auth/forgot-password",
   // Cron endpoint — secured by CRON_SECRET bearer token, not user session
-  "/api/notifications/trigger"
+  "/api/notifications/trigger",
+  // Midtrans sends webhook from their servers — no user session available
+  "/api/payments/webhook",
+  // Midtrans BI SNAP webhook — server-to-server, no user session
+  "/api/payments/bisnap-webhook"
 ];
 
 

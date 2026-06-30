@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import Link from "next/link";
-import { Check, Lock, ChevronDown, Sparkles, ArrowRight, Zap } from "lucide-react";
+import { Check, Lock, ChevronDown, Sparkles, ArrowRight, Zap, Loader2 } from "lucide-react";
 import { Reveal } from "@/components/landing/reveal";
 
 // ─── Plan definitions ────────────────────────────────────────────────────────
@@ -21,14 +21,14 @@ const FEATURE_ROWS: FeatureRow[] = [
   {
     label: "Dompet",
     free:    "Maks. 2 dompet",
-    premium: "Dompet tak terbatas",
-    pro:     "Dompet tak terbatas",
+    premium: "Jumlah dompet tak terbatas",
+    pro:     "Jumlah dompet tak terbatas",
   },
   {
     label: "Budget aktif",
     free:    "1 budget aktif",
-    premium: "Budget tak terbatas",
-    pro:     "Budget tak terbatas",
+    premium: "Jumlah budget tak terbatas",
+    pro:     "Jumlah budget tak terbatas",
   },
   {
     label: "Riwayat transaksi",
@@ -38,45 +38,57 @@ const FEATURE_ROWS: FeatureRow[] = [
   },
   {
     label: "Input suara",
-    free:    "3×/bln (pakai AI) — non-AI unlimited",
-    premium: "30×/bln dengan AI",
-    pro:     "Tak terbatas",
+    free:    "Voice input 1× sehari",
+    premium: "Voice input unlimited",
+    pro:     "Voice input unlimited",
   },
   {
     label: "Scan struk otomatis",
     free:    "7×/bln — AI baca & isi transaksi",
-    premium: "30×/bln",
-    pro:     "Tak terbatas",
+    premium: "Scan struk 2× sehari",
+    pro:     "Scan struk tak terbatas",
   },
   {
     label: "Ekspor laporan Excel",
     free:    "1×/bln — unduh ringkasan transaksi",
-    premium: "30×/bln",
-    pro:     "Tak terbatas",
+    premium: "Unduh laporan unlimited",
+    pro:     "Unduh laporan unlimited",
   },
   {
     label: "AI Insights",
-    free:    false,
-    premium: "Analisis pola belanja otomatis",
-    pro:     "Analisis pola belanja otomatis",
+    free:    "7× sebulan AI Insights",
+    premium: "AI Insights tak terbatas",
+    pro:     "AI Insights tak terbatas",
   },
   {
     label: "Hutang & Piutang",
-    free:    false,
-    premium: "Catat & lacak hutang/piutang",
-    pro:     "Catat & lacak hutang/piutang",
+    free:    "1 catatan hutang/piutang",
+    premium: "Catat & lacak hutang/piutang tak terbatas",
+    pro:     "Catat & lacak hutang/piutang tak terbatas",
   },
   {
     label: "Multi dompet berbagi",
-    free:    false,
-    premium: "Dompet bareng keluarga/pasangan",
-    pro:     "Dompet bareng keluarga/pasangan",
+    free:    "1 dompet bersama",
+    premium: "Dompet bareng keluarga/pasangan tak terbatas",
+    pro:     "Dompet bareng keluarga/pasangan tak terbatas",
   },
   {
     label: "Pengingat tagihan",
-    free:    "Reminder tagihan jatuh tempo",
-    premium: "Reminder tagihan jatuh tempo",
-    pro:     "Reminder tagihan jatuh tempo",
+    free:    "Maks. 2 pengingat tagihan",
+    premium: "Pengingat tagihan tak terbatas",
+    pro:     "Pengingat tagihan tak terbatas",
+  },
+  {
+    label: "Custom Merchant",
+    free:    "Maks. 3 merchant kustom",
+    premium: "Merchant kustom tak terbatas",
+    pro:     "Merchant kustom tak terbatas",
+  },
+  {
+    label: "Custom Kategori",
+    free:    "Maks. 3 kategori kustom",
+    premium: "Kategori kustom tak terbatas",
+    pro:     "Kategori kustom tak terbatas",
   },
   {
     label: "AI Asisten Chat",
@@ -88,18 +100,27 @@ const FEATURE_ROWS: FeatureRow[] = [
 
 // ─── Pricing ─────────────────────────────────────────────────────────────────
 
-const PRICES = {
+export const PRICES = {
   premium: { monthly: 49_000, yearly_per_month: 39_200 },
   pro:     { monthly: 99_000, yearly_per_month: 79_200 },
 } as const;
 
-function formatRp(n: number) {
+export function formatRp(n: number) {
   return "Rp" + n.toLocaleString("id-ID");
+}
+
+/** Proration: what a Premium subscriber pays to upgrade to Pro */
+export function getUpgradePrice(billing: "monthly" | "yearly"): number {
+  if (billing === "yearly") {
+    return PRICES.pro.yearly_per_month - PRICES.premium.yearly_per_month;
+  }
+  return PRICES.pro.monthly - PRICES.premium.monthly;
 }
 
 // ─── FAQ ─────────────────────────────────────────────────────────────────────
 
-const FAQ_ITEMS = [
+// FAQ items — "uji coba" hanya ditampilkan untuk user yang belum login
+const FAQ_ITEMS_LOGGED_OUT = [
   {
     q: "Apakah bisa downgrade ke Free?",
     a: "Bisa. Datamu tetap aman — fitur premium hanya dinonaktifkan. Dompet dan budget yang melebihi batas free akan dibekukan sementara, bukan dihapus.",
@@ -118,14 +139,173 @@ const FAQ_ITEMS = [
   },
 ];
 
+const FAQ_ITEMS_LOGGED_IN = [
+  {
+    q: "Apakah bisa downgrade ke Free?",
+    a: "Bisa. Datamu tetap aman — fitur premium hanya dinonaktifkan. Dompet dan budget yang melebihi batas free akan dibekukan sementara, bukan dihapus.",
+  },
+  {
+    q: "Bagaimana cara pembayaran?",
+    a: "Transfer bank, QRIS, atau dompet digital (GoPay, OVO, Dana). Invoice dikirim otomatis ke emailmu setelah pembayaran dikonfirmasi.",
+  },
+  {
+    q: "Apa bedanya Premium dan Pro?",
+    a: "Premium cocok untuk pengguna aktif harian dengan kuota scan & suara yang cukup besar. Pro cocok untuk kamu yang butuh kuota tak terbatas dan akses ke AI Asisten Chat untuk analisis keuangan interaktif.",
+  },
+];
+
+// ─── Snap Pay Button ─────────────────────────────────────────────────────────
+
+/**
+ * Calls POST /api/payments/snap to get a Snap token, then opens the
+ * Midtrans Snap popup. Falls back to redirect URL if popup is blocked.
+ *
+ * Requires window.snap (loaded from Midtrans CDN). We load it lazily so it
+ * only executes client-side and only when the user clicks.
+ */
+function SnapPayButton({
+  plan,
+  billing,
+  label,
+  className,
+  isLoggedIn,
+}: {
+  plan: "premium" | "pro";
+  billing: "monthly" | "yearly";
+  label: string;
+  className?: string;
+  isLoggedIn: boolean;
+}) {
+  const [loading, setLoading] = useState(false);
+  const [error, setError]     = useState<string | null>(null);
+  const [needsLogin, setNeedsLogin] = useState(false);
+
+  const handlePay = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    setNeedsLogin(false);
+
+    try {
+      // Ensure Midtrans Snap JS is loaded
+      if (typeof window !== "undefined" && !(window as unknown as Record<string, unknown>).snap) {
+        await new Promise<void>((resolve, reject) => {
+          const clientKey = process.env.NEXT_PUBLIC_MIDTRANS_CLIENT_KEY ?? "";
+          const script    = document.createElement("script");
+          const env       = process.env.NEXT_PUBLIC_MIDTRANS_IS_PRODUCTION === "true"
+            ? "app"
+            : "app.sandbox";
+          script.src      = `https://${env}.midtrans.com/snap/snap.js`;
+          script.setAttribute("data-client-key", clientKey);
+          script.onload   = () => resolve();
+          script.onerror  = () => reject(new Error("Failed to load Snap JS"));
+          document.head.appendChild(script);
+        });
+      }
+
+      const res = await fetch("/api/payments/snap", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ plan, billing }),
+      });
+
+      if (res.status === 401) {
+        if (!isLoggedIn) {
+          // Guest user — redirect to login then back to pricing
+          window.location.href = `/login?next=/pricing`;
+        } else {
+          // User was logged in but session expired — show re-login prompt, don't loop
+          setNeedsLogin(true);
+        }
+        return;
+      }
+
+      if (!res.ok) {
+        const body = await res.json() as { error?: string };
+        throw new Error(body.error ?? "Gagal membuat order.");
+      }
+
+      const { snapToken, redirectUrl } = await res.json() as {
+        snapToken: string;
+        redirectUrl: string;
+      };
+
+      const snap = (window as unknown as { snap?: { pay: (token: string, opts: unknown) => void } }).snap;
+      if (snap?.pay) {
+        snap.pay(snapToken, {
+          onSuccess:  () => { window.location.href = "/dashboard?payment=success"; },
+          onPending:  () => { window.location.href = "/pricing?payment=pending"; },
+          onError:    () => { setError("Pembayaran gagal. Silakan coba lagi."); },
+          onClose:    () => { /* user closed popup */ },
+        });
+      } else {
+        // Popup blocked — use redirect
+        window.location.href = redirectUrl;
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Terjadi kesalahan.");
+    } finally {
+      setLoading(false);
+    }
+  }, [plan, billing, isLoggedIn]);
+
+  return (
+    <div>
+      <button
+        onClick={handlePay}
+        disabled={loading}
+        className={className}
+      >
+        {loading ? (
+          <>
+            <Loader2 size={16} className="animate-spin" />
+            Memproses…
+          </>
+        ) : (
+          <>
+            {label}
+            <ArrowRight size={16} />
+          </>
+        )}
+      </button>
+      {needsLogin && (
+        <p className="mt-2 text-center text-xs font-medium text-red-400">
+          Sesi kamu habis.{" "}
+          <a
+            href={`/login?next=/pricing`}
+            className="underline font-bold"
+          >
+            Masuk ulang
+          </a>{" "}
+          lalu coba lagi.
+        </p>
+      )}
+      {error && !needsLogin && (
+        <p className="mt-2 text-center text-xs font-medium text-red-400">{error}</p>
+      )}
+    </div>
+  );
+}
+
 // ─── Component ───────────────────────────────────────────────────────────────
 
-export function Pricing() {
+interface PricingProps {
+  /** True if the viewer already has a session. Hides trial copy & free CTA changes. */
+  isLoggedIn?: boolean;
+}
+
+export function Pricing({ isLoggedIn = false }: PricingProps) {
   const [yearly, setYearly] = useState(false);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
 
   const premiumPrice = yearly ? PRICES.premium.yearly_per_month : PRICES.premium.monthly;
   const proPrice     = yearly ? PRICES.pro.yearly_per_month     : PRICES.pro.monthly;
+
+  // CTA label: trial copy hanya untuk guest; logged-in user langsung upgrade
+  const premiumCta = isLoggedIn ? "Upgrade ke Premium" : "Coba 14 Hari Gratis";
+  const proCta     = isLoggedIn ? "Upgrade ke Pro"     : "Coba 14 Hari Gratis";
+
+  const faqItems = isLoggedIn ? FAQ_ITEMS_LOGGED_IN : FAQ_ITEMS_LOGGED_OUT;
 
   return (
     <section id="pricing" className="mx-auto max-w-6xl px-5 py-16 md:py-24">
@@ -135,9 +315,12 @@ export function Pricing() {
           <Sparkles size={13} />
           Pilih Paket
         </span>
-        <h2 className="mt-4 text-3xl font-extrabold tracking-tight md:text-4xl">
+        <h2 className="mt-4 text-3xl font-extrabold tracking-tight md:text-4xl" suppressHydrationWarning>
           Gratis untuk mulai,{" "}
-          <span className="lp-gradient-text bg-gradient-to-r from-primary to-tertiary bg-clip-text text-transparent">
+          <span
+            className="lp-gradient-text bg-gradient-to-r from-primary to-tertiary bg-clip-text text-transparent"
+            suppressHydrationWarning
+          >
             Pro untuk serius
           </span>
         </h2>
@@ -182,13 +365,22 @@ export function Pricing() {
           <p className="mt-2 text-4xl font-extrabold tracking-tight">Rp0</p>
           <p className="mt-1 text-sm text-muted">Selamanya gratis</p>
 
-          <Link
-            href="/register"
-            className="mt-6 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-primary/60 font-bold text-primary transition hover:bg-primary/5 active:scale-[0.98]"
-          >
-            Mulai Gratis
-            <ArrowRight size={16} />
-          </Link>
+          {isLoggedIn ? (
+            <Link
+              href="/dashboard"
+              className="mt-6 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-outline font-bold text-muted transition hover:bg-surface-low active:scale-[0.98]"
+            >
+              Paket kamu saat ini
+            </Link>
+          ) : (
+            <Link
+              href="/register"
+              className="mt-6 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-primary/60 font-bold text-primary transition hover:bg-primary/5 active:scale-[0.98]"
+            >
+              Mulai Gratis
+              <ArrowRight size={16} />
+            </Link>
+          )}
 
           <ul className="mt-7 space-y-3">
             {FEATURE_ROWS.map((row) => (
@@ -222,13 +414,13 @@ export function Pricing() {
               </p>
             )}
 
-            <Link
-              href="/register"
-              className="mt-6 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-white font-bold text-primary shadow-card transition hover:shadow-[0_8px_30px_rgba(255,255,255,0.25)] active:scale-[0.98]"
-            >
-              Coba 14 Hari Gratis
-              <ArrowRight size={16} />
-            </Link>
+            <SnapPayButton
+              plan="premium"
+              billing={yearly ? "yearly" : "monthly"}
+              label={premiumCta}
+              isLoggedIn={isLoggedIn}
+              className="mt-6 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-white font-bold text-primary shadow-card transition hover:shadow-[0_8px_30px_rgba(255,255,255,0.25)] active:scale-[0.98] disabled:opacity-70"
+            />
 
             <ul className="mt-7 space-y-3">
               {FEATURE_ROWS.map((row) => (
@@ -263,13 +455,23 @@ export function Pricing() {
               </p>
             )}
 
-            <Link
-              href="/register"
-              className="mt-6 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-white font-bold text-amber-600 shadow-card transition hover:shadow-[0_8px_30px_rgba(255,255,255,0.25)] active:scale-[0.98]"
-            >
-              Coba 14 Hari Gratis
-              <ArrowRight size={16} />
-            </Link>
+            {/* Proration note for Premium subscribers */}
+            <div className="mt-3 rounded-xl bg-white/15 px-3 py-2 text-xs text-white/90">
+              <span className="font-bold">Sudah Premium?</span>
+              {" "}Bayar selisih{" "}
+              <span className="font-bold">
+                {formatRp(getUpgradePrice(yearly ? "yearly" : "monthly"))}/bln
+              </span>
+              {" "}saja untuk upgrade ke Pro.
+            </div>
+
+            <SnapPayButton
+              plan="pro"
+              billing={yearly ? "yearly" : "monthly"}
+              label={proCta}
+              isLoggedIn={isLoggedIn}
+              className="mt-4 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-white font-bold text-amber-600 shadow-card transition hover:shadow-[0_8px_30px_rgba(255,255,255,0.25)] active:scale-[0.98] disabled:opacity-70"
+            />
 
             <ul className="mt-7 space-y-3">
               {FEATURE_ROWS.map((row) => (
@@ -284,7 +486,7 @@ export function Pricing() {
       <Reveal delay={120} className="mx-auto mt-14 max-w-2xl">
         <h3 className="mb-5 text-center text-lg font-bold">Pertanyaan umum</h3>
         <div className="space-y-3">
-          {FAQ_ITEMS.map((item, i) => (
+          {faqItems.map((item, i) => (
             <div key={i} className="rounded-2xl border border-outline bg-surface shadow-card">
               <button
                 onClick={() => setOpenFaq(openFaq === i ? null : i)}

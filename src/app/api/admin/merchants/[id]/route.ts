@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 import { z } from "zod";
 import { requireApiAdmin } from "@/lib/api/auth";
 import { isValidLogoReference } from "@/lib/merchant-logo";
+import { query } from "@/lib/db/pool";
 
 export const runtime = "nodejs";
 
@@ -31,60 +32,84 @@ type RouteContext = { params: Promise<{ id: string }> };
 
 export async function PATCH(request: NextRequest, context: RouteContext) {
   const auth = await requireApiAdmin(request);
-
-  if ("response" in auth) {
-    return auth.response;
-  }
+  if ("response" in auth) return auth.response;
 
   const { id } = await context.params;
   const parsed = MerchantUpdateSchema.safeParse(await request.json().catch(() => null));
-
   if (!parsed.success) {
     return NextResponse.json({ error: "Invalid merchant payload." }, { status: 400 });
   }
 
-  const patch: Record<string, unknown> = {};
+  const fields: string[] = [];
+  const values: unknown[] = [];
+  let idx = 1;
+
   if (parsed.data.name !== undefined) {
-    patch.name = parsed.data.name.trim();
+    fields.push(`name = $${idx++}`);
+    values.push(parsed.data.name.trim());
   }
   if (parsed.data.logo_url !== undefined) {
-    patch.logo_url = parsed.data.logo_url ? parsed.data.logo_url : null;
+    fields.push(`logo_url = $${idx++}`);
+    values.push(parsed.data.logo_url || null);
   }
   if (parsed.data.website_url !== undefined) {
-    patch.website_url = parsed.data.website_url ? parsed.data.website_url : null;
+    fields.push(`website_url = $${idx++}`);
+    values.push(parsed.data.website_url || null);
   }
   if (parsed.data.category_id !== undefined) {
-    patch.category_id = parsed.data.category_id ?? null;
+    fields.push(`category_id = $${idx++}`);
+    values.push(parsed.data.category_id ?? null);
   }
 
-  const { data, error } = await auth.db
-    .from("merchants")
-    .update(patch)
-    .eq("id", id)
-    .eq("is_system", true)
-    .select("id,name,logo_url,website_url,category_id,is_system,created_at")
-    .single();
+  values.push(id);
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  try {
+    const result = await query<{
+      id: string;
+      name: string;
+      logo_url: string | null;
+      website_url: string | null;
+      category_id: string | null;
+      is_system: boolean;
+      created_at: string;
+    }>(
+      `update merchants
+       set ${fields.join(", ")}
+       where id = $${idx} and is_system = true
+       returning id, name, logo_url, website_url, category_id, is_system, created_at`,
+      values
+    );
+
+    if (result.rowCount === 0) {
+      return NextResponse.json({ error: "Merchant not found." }, { status: 404 });
+    }
+
+    return NextResponse.json({ merchant: result.rows[0] });
+  } catch (err) {
+    console.error("[admin/merchants PATCH]", err);
+    return NextResponse.json({ error: "Failed to update merchant." }, { status: 500 });
   }
-
-  return NextResponse.json({ merchant: data });
 }
 
 export async function DELETE(request: NextRequest, context: RouteContext) {
   const auth = await requireApiAdmin(request);
-
-  if ("response" in auth) {
-    return auth.response;
-  }
+  if ("response" in auth) return auth.response;
 
   const { id } = await context.params;
-  const { error } = await auth.db.from("merchants").delete().eq("id", id).eq("is_system", true);
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  try {
+    const result = await query(
+      `delete from merchants where id = $1 and is_system = true`,
+      [id]
+    );
+
+    if (result.rowCount === 0) {
+      return NextResponse.json({ error: "Merchant not found." }, { status: 404 });
+    }
+
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    console.error("[admin/merchants DELETE]", err);
+    return NextResponse.json({ error: "Failed to delete merchant." }, { status: 500 });
   }
-
-  return NextResponse.json({ ok: true });
 }

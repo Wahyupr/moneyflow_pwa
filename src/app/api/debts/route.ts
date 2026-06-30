@@ -54,13 +54,13 @@ function calcFlatInstallment(principalMinor: number, months: number, bpsPerMonth
   return Math.ceil((principalMinor + totalInterest) / months);
 }
 
-async function requirePremium(userId: string) {
+async function requirePremium(userId: string, recordCount = 0) {
   const result = await query<{ plan: string | null }>(
     "select plan from subscription_entitlements where user_id = $1 and status = 'active' and (current_period_end is null or current_period_end > now())",
     [userId]
   );
-  const plan = (result.rows[0]?.plan ?? "free") as "free" | "premium";
-  return canAccessHutangPiutang(plan);
+  const plan = (result.rows[0]?.plan ?? "free") as "free" | "premium" | "pro";
+  return canAccessHutangPiutang({ plan, recordCount });
 }
 
 export async function GET(request: NextRequest) {

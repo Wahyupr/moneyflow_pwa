@@ -1,6 +1,7 @@
 "use client";
 
 import { Check, Pencil, Plus, Search, Store, Trash2, Upload, X } from "lucide-react";
+import { Toast, useToast } from "@/components/ui/toast";
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { AppFrame } from "@/components/app-frame";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -51,8 +52,8 @@ function MerchantsContent() {
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Merchant | null>(null);
   const [confirm, setConfirm] = useState<ConfirmState | null>(null);
-  const [status, setStatus] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const { toast, showToast } = useToast();
 
   const load = useCallback(async () => {
     const [mRes, cRes] = await Promise.all([
@@ -144,28 +145,16 @@ function MerchantsContent() {
   async function handleDelete(id: string) {
     const res = await fetch(`/api/merchants/${id}`, { method: "DELETE" });
     if (res.ok) {
-      setStatus("Merchant dihapus.");
+      showToast("Merchant dihapus.");
       void load();
     } else {
-      setStatus("Gagal menghapus merchant.");
+      showToast("Gagal menghapus merchant.", "error");
     }
   }
 
   return (
     <div className="mt-5 space-y-5">
-      {status ? (
-        <div className="flex items-center justify-between rounded-lg bg-surface-container px-3 py-2 text-sm font-semibold text-primary">
-          <span>{status}</span>
-          <button
-            type="button"
-            onClick={() => setStatus(null)}
-            className="flex size-6 items-center justify-center rounded-full text-muted hover:bg-surface-low"
-            aria-label="Tutup pesan"
-          >
-            <X size={14} />
-          </button>
-        </div>
-      ) : null}
+      <Toast toast={toast} />
 
       <section className="rounded-2xl bg-surface p-4 shadow-card">
         <div className="flex items-center gap-3">
@@ -320,7 +309,7 @@ function MerchantsContent() {
           categories={categoryOptions}
           onClose={closeForm}
           onSaved={(message) => {
-            setStatus(message);
+            showToast(message);
             closeForm();
             void load();
           }}

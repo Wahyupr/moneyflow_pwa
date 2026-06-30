@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { z } from "zod";
 import { requireApiAdmin } from "@/lib/api/auth";
+import { query } from "@/lib/db/pool";
 
 export const runtime = "nodejs";
 
@@ -18,22 +19,27 @@ const CategoryCreateSchema = z.object({
  */
 export async function GET(request: NextRequest) {
   const auth = await requireApiAdmin(request);
+  if ("response" in auth) return auth.response;
 
-  if ("response" in auth) {
-    return auth.response;
+  try {
+    const result = await query<{
+      id: string;
+      name: string;
+      icon: string;
+      color: string;
+      type: string;
+      is_system: boolean;
+    }>(
+      `select id, name, icon, color, type, is_system
+       from categories
+       where is_system = true
+       order by name`
+    );
+    return NextResponse.json({ categories: result.rows });
+  } catch (err) {
+    console.error("[admin/categories GET]", err);
+    return NextResponse.json({ error: "Failed to fetch categories." }, { status: 500 });
   }
-
-  const { data, error } = await auth.db
-    .from("categories")
-    .select("id,name,icon,color,type,is_system")
-    .eq("is_system", true)
-    .order("name");
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-
-  return NextResponse.json({ categories: data ?? [] });
 }
 
 /**
@@ -41,32 +47,35 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   const auth = await requireApiAdmin(request);
-
-  if ("response" in auth) {
-    return auth.response;
-  }
+  if ("response" in auth) return auth.response;
 
   const parsed = CategoryCreateSchema.safeParse(await request.json().catch(() => null));
-
   if (!parsed.success) {
     return NextResponse.json({ error: "Invalid category payload." }, { status: 400 });
   }
 
-  const { data, error } = await auth.db
-    .from("categories")
-    .insert({
-      name: parsed.data.name.trim(),
-      icon: parsed.data.icon.trim(),
-      color: parsed.data.color,
-      type: parsed.data.type,
-      is_system: true
-    })
-    .select("id,name,icon,color,type,is_system")
-    .single();
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  try {
+    const result = await query<{
+      id: string;
+      name: string;
+      icon: string;
+      color: string;
+      type: string;
+      is_system: boolean;
+    }>(
+      `insert into categories (name, icon, color, type, is_system)
+       values ($1, $2, $3, $4, true)
+       returning id, name, icon, color, type, is_system`,
+      [
+        parsed.data.name.trim(),
+        parsed.data.icon.trim(),
+        parsed.data.color,
+        parsed.data.type,
+      ]
+    );
+    return NextResponse.json({ category: result.rows[0] }, { status: 201 });
+  } catch (err) {
+    console.error("[admin/categories POST]", err);
+    return NextResponse.json({ error: "Failed to create category." }, { status: 500 });
   }
-
-  return NextResponse.json({ category: data }, { status: 201 });
 }
