@@ -2,27 +2,61 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Check, Lock, ChevronDown, Sparkles, ArrowRight } from "lucide-react";
+import { Check, Lock, ChevronDown, Sparkles, ArrowRight, Zap } from "lucide-react";
 import { Reveal } from "@/components/landing/reveal";
 
-// Feature rows: [label, free value/bool, premium value/bool]
-const FEATURE_ROWS: Array<{
+// ─── Plan definitions ────────────────────────────────────────────────────────
+
+type CellValue = string | boolean; // false = locked, string = label/limit
+
+interface FeatureRow {
   label: string;
-  free: string | boolean;
-  premium: string | boolean;
-  locked?: boolean; // true = locked on free
-}> = [
-  { label: "Dompet", free: "Maks. 2 dompet", premium: "Tak terbatas", locked: false },
-  { label: "Budget aktif", free: "1 budget", premium: "Tak terbatas", locked: false },
-  { label: "Riwayat transaksi", free: "3 bulan terakhir", premium: "Seluruh riwayat", locked: false },
-  { label: "Input suara", free: false, premium: true, locked: true },
-  { label: "Scan struk (AI)", free: false, premium: true, locked: true },
-  { label: "Ekspor Excel", free: false, premium: true, locked: true },
-  { label: "AI Insights", free: false, premium: true, locked: true },
-  { label: "Hutang & Piutang", free: false, premium: true, locked: true },
-  { label: "Pengingat tagihan", free: true, premium: true, locked: false },
-  { label: "Multi dompet berbagi", free: false, premium: true, locked: true },
+  free: CellValue;
+  premium: CellValue;
+  pro: CellValue;
+}
+
+const FEATURE_ROWS: FeatureRow[] = [
+  { label: "Dompet",           free: "Maks. 2 dompet",          premium: "Tak terbatas",   pro: "Tak terbatas" },
+  { label: "Budget aktif",     free: "1 budget",                premium: "Tak terbatas",   pro: "Tak terbatas" },
+  { label: "Riwayat transaksi",free: "3 bulan terakhir",        premium: "Seluruh riwayat",pro: "Seluruh riwayat" },
+  {
+    label: "Input suara",
+    free:    "3×/bln (AI) · unlimited non-AI",
+    premium: "30×/bln",
+    pro:     "Tak terbatas",
+  },
+  {
+    label: "Scan struk (AI)",
+    free:    "7×/bln",
+    premium: "30×/bln",
+    pro:     "Tak terbatas",
+  },
+  {
+    label: "Ekspor Excel",
+    free:    "1×/bln",
+    premium: "30×/bln",
+    pro:     "Tak terbatas",
+  },
+  { label: "AI Insights",           free: false,           premium: true,          pro: true },
+  { label: "Hutang & Piutang",      free: false,           premium: true,          pro: true },
+  { label: "Multi dompet berbagi",  free: false,           premium: true,          pro: true },
+  { label: "Pengingat tagihan",     free: true,            premium: true,          pro: true },
+  { label: "AI Asisten Chat",       free: false,           premium: false,         pro: true },
 ];
+
+// ─── Pricing ─────────────────────────────────────────────────────────────────
+
+const PRICES = {
+  premium: { monthly: 49_000, yearly_per_month: 39_200 },
+  pro:     { monthly: 99_000, yearly_per_month: 79_200 },
+} as const;
+
+function formatRp(n: number) {
+  return "Rp" + n.toLocaleString("id-ID");
+}
+
+// ─── FAQ ─────────────────────────────────────────────────────────────────────
 
 const FAQ_ITEMS = [
   {
@@ -34,23 +68,23 @@ const FAQ_ITEMS = [
     a: "Transfer bank, QRIS, atau dompet digital (GoPay, OVO, Dana). Invoice dikirim otomatis ke emailmu setelah pembayaran dikonfirmasi.",
   },
   {
-    q: "Apakah ada uji coba gratis untuk Premium?",
+    q: "Apakah ada uji coba gratis untuk Premium atau Pro?",
     a: "Ya — setiap akun baru mendapat 14 hari Premium gratis tanpa kartu kredit. Setelah itu otomatis kembali ke Free kecuali kamu berlangganan.",
+  },
+  {
+    q: "Apa bedanya Premium dan Pro?",
+    a: "Premium cocok untuk pengguna aktif harian dengan kuota scan & suara yang cukup besar. Pro cocok untuk kamu yang butuh kuota tak terbatas dan akses ke AI Asisten Chat untuk analisis keuangan interaktif.",
   },
 ];
 
-const MONTHLY_PRICE = 49_000;
-const YEARLY_PRICE_PER_MONTH = 39_200; // 20% off
-
-function formatRp(n: number) {
-  return "Rp" + n.toLocaleString("id-ID");
-}
+// ─── Component ───────────────────────────────────────────────────────────────
 
 export function Pricing() {
   const [yearly, setYearly] = useState(false);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
 
-  const price = yearly ? YEARLY_PRICE_PER_MONTH : MONTHLY_PRICE;
+  const premiumPrice = yearly ? PRICES.premium.yearly_per_month : PRICES.premium.monthly;
+  const proPrice     = yearly ? PRICES.pro.yearly_per_month     : PRICES.pro.monthly;
 
   return (
     <section id="pricing" className="mx-auto max-w-6xl px-5 py-16 md:py-24">
@@ -63,7 +97,7 @@ export function Pricing() {
         <h2 className="mt-4 text-3xl font-extrabold tracking-tight md:text-4xl">
           Gratis untuk mulai,{" "}
           <span className="lp-gradient-text bg-gradient-to-r from-primary to-tertiary bg-clip-text text-transparent">
-            Premium untuk serius
+            Pro untuk serius
           </span>
         </h2>
         <p className="mt-3 text-muted">
@@ -99,10 +133,10 @@ export function Pricing() {
         </span>
       </Reveal>
 
-      {/* Cards */}
-      <div className="mt-10 grid gap-6 md:grid-cols-2 md:items-start">
+      {/* Cards — 3-column grid */}
+      <div className="mt-10 grid gap-6 lg:grid-cols-3 lg:items-start">
         {/* Free card */}
-        <Reveal delay={100} className="rounded-2xl border border-outline bg-surface p-7 shadow-card">
+        <Reveal delay={80} className="rounded-2xl border border-outline bg-surface p-7 shadow-card">
           <p className="text-xs font-bold uppercase tracking-widest text-muted">Free</p>
           <p className="mt-2 text-4xl font-extrabold tracking-tight">Rp0</p>
           <p className="mt-1 text-sm text-muted">Selamanya gratis</p>
@@ -117,14 +151,13 @@ export function Pricing() {
 
           <ul className="mt-7 space-y-3">
             {FEATURE_ROWS.map((row) => (
-              <FeatureRowFree key={row.label} row={row} />
+              <FeatureCell key={row.label} label={row.label} value={row.free} tier="free" />
             ))}
           </ul>
         </Reveal>
 
         {/* Premium card */}
-        <Reveal delay={160} className="relative">
-          {/* Popular badge */}
+        <Reveal delay={140} className="relative">
           <div className="absolute -top-3.5 left-1/2 -translate-x-1/2">
             <span className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-primary to-tertiary px-4 py-1.5 text-xs font-bold text-white shadow-lift">
               <Sparkles size={11} />
@@ -135,16 +168,16 @@ export function Pricing() {
           <div className="rounded-2xl bg-gradient-to-br from-primary to-tertiary p-7 text-white shadow-lift ring-2 ring-primary/30">
             <p className="text-xs font-bold uppercase tracking-widest text-white/70">Premium</p>
             <div className="mt-2 flex items-end gap-1.5">
-              <p className="text-4xl font-extrabold tracking-tight">{formatRp(price)}</p>
+              <p className="text-4xl font-extrabold tracking-tight">{formatRp(premiumPrice)}</p>
               <span className="mb-1 text-sm text-white/70">/bln</span>
             </div>
             {yearly ? (
               <p className="mt-1 text-sm text-white/70">
-                Ditagih tahunan ({formatRp(YEARLY_PRICE_PER_MONTH * 12)}/thn)
+                Ditagih tahunan ({formatRp(PRICES.premium.yearly_per_month * 12)}/thn)
               </p>
             ) : (
               <p className="mt-1 text-sm text-white/70">
-                Atau {formatRp(YEARLY_PRICE_PER_MONTH)}/bln jika bayar tahunan
+                Atau {formatRp(PRICES.premium.yearly_per_month)}/bln jika bayar tahunan
               </p>
             )}
 
@@ -158,7 +191,48 @@ export function Pricing() {
 
             <ul className="mt-7 space-y-3">
               {FEATURE_ROWS.map((row) => (
-                <FeatureRowPremium key={row.label} row={row} />
+                <FeatureCell key={row.label} label={row.label} value={row.premium} tier="premium" />
+              ))}
+            </ul>
+          </div>
+        </Reveal>
+
+        {/* Pro card */}
+        <Reveal delay={200} className="relative">
+          <div className="absolute -top-3.5 left-1/2 -translate-x-1/2">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 px-4 py-1.5 text-xs font-bold text-white shadow-lift">
+              <Zap size={11} />
+              Terbaik
+            </span>
+          </div>
+
+          <div className="rounded-2xl bg-gradient-to-br from-amber-500 to-orange-600 p-7 text-white shadow-lift ring-2 ring-amber-400/40">
+            <p className="text-xs font-bold uppercase tracking-widest text-white/70">Pro</p>
+            <div className="mt-2 flex items-end gap-1.5">
+              <p className="text-4xl font-extrabold tracking-tight">{formatRp(proPrice)}</p>
+              <span className="mb-1 text-sm text-white/70">/bln</span>
+            </div>
+            {yearly ? (
+              <p className="mt-1 text-sm text-white/70">
+                Ditagih tahunan ({formatRp(PRICES.pro.yearly_per_month * 12)}/thn)
+              </p>
+            ) : (
+              <p className="mt-1 text-sm text-white/70">
+                Atau {formatRp(PRICES.pro.yearly_per_month)}/bln jika bayar tahunan
+              </p>
+            )}
+
+            <Link
+              href="/register"
+              className="mt-6 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-white font-bold text-amber-600 shadow-card transition hover:shadow-[0_8px_30px_rgba(255,255,255,0.25)] active:scale-[0.98]"
+            >
+              Coba 14 Hari Gratis
+              <ArrowRight size={16} />
+            </Link>
+
+            <ul className="mt-7 space-y-3">
+              {FEATURE_ROWS.map((row) => (
+                <FeatureCell key={row.label} label={row.label} value={row.pro} tier="pro" />
               ))}
             </ul>
           </div>
@@ -195,34 +269,36 @@ export function Pricing() {
   );
 }
 
-// ─── Sub-components ───────────────────────────────────────────────────────────
+// ─── Feature cell sub-component ──────────────────────────────────────────────
 
-function FeatureRowFree({ row }: { row: (typeof FEATURE_ROWS)[number] }) {
-  const isLocked = row.free === false;
+function FeatureCell({
+  label,
+  value,
+  tier,
+}: {
+  label: string;
+  value: CellValue;
+  tier: "free" | "premium" | "pro";
+}) {
+  const isLocked = value === false;
+  const isColored = tier === "premium" || tier === "pro";
+
   return (
     <li className={`flex items-start gap-3 text-sm ${isLocked ? "opacity-50" : ""}`}>
       <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center">
         {isLocked ? (
-          <Lock size={13} className="text-muted" />
+          <Lock size={13} className={isColored ? "text-white/50" : "text-muted"} />
         ) : (
-          <Check size={15} className="text-income" strokeWidth={2.5} />
+          <Check
+            size={15}
+            className={isColored ? "text-white" : "text-income"}
+            strokeWidth={2.5}
+          />
         )}
       </span>
-      <span className={isLocked ? "text-muted" : "text-ink"}>
-        {typeof row.free === "string" ? row.free : row.label}
+      <span className={isLocked ? (isColored ? "text-white/50" : "text-muted") : (isColored ? "text-white" : "text-ink")}>
+        {typeof value === "string" ? value : label}
       </span>
-    </li>
-  );
-}
-
-function FeatureRowPremium({ row }: { row: (typeof FEATURE_ROWS)[number] }) {
-  const val = row.premium;
-  return (
-    <li className="flex items-start gap-3 text-sm text-white">
-      <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center">
-        <Check size={15} className="text-white" strokeWidth={2.5} />
-      </span>
-      <span>{typeof val === "string" ? val : row.label}</span>
     </li>
   );
 }
