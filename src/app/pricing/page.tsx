@@ -5,6 +5,10 @@ import { AUTH_COOKIE_NAME } from "@/lib/auth/token";
 import Link from "next/link";
 import Image from "next/image";
 
+// Force dynamic so cookies() always reflects the live session — never serve
+// a cached version where isLoggedIn would be stale.
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "Harga — MoneyFlow",
   description:

@@ -221,14 +221,28 @@ function SnapPayButton({
       }
 
       if (!res.ok) {
-        const body = await res.json() as { error?: string };
-        throw new Error(body.error ?? "Gagal membuat order.");
+        // Safely parse error body — server may return empty body on 500
+        let errMsg = `Error ${res.status}`;
+        try {
+          const body = await res.json() as { error?: string };
+          if (body.error) errMsg = body.error;
+        } catch {
+          // empty body — use status code message
+          if (res.status === 500) errMsg = "Server error. Cek konfigurasi Midtrans.";
+          if (res.status === 502) errMsg = "Gagal terhubung ke Midtrans. Coba lagi.";
+          if (res.status === 503) errMsg = "Server sedang tidak tersedia.";
+        }
+        throw new Error(errMsg);
       }
 
-      const { snapToken, redirectUrl } = await res.json() as {
-        snapToken: string;
-        redirectUrl: string;
-      };
+      let snapToken: string, redirectUrl: string;
+      try {
+        const body = await res.json() as { snapToken: string; redirectUrl: string };
+        snapToken   = body.snapToken;
+        redirectUrl = body.redirectUrl;
+      } catch {
+        throw new Error("Response tidak valid dari server.");
+      }
 
       const snap = (window as unknown as { snap?: { pay: (token: string, opts: unknown) => void } }).snap;
       if (snap?.pay) {

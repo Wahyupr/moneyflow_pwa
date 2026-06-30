@@ -2,10 +2,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireApiUser } from "@/lib/api/auth";
 import { query } from "@/lib/db/pool";
 import { createSnapToken } from "@/lib/midtrans";
-import { PRICES } from "@/components/landing/pricing";
 
 type Plan = "premium" | "pro";
 type BillingCycle = "monthly" | "yearly";
+
+// Defined here to avoid importing from a "use client" component
+const PRICES: Record<Plan, { monthly: number; yearly_per_month: number }> = {
+  premium: { monthly: 49_000, yearly_per_month: 39_200 },
+  pro:     { monthly: 99_000, yearly_per_month: 79_200 },
+};
 
 function getAmount(plan: Plan, billing: BillingCycle): number {
   if (billing === "yearly") {
