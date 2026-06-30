@@ -7,7 +7,8 @@ import { Reveal } from "@/components/landing/reveal";
 
 // ─── Plan definitions ────────────────────────────────────────────────────────
 
-type CellValue = string | boolean; // false = locked, string = label/limit
+// CellValue: false = fitur dikunci, string = label yang ditampilkan
+type CellValue = string | false;
 
 interface FeatureRow {
   label: string;
@@ -17,32 +18,72 @@ interface FeatureRow {
 }
 
 const FEATURE_ROWS: FeatureRow[] = [
-  { label: "Dompet",           free: "Maks. 2 dompet",          premium: "Tak terbatas",   pro: "Tak terbatas" },
-  { label: "Budget aktif",     free: "1 budget",                premium: "Tak terbatas",   pro: "Tak terbatas" },
-  { label: "Riwayat transaksi",free: "3 bulan terakhir",        premium: "Seluruh riwayat",pro: "Seluruh riwayat" },
+  {
+    label: "Dompet",
+    free:    "Maks. 2 dompet",
+    premium: "Dompet tak terbatas",
+    pro:     "Dompet tak terbatas",
+  },
+  {
+    label: "Budget aktif",
+    free:    "1 budget aktif",
+    premium: "Budget tak terbatas",
+    pro:     "Budget tak terbatas",
+  },
+  {
+    label: "Riwayat transaksi",
+    free:    "3 bulan terakhir saja",
+    premium: "Seluruh riwayat",
+    pro:     "Seluruh riwayat",
+  },
   {
     label: "Input suara",
-    free:    "3×/bln (AI) · unlimited non-AI",
+    free:    "3×/bln (pakai AI) — non-AI unlimited",
+    premium: "30×/bln dengan AI",
+    pro:     "Tak terbatas",
+  },
+  {
+    label: "Scan struk otomatis",
+    free:    "7×/bln — AI baca & isi transaksi",
     premium: "30×/bln",
     pro:     "Tak terbatas",
   },
   {
-    label: "Scan struk (AI)",
-    free:    "7×/bln",
+    label: "Ekspor laporan Excel",
+    free:    "1×/bln — unduh ringkasan transaksi",
     premium: "30×/bln",
     pro:     "Tak terbatas",
   },
   {
-    label: "Ekspor Excel",
-    free:    "1×/bln",
-    premium: "30×/bln",
-    pro:     "Tak terbatas",
+    label: "AI Insights",
+    free:    false,
+    premium: "Analisis pola belanja otomatis",
+    pro:     "Analisis pola belanja otomatis",
   },
-  { label: "AI Insights",           free: false,           premium: true,          pro: true },
-  { label: "Hutang & Piutang",      free: false,           premium: true,          pro: true },
-  { label: "Multi dompet berbagi",  free: false,           premium: true,          pro: true },
-  { label: "Pengingat tagihan",     free: true,            premium: true,          pro: true },
-  { label: "AI Asisten Chat",       free: false,           premium: false,         pro: true },
+  {
+    label: "Hutang & Piutang",
+    free:    false,
+    premium: "Catat & lacak hutang/piutang",
+    pro:     "Catat & lacak hutang/piutang",
+  },
+  {
+    label: "Multi dompet berbagi",
+    free:    false,
+    premium: "Dompet bareng keluarga/pasangan",
+    pro:     "Dompet bareng keluarga/pasangan",
+  },
+  {
+    label: "Pengingat tagihan",
+    free:    "Reminder tagihan jatuh tempo",
+    premium: "Reminder tagihan jatuh tempo",
+    pro:     "Reminder tagihan jatuh tempo",
+  },
+  {
+    label: "AI Asisten Chat",
+    free:    false,
+    premium: false,
+    pro:     "Tanya jawab keuangan interaktif",
+  },
 ];
 
 // ─── Pricing ─────────────────────────────────────────────────────────────────
