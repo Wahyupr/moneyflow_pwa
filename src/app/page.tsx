@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 // Note: Wallet is still used in FEATURES array for "Multi Dompet" feature card
 import { Reveal } from "@/components/landing/reveal";
+import { Pricing } from "@/components/landing/pricing";
 
 
 
@@ -32,6 +33,7 @@ export default function LandingPage() {
       <StatsBand />
       <Features />
       <HowItWorks />
+      <Pricing />
       <CtaSection />
       <LandingFooter />
 
@@ -49,6 +51,9 @@ function LandingNav() {
           <span className="text-lg font-extrabold tracking-tight">MoneyFlow</span>
         </div>
         <div className="flex items-center gap-2">
+          <Link className="hidden min-h-10 items-center rounded-lg px-4 text-sm font-semibold text-muted hover:text-ink sm:flex" href="#pricing">
+            Harga
+          </Link>
           <Link className="hidden min-h-10 items-center rounded-lg px-4 text-sm font-semibold text-muted hover:text-ink sm:flex" href="/login">
             Masuk
           </Link>
@@ -319,6 +324,7 @@ function LandingFooter() {
             <span className="font-bold">MoneyFlow</span>
           </div>
           <div className="flex gap-4 text-sm font-semibold text-muted">
+            <Link className="hover:text-ink" href="#pricing">Harga</Link>
             <Link className="hover:text-ink" href="/login">Masuk</Link>
             <Link className="hover:text-ink" href="/register">Daftar</Link>
           </div>
