@@ -10,6 +10,7 @@ import {
   LogOut,
   Monitor,
   Moon,
+  Receipt,
   Save,
   ShieldCheck,
   Sparkles,
@@ -546,6 +547,22 @@ function PlanUsageSection() {
             </div>
           </>
         )}
+
+        {/* Riwayat pembayaran — always visible */}
+        <div className="h-px bg-outline/60 mx-4" />
+        <Link
+          href="/payments/history"
+          className="flex items-center gap-3 px-4 py-3.5 transition hover:bg-surface-low active:scale-[0.99]"
+        >
+          <div className="flex size-9 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+            <Receipt size={17} />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="font-semibold text-ink">Riwayat Pembayaran</p>
+            <p className="text-sm text-muted">Transaksi langganan Premium & Pro</p>
+          </div>
+          <ChevronRight size={16} className="text-muted" />
+        </Link>
       </SettingsCard>
     </SettingsGroup>
   );

@@ -11,7 +11,8 @@ const protectedPagePrefixes = [
   "/hutang",
   "/piutang",
   "/merchants",
-  "/categories"
+  "/categories",
+  "/payments/history",
 ];
 
 const publicPagePaths = new Set(["/", "/login", "/register", "/verify-email", "/forgot-password", "/pricing", "/faq", "/kontak", "/syarat-ketentuan", "/kebijakan-refund"]);
