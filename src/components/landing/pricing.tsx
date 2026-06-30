@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Check, Lock, ChevronDown, Sparkles, ArrowRight, Zap, Loader2, CheckCircle2, Clock, AlertCircle } from "lucide-react";
@@ -449,7 +449,9 @@ export function Pricing({ isLoggedIn = false }: PricingProps) {
 
   return (
     <section id="pricing" className="mx-auto max-w-6xl py-16 md:py-24">
-      <PaymentResultBanner isLoggedIn={isLoggedIn} />
+      <Suspense fallback={null}>
+        <PaymentResultBanner isLoggedIn={isLoggedIn} />
+      </Suspense>
       <div className="px-5">
       {/* Header */}
       <Reveal className="mx-auto max-w-xl text-center">
