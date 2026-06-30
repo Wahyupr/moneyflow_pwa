@@ -5,13 +5,14 @@ import {
   CalendarDays,
   CalendarRange,
   CheckCircle2,
+  ChevronRight,
   LogOut,
   Monitor,
   Moon,
-  Pencil,
   Save,
   ShieldCheck,
   Sun,
+  UserRound,
   Wallet2
 } from "lucide-react";
 import Link from "next/link";
@@ -95,112 +96,96 @@ export default function SettingsPage() {
     .slice(0, 2)
     .join("");
 
+  const budgetModeLabel = budgetingPeriodMode === "salary_cycle" ? `Siklus gajian • Tgl ${salaryDay}` : "Bulan kalender";
+
   return (
     <AppFrame title="Settings" subtitle="Pengaturan">
-      <div className="mt-5 space-y-4">
-        {/* HERO — signature moment */}
-        <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-primary via-primary to-tertiary p-5 text-white shadow-lift">
-          <div className="pointer-events-none absolute -right-12 -top-16 size-44 rounded-full bg-white/10 blur-3xl" />
-          <div className="pointer-events-none absolute -bottom-20 -left-10 size-44 rounded-full bg-white/5 blur-3xl" />
-
-          <div className="relative flex items-center gap-4">
-            <div className="flex size-16 shrink-0 items-center justify-center rounded-2xl bg-white/15 text-2xl font-black tracking-tight backdrop-blur-sm">
+      <div className="mt-5 space-y-5">
+        <section className="rounded-[28px] border border-surface-container bg-surface p-4 shadow-card">
+          <div className="flex items-center gap-4">
+            <div className="flex size-16 shrink-0 items-center justify-center rounded-3xl bg-primary/10 text-lg font-black tracking-tight text-primary">
               {initials}
             </div>
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
-                <p className="truncate text-lg font-bold leading-tight">
+                <p className="truncate text-lg font-bold text-ink">
                   {loading ? "Memuat..." : displayName.trim() || "Tanpa Nama"}
                 </p>
                 {role === "admin" ? (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-white/20 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider backdrop-blur-sm">
+                  <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-primary">
                     <ShieldCheck size={10} aria-hidden="true" />
                     Admin
                   </span>
                 ) : null}
               </div>
-              <p className="truncate text-sm text-white/75">{email || "—"}</p>
+              <p className="truncate text-sm text-muted">{email || "—"}</p>
+              <p className="mt-1 text-xs text-muted">Kelola profil, periode budgeting, notifikasi, dan tampilan aplikasi.</p>
             </div>
           </div>
+        </section>
 
-          <div className="relative mt-5 space-y-3">
-            <label className="block">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-white/70">Nama tampilan</span>
-              <input
-                className="mt-1 min-h-12 w-full rounded-xl border border-white/15 bg-white/10 px-4 text-white placeholder:text-white/40 focus:border-white/40 focus:bg-white/15 focus:outline-none"
-                value={displayName}
-                onChange={(event) => setDisplayName(event.target.value)}
-                placeholder="Nama kamu"
+        {status ? (
+          <div className="rounded-2xl border border-primary/15 bg-primary/5 px-4 py-3 text-sm font-semibold text-primary">
+            {status}
+          </div>
+        ) : null}
+
+        <SettingsSection
+          eyebrow="Akun"
+          title="Informasi pengguna"
+          description="Perbarui nama tampilan yang muncul di aplikasi."
+        >
+          <SettingRow
+            icon={<UserRound size={18} />}
+            title="Nama tampilan"
+            description="Nama ini akan tampil di dashboard dan menu akun."
+          >
+            <input
+              className="mt-3 min-h-12 w-full rounded-2xl border border-outline bg-background px-4 text-ink placeholder:text-muted/70 focus:border-primary focus:outline-none"
+              value={displayName}
+              onChange={(event) => setDisplayName(event.target.value)}
+              placeholder="Nama kamu"
+            />
+          </SettingRow>
+        </SettingsSection>
+
+        <SettingsSection
+          eyebrow="Budgeting"
+          title="Periode anggaran"
+          description="Atur cara MoneyFlow menghitung periode budget bulanan."
+        >
+          <SettingRow
+            icon={<CalendarDays size={18} />}
+            title="Mode perhitungan"
+            description={budgetModeLabel}
+          >
+            <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <BudgetOptionCard
+                active={budgetingPeriodMode === "calendar_month"}
+                icon={<CalendarDays size={18} className="text-primary" />}
+                title="Bulan Kalender"
+                description="Periode mengikuti awal sampai akhir bulan."
+                onClick={() => setBudgetingPeriodMode("calendar_month")}
               />
-            </label>
-
-            {/* ── Budget Period Mode ── */}
-            <div>
-              <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-white/70">
-                Periode penghitungan budget
-              </p>
-              <div className="grid grid-cols-2 gap-2">
-                {/* Option A: Bulan Kalender */}
-                <button
-                  type="button"
-                  onClick={() => setBudgetingPeriodMode("calendar_month")}
-                  className={`relative flex flex-col items-start gap-2 rounded-2xl border p-3 text-left transition active:scale-[0.97] ${
-                    budgetingPeriodMode === "calendar_month"
-                      ? "border-white bg-white/20 shadow-md"
-                      : "border-white/20 bg-white/5 hover:bg-white/10"
-                  }`}
-                >
-                  {budgetingPeriodMode === "calendar_month" && (
-                    <CheckCircle2 size={14} className="absolute right-2 top-2 text-white" />
-                  )}
-                  <div className="flex size-9 items-center justify-center rounded-xl bg-white/15">
-                    <CalendarDays size={18} className="text-white" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-bold text-white leading-tight">Bulan Kalender</p>
-                    <p className="mt-0.5 text-[11px] text-white/70 leading-snug">
-                      1 Jan – 31 Jan,<br />1 Feb – 28 Feb, dst.
-                    </p>
-                  </div>
-                </button>
-
-                {/* Option B: Siklus Gajian */}
-                <button
-                  type="button"
-                  onClick={() => setBudgetingPeriodMode("salary_cycle")}
-                  className={`relative flex flex-col items-start gap-2 rounded-2xl border p-3 text-left transition active:scale-[0.97] ${
-                    budgetingPeriodMode === "salary_cycle"
-                      ? "border-white bg-white/20 shadow-md"
-                      : "border-white/20 bg-white/5 hover:bg-white/10"
-                  }`}
-                >
-                  {budgetingPeriodMode === "salary_cycle" && (
-                    <CheckCircle2 size={14} className="absolute right-2 top-2 text-white" />
-                  )}
-                  <div className="flex size-9 items-center justify-center rounded-xl bg-white/15">
-                    <Wallet2 size={18} className="text-white" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-bold text-white leading-tight">Siklus Gajian</p>
-                    <p className="mt-0.5 text-[11px] text-white/70 leading-snug">
-                      Dari tgl gajian<br />ke tgl gajian berikutnya
-                    </p>
-                  </div>
-                </button>
-              </div>
+              <BudgetOptionCard
+                active={budgetingPeriodMode === "salary_cycle"}
+                icon={<Wallet2 size={18} className="text-primary" />}
+                title="Siklus Gajian"
+                description="Periode dimulai dari tanggal gajian ke tanggal berikutnya."
+                onClick={() => setBudgetingPeriodMode("salary_cycle")}
+              />
             </div>
+          </SettingRow>
 
-            {/* ── Salary Day picker — only visible in salary_cycle mode ── */}
-            {budgetingPeriodMode === "salary_cycle" && (
-              <div className="rounded-2xl border border-white/20 bg-white/5 p-3">
-                <div className="mb-2 flex items-center gap-2">
-                  <CalendarRange size={15} className="text-white/80" />
-                  <p className="text-xs font-bold text-white">
-                    Tanggal berapa kamu biasanya gajian?
-                  </p>
-                </div>
-                <p className="mb-3 text-[11px] text-white/60">
-                  Pilih tanggal di bawah. Periode budget akan dimulai dari tanggal ini setiap bulan.
+          {budgetingPeriodMode === "salary_cycle" ? (
+            <SettingRow
+              icon={<CalendarRange size={18} />}
+              title="Tanggal gajian"
+              description={`Saat ini dimulai tiap tanggal ${salaryDay}.`}
+            >
+              <div className="mt-3 rounded-2xl bg-background p-3">
+                <p className="mb-3 text-xs text-muted">
+                  Pilih tanggal gajian utama. Budget akan disusun mengikuti tanggal ini setiap bulan.
                 </p>
                 <div className="grid grid-cols-7 gap-1.5">
                   {Array.from({ length: 28 }, (_, i) => i + 1).map((day) => {
@@ -210,10 +195,10 @@ export default function SettingsPage() {
                         key={day}
                         type="button"
                         onClick={() => setSalaryDay(String(day))}
-                        className={`flex h-9 w-full items-center justify-center rounded-xl text-sm font-bold transition active:scale-90 ${
+                        className={`flex h-10 w-full items-center justify-center rounded-2xl text-sm font-bold transition active:scale-95 ${
                           selected
-                            ? "bg-white text-primary shadow"
-                            : "bg-white/10 text-white/80 hover:bg-white/20"
+                            ? "bg-primary text-white shadow-card"
+                            : "bg-surface text-muted hover:border-primary/40 hover:text-primary"
                         }`}
                       >
                         {day}
@@ -221,76 +206,71 @@ export default function SettingsPage() {
                     );
                   })}
                 </div>
-                <p className="mt-2 text-[11px] text-white/60 text-center">
-                  Dipilih: <span className="font-bold text-white">Tanggal {salaryDay}</span>
-                </p>
               </div>
-            )}
+            </SettingRow>
+          ) : null}
 
-            <p className="text-xs text-white/75">
-              Pengaturan ini menentukan kapan periode budget dan analisa keuangan kamu dihitung ulang setiap bulan.
-            </p>
-            <button
-              className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-white px-4 font-bold text-primary shadow-card transition active:scale-[0.98] disabled:opacity-60"
-              onClick={saveProfile}
-              type="button"
-              disabled={savingProfile}
-            >
-              <Save size={18} />
-              {savingProfile ? "Menyimpan..." : "Simpan Profile"}
-            </button>
-          </div>
-        </section>
+          <button
+            className="flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-primary px-4 font-bold text-white shadow-card transition active:scale-[0.98] disabled:opacity-60"
+            onClick={saveProfile}
+            type="button"
+            disabled={savingProfile}
+          >
+            <Save size={18} />
+            {savingProfile ? "Menyimpan..." : "Simpan Perubahan"}
+          </button>
+        </SettingsSection>
 
-        {/* ADMIN */}
-        {role === "admin" ? (
-          <>
-            <Link
-              href="/admin"
-              className="relative flex items-center gap-3 overflow-hidden rounded-2xl bg-gradient-to-br from-tertiary to-primary p-4 text-white shadow-lift active:scale-[0.99]"
-            >
-              <div className="pointer-events-none absolute -right-8 -top-10 size-32 rounded-full bg-white/10 blur-2xl" />
-              <div className="relative flex size-11 items-center justify-center rounded-2xl bg-white/15 backdrop-blur-sm">
-                <ShieldCheck size={20} />
-              </div>
-              <div className="relative min-w-0 flex-1">
-                <p className="font-bold">Panel Admin</p>
-                <p className="truncate text-sm text-white/75">Kelola merchant, kategori &amp; user</p>
-              </div>
-              <Pencil size={16} className="relative text-white/70" />
-            </Link>
-            <MerchantManager onStatus={setStatus} />
-          </>
-        ) : null}
-
-        {/* NOTIFICATIONS */}
-        <section className="overflow-hidden rounded-2xl bg-surface shadow-card">
-          <div className="flex items-center gap-3 p-4 pb-3">
-            <div className="flex size-10 items-center justify-center rounded-xl bg-surface-container text-primary">
-              <Bell size={18} />
+        <SettingsSection
+          eyebrow="Notifikasi"
+          title="Reminder & alert"
+          description="Kelola izin notifikasi untuk pengingat tagihan dan update penting."
+        >
+          <SettingRow
+            icon={<Bell size={18} />}
+            title="Push notification"
+            description="Aktifkan agar pengingat penting muncul langsung di perangkat."
+          >
+            <div className="mt-3 rounded-2xl bg-background p-3">
+              <PushNotificationManager />
             </div>
-            <div>
-              <p className="font-bold text-ink">Notifikasi</p>
-              <p className="text-sm text-muted">Reminder &amp; alert tagihan</p>
-            </div>
-          </div>
-          <div className="px-4 pb-4">
-            <PushNotificationManager />
-          </div>
-        </section>
+          </SettingRow>
+        </SettingsSection>
 
-        {status ? (
-          <p className="rounded-xl bg-surface-container px-4 py-3 text-sm font-bold text-primary">{status}</p>
-        ) : null}
-
-        {/* TAMPILAN — theme toggle */}
         <ThemeSection />
 
-        {/* DANGER ZONE */}
-        <section className="rounded-2xl border border-expense/15 bg-expense/5 p-4">
-          <p className="text-[11px] font-black uppercase tracking-wider text-expense">Danger Zone</p>
+        {role === "admin" ? (
+          <SettingsSection
+            eyebrow="Admin"
+            title="Pengelolaan data"
+            description="Akses cepat ke panel admin dan daftar merchant."
+          >
+            <Link
+              href="/admin"
+              className="flex items-center gap-3 rounded-2xl border border-outline bg-background px-4 py-3 transition hover:border-primary/30 hover:bg-primary/5 active:scale-[0.99]"
+            >
+              <div className="flex size-11 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                <ShieldCheck size={20} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="font-bold text-ink">Panel Admin</p>
+                <p className="truncate text-sm text-muted">Kelola merchant, kategori, dan user</p>
+              </div>
+              <ChevronRight size={18} className="text-muted" />
+            </Link>
+            <div className="rounded-2xl bg-background p-3">
+              <MerchantManager onStatus={setStatus} />
+            </div>
+          </SettingsSection>
+        ) : null}
+
+        <SettingsSection
+          eyebrow="Akses"
+          title="Keamanan akun"
+          description="Keluar dari sesi aktif di perangkat ini."
+        >
           <button
-            className="mt-3 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-expense font-bold text-white shadow-card transition active:scale-[0.98] active:brightness-90"
+            className="flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-expense px-4 font-bold text-white shadow-card transition active:scale-[0.98] active:brightness-90"
             onClick={() => {
               fetch("/api/auth/logout", { method: "POST" }).finally(() => {
                 window.location.href = "/login";
@@ -301,7 +281,7 @@ export default function SettingsPage() {
             <LogOut size={18} />
             Log Out
           </button>
-        </section>
+        </SettingsSection>
       </div>
     </AppFrame>
   );
@@ -320,17 +300,12 @@ function ThemeSection() {
   ] as const;
 
   return (
-    <section className="overflow-hidden rounded-2xl bg-surface shadow-card">
-      <div className="flex items-center gap-3 p-4 pb-3">
-        <div className="flex size-10 items-center justify-center rounded-xl bg-surface-container text-primary">
-          <Moon size={18} />
-        </div>
-        <div>
-          <p className="font-bold text-ink">Tampilan</p>
-          <p className="text-sm text-muted">Mode terang / gelap</p>
-        </div>
-      </div>
-      <div className="grid grid-cols-3 gap-2 px-4 pb-4">
+    <SettingsSection
+      eyebrow="Tampilan"
+      title="Tema aplikasi"
+      description="Pilih mode yang paling nyaman dilihat di perangkat kamu."
+    >
+      <div className="grid grid-cols-3 gap-2">
         {options.map((opt) => {
           const active = mounted && theme === opt.value;
           return (
@@ -338,10 +313,10 @@ function ThemeSection() {
               key={opt.value}
               type="button"
               onClick={() => setTheme(opt.value)}
-              className={`flex flex-col items-center gap-2 rounded-xl border py-3 text-sm font-bold transition active:scale-95 ${
+              className={`flex min-h-24 flex-col items-center justify-center gap-2 rounded-2xl border text-sm font-bold transition active:scale-95 ${
                 active
                   ? "border-primary bg-primary/10 text-primary"
-                  : "border-outline bg-surface-container text-muted hover:border-primary/40"
+                  : "border-outline bg-background text-muted hover:border-primary/40"
               }`}
             >
               {opt.icon}
@@ -350,6 +325,91 @@ function ThemeSection() {
           );
         })}
       </div>
+    </SettingsSection>
+  );
+}
+
+function SettingsSection({
+  eyebrow,
+  title,
+  description,
+  children
+}: {
+  eyebrow: string;
+  title: string;
+  description?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="rounded-[28px] border border-surface-container bg-surface p-4 shadow-card">
+      <div className="mb-4">
+        <p className="text-[11px] font-black uppercase tracking-[0.2em] text-muted">{eyebrow}</p>
+        <h2 className="mt-1 text-base font-bold text-ink">{title}</h2>
+        {description ? <p className="mt-1 text-sm text-muted">{description}</p> : null}
+      </div>
+      <div className="space-y-3">{children}</div>
     </section>
+  );
+}
+
+function SettingRow({
+  icon,
+  title,
+  description,
+  children
+}: {
+  icon: React.ReactNode;
+  title: string;
+  description?: string;
+  children?: React.ReactNode;
+}) {
+  return (
+    <div className="rounded-2xl bg-surface-low p-3">
+      <div className="flex items-start gap-3">
+        <div className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-surface-container text-primary">
+          {icon}
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="font-semibold text-ink">{title}</p>
+          {description ? <p className="mt-1 text-sm leading-5 text-muted">{description}</p> : null}
+          {children}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function BudgetOptionCard({
+  active,
+  icon,
+  title,
+  description,
+  onClick
+}: {
+  active: boolean;
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`relative flex min-h-[124px] flex-col items-start gap-3 rounded-2xl border p-3 text-left transition active:scale-[0.98] ${
+        active
+          ? "border-primary bg-primary/10 shadow-card"
+          : "border-outline bg-background hover:border-primary/30"
+      }`}
+    >
+      {active ? <CheckCircle2 size={16} className="absolute right-3 top-3 text-primary" /> : null}
+      <div className="flex size-10 items-center justify-center rounded-2xl bg-surface text-primary shadow-sm">
+        {icon}
+      </div>
+      <div>
+        <p className="text-sm font-bold text-ink">{title}</p>
+        <p className="mt-1 text-xs leading-5 text-muted">{description}</p>
+      </div>
+    </button>
   );
 }
