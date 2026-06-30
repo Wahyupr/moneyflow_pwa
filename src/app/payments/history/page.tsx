@@ -12,6 +12,7 @@ import {
   ExternalLink,
   Crown,
   Zap,
+  RefreshCw,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -129,6 +130,52 @@ const METHOD_LABELS: Record<string, string> = {
 function methodLabel(method: string | null) {
   if (!method) return "—";
   return METHOD_LABELS[method.toLowerCase()] ?? method;
+}
+
+// ─── Sync button ──────────────────────────────────────────────────────────────
+
+type OrderStatus = PaymentOrder["status"];
+
+function SyncButton({
+  orderId,
+  onSynced,
+}: {
+  orderId: string;
+  onSynced: (newStatus: OrderStatus) => void;
+}) {
+  const [syncing, setSyncing] = useState(false);
+  const [done, setDone] = useState(false);
+
+  const handleSync = async () => {
+    setSyncing(true);
+    try {
+      const res = await fetch("/api/payments/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ order_id: orderId }),
+      });
+      const data = await res.json() as { status?: string; changed?: boolean };
+      const newStatus = (data.status ?? "pending") as OrderStatus;
+      onSynced(newStatus);
+      setDone(true);
+    } catch {
+      // Silently fail — user can retry
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  return (
+    <button
+      onClick={handleSync}
+      disabled={syncing || done}
+      className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-primary/10 py-2 text-xs font-bold text-primary transition hover:bg-primary/20 disabled:opacity-60"
+    >
+      <RefreshCw size={12} className={syncing ? "animate-spin" : ""} />
+      {syncing ? "Mengecek…" : done ? "Selesai" : "Cek Status"}
+    </button>
+  );
 }
 
 // ─── Empty state ──────────────────────────────────────────────────────────────
@@ -284,15 +331,27 @@ export default function PaymentHistoryPage() {
                     </div>
                   </div>
 
-                  {/* Retry button for pending orders */}
+                  {/* Pending: sync + finish buttons */}
                   {order.status === "pending" && (
-                    <Link
-                      href="/pricing"
-                      className="mt-3 flex items-center justify-center gap-1.5 rounded-xl bg-amber-500/10 py-2 text-xs font-bold text-amber-600 transition hover:bg-amber-500/20 dark:text-amber-400"
-                    >
-                      <ExternalLink size={12} />
-                      Selesaikan pembayaran
-                    </Link>
+                    <div className="mt-3 flex gap-2">
+                      <SyncButton
+                        orderId={order.order_id}
+                        onSynced={(newStatus) => {
+                          setOrders((prev) =>
+                            prev.map((o) =>
+                              o.order_id === order.order_id ? { ...o, status: newStatus } : o
+                            )
+                          );
+                        }}
+                      />
+                      <Link
+                        href="/pricing"
+                        className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-amber-500/10 py-2 text-xs font-bold text-amber-600 transition hover:bg-amber-500/20 dark:text-amber-400"
+                      >
+                        <ExternalLink size={12} />
+                        Selesaikan
+                      </Link>
+                    </div>
                   )}
                 </div>
               </div>

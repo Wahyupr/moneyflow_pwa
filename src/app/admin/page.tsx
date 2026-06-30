@@ -1,7 +1,8 @@
 "use client";
 
-import { UserRound, Settings2, Infinity } from "lucide-react";
+import { UserRound, Settings2, Infinity, CreditCard } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import { AppFrame } from "@/components/app-frame";
 import { CategoryManager } from "@/components/category-manager";
 import { MerchantManager } from "@/components/merchant-manager";
@@ -185,6 +186,23 @@ function AdminContent() {
   return (
     <div className="mt-5 space-y-5">
       <Toast toast={toast} />
+
+      {/* ── Quick nav ── */}
+      <Link
+        href="/admin/payments"
+        className="flex items-center gap-3 rounded-xl bg-surface p-4 shadow-card transition hover:shadow-lift active:scale-[0.99]"
+      >
+        <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+          <CreditCard size={18} />
+        </div>
+        <div className="flex-1">
+          <p className="font-bold text-ink">Riwayat Pembayaran</p>
+          <p className="text-sm text-muted">Lihat semua transaksi & pendapatan</p>
+        </div>
+        <svg className="size-4 text-muted" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+        </svg>
+      </Link>
 
       <MerchantManager onStatus={setStatus} />
 

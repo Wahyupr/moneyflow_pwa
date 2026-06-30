@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Check, Lock, ChevronDown, Sparkles, ArrowRight, Zap, Loader2 } from "lucide-react";
+import { Check, Lock, ChevronDown, Sparkles, ArrowRight, Zap, Loader2, CheckCircle2, Clock, AlertCircle } from "lucide-react";
 import { Reveal } from "@/components/landing/reveal";
 
 // ─── Plan definitions ────────────────────────────────────────────────────────
@@ -235,20 +236,41 @@ function SnapPayButton({
         throw new Error(errMsg);
       }
 
-      let snapToken: string, redirectUrl: string;
+      let snapToken: string, redirectUrl: string, returnedOrderId: string;
       try {
-        const body = await res.json() as { snapToken: string; redirectUrl: string };
-        snapToken   = body.snapToken;
-        redirectUrl = body.redirectUrl;
+        const body = await res.json() as { snapToken: string; redirectUrl: string; orderId: string };
+        snapToken        = body.snapToken;
+        redirectUrl      = body.redirectUrl;
+        returnedOrderId  = body.orderId;
       } catch {
         throw new Error("Response tidak valid dari server.");
       }
 
       const snap = (window as unknown as { snap?: { pay: (token: string, opts: unknown) => void } }).snap;
+
       if (snap?.pay) {
         snap.pay(snapToken, {
-          onSuccess:  () => { window.location.href = "/dashboard?payment=success"; },
-          onPending:  () => { window.location.href = "/pricing?payment=pending"; },
+          onSuccess: async () => {
+            // Call sync to ensure DB is updated before leaving the page
+            try {
+              await fetch("/api/payments/sync", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                credentials: "include",
+                body: JSON.stringify({ order_id: returnedOrderId }),
+              });
+            } catch {
+              // Non-fatal — webhook or future sync will cover it
+            }
+            window.location.href = "/dashboard?payment=success";
+          },
+          onPending:  () => {
+            // Store order_id so pricing page can sync when user comes back
+            if (typeof sessionStorage !== "undefined") {
+              sessionStorage.setItem("mf_last_order_id", returnedOrderId);
+            }
+            window.location.href = `/pricing?payment=pending&order_id=${encodeURIComponent(returnedOrderId)}`;
+          },
           onError:    () => { setError("Pembayaran gagal. Silakan coba lagi."); },
           onClose:    () => { /* user closed popup */ },
         });
@@ -301,6 +323,110 @@ function SnapPayButton({
   );
 }
 
+// ─── Payment result banner (auto-sync on ?payment=finish/pending) ─────────────
+
+function PaymentResultBanner({ isLoggedIn }: { isLoggedIn: boolean }) {
+  const params = useSearchParams();
+  const payment = params?.get("payment") ?? null;
+  const orderId = params?.get("order_id") ?? null;
+
+  const [syncing, setSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState<"paid" | "pending" | "failed" | "expired" | null>(null);
+  const [syncError, setSyncError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    // Auto-sync on ?payment=finish (Midtrans redirect flow) or ?payment=pending with order_id
+    const shouldSync = payment === "finish" || (payment === "pending" && orderId);
+    if (!shouldSync) return;
+
+    // Determine order_id: from URL param or sessionStorage fallback
+    const oid = orderId ?? (typeof sessionStorage !== "undefined" ? sessionStorage.getItem("mf_last_order_id") : null);
+    if (!oid) return;
+
+    setSyncing(true);
+    fetch("/api/payments/sync", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ order_id: oid }),
+    })
+      .then((r) => r.json())
+      .then((data: { status?: string; error?: string }) => {
+        if (data.error) {
+          setSyncError(data.error);
+        } else {
+          setSyncResult((data.status ?? "pending") as typeof syncResult);
+          if (typeof sessionStorage !== "undefined") {
+            sessionStorage.removeItem("mf_last_order_id");
+          }
+        }
+      })
+      .catch(() => setSyncError("Gagal mengecek status pembayaran."))
+      .finally(() => setSyncing(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  if (!payment && !syncResult) return null;
+
+  // Syncing spinner
+  if (syncing) {
+    return (
+      <div className="mx-5 mb-6 flex items-center gap-3 rounded-2xl bg-surface px-5 py-4 shadow-card">
+        <Loader2 size={18} className="animate-spin text-primary" />
+        <p className="text-sm font-semibold text-ink">Mengecek status pembayaran…</p>
+      </div>
+    );
+  }
+
+  // After sync
+  if (syncResult === "paid") {
+    return (
+      <div className="mx-5 mb-6 flex items-center gap-3 rounded-2xl bg-income/10 px-5 py-4">
+        <CheckCircle2 size={20} className="shrink-0 text-income" />
+        <div className="flex-1">
+          <p className="font-bold text-income">Pembayaran berhasil!</p>
+          <p className="text-sm text-income/80">Langgananmu sudah aktif.</p>
+        </div>
+        <Link
+          href="/dashboard"
+          className="shrink-0 rounded-xl bg-income px-4 py-2 text-xs font-bold text-white transition hover:opacity-90"
+        >
+          Ke Dashboard
+        </Link>
+      </div>
+    );
+  }
+
+  if (syncResult === "pending" || payment === "pending") {
+    return (
+      <div className="mx-5 mb-6 flex items-center gap-3 rounded-2xl bg-amber-500/10 px-5 py-4">
+        <Clock size={20} className="shrink-0 text-amber-500" />
+        <div>
+          <p className="font-bold text-amber-600 dark:text-amber-400">Pembayaran menunggu konfirmasi</p>
+          <p className="text-sm text-amber-600/80 dark:text-amber-400/80">
+            Selesaikan pembayaran, lalu kembali ke halaman ini — status akan diperbarui otomatis.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (syncError || payment === "error") {
+    return (
+      <div className="mx-5 mb-6 flex items-center gap-3 rounded-2xl bg-expense/10 px-5 py-4">
+        <AlertCircle size={20} className="shrink-0 text-expense" />
+        <div>
+          <p className="font-bold text-expense">Terjadi kesalahan</p>
+          <p className="text-sm text-expense/80">{syncError ?? "Silakan coba lagi atau hubungi support."}</p>
+        </div>
+      </div>
+    );
+  }
+
+  return null;
+}
+
 // ─── Component ───────────────────────────────────────────────────────────────
 
 interface PricingProps {
@@ -322,7 +448,9 @@ export function Pricing({ isLoggedIn = false }: PricingProps) {
   const faqItems = isLoggedIn ? FAQ_ITEMS_LOGGED_IN : FAQ_ITEMS_LOGGED_OUT;
 
   return (
-    <section id="pricing" className="mx-auto max-w-6xl px-5 py-16 md:py-24">
+    <section id="pricing" className="mx-auto max-w-6xl py-16 md:py-24">
+      <PaymentResultBanner isLoggedIn={isLoggedIn} />
+      <div className="px-5">
       {/* Header */}
       <Reveal className="mx-auto max-w-xl text-center">
         <span className="inline-flex items-center gap-2 rounded-full border border-outline bg-surface px-3 py-1 text-xs font-bold text-primary shadow-card">
@@ -522,6 +650,7 @@ export function Pricing({ isLoggedIn = false }: PricingProps) {
           ))}
         </div>
       </Reveal>
+      </div>
     </section>
   );
 }

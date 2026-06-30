@@ -1,7 +1,7 @@
 "use client";
 
 import { CheckCircle2, XCircle } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 export type ToastType = "success" | "error";
 
@@ -12,11 +12,11 @@ export function useToast() {
   const [toast, setToast] = useState<ToastState>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const showToast = (message: string, type: ToastType = "success") => {
+  const showToast = useCallback((message: string, type: ToastType = "success") => {
     if (timerRef.current) clearTimeout(timerRef.current);
     setToast({ message, type });
     timerRef.current = setTimeout(() => setToast(null), 3500);
-  };
+  }, []); // stable — timerRef and setToast never change
 
   useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current); }, []);
 
