@@ -98,19 +98,25 @@ export async function POST(request: NextRequest) {
   }
 
   // 1. Load order from DB — verify it belongs to the requesting user
-  const orderResult = await query<{
-    id: string;
-    user_id: string;
-    plan: string;
-    billing_cycle: string;
-    status: string;
-  }>(
-    `select id, user_id, plan, billing_cycle, status
-     from payment_orders
-     where order_id = $1
-     limit 1`,
-    [orderId]
-  );
+  let orderResult: Awaited<ReturnType<typeof query<{ id: string; user_id: string; plan: string; billing_cycle: string; status: string }>>>;
+  try {
+    orderResult = await query<{
+      id: string;
+      user_id: string;
+      plan: string;
+      billing_cycle: string;
+      status: string;
+    }>(
+      `select id, user_id, plan, billing_cycle, status
+       from payment_orders
+       where order_id = $1
+       limit 1`,
+      [orderId]
+    );
+  } catch (err) {
+    console.error("[payments/sync] DB lookup failed for order:", orderId, err);
+    return NextResponse.json({ error: "Database error." }, { status: 500 });
+  }
 
   const order = orderResult.rows[0];
   if (!order) {
@@ -144,34 +150,44 @@ export async function POST(request: NextRequest) {
   }
 
   // 4. Update payment_orders
-  await query(
-    `update payment_orders
-     set status                  = $1,
-         midtrans_transaction_id = $2,
-         payment_method          = $3,
-         midtrans_raw            = $4,
-         paid_at                 = case when $1 = 'paid' then now() else null end,
-         expired_at              = case when $1 = 'expired' then now() else null end
-     where id = $5`,
-    [newStatus, mtStatus.transaction_id, mtStatus.payment_type, JSON.stringify(mtStatus), order.id]
-  );
+  try {
+    await query(
+      `update payment_orders
+       set status                  = $1,
+           midtrans_transaction_id = $2,
+           payment_method          = $3,
+           midtrans_raw            = $4,
+           paid_at                 = case when $1 = 'paid' then now() else null end,
+           expired_at              = case when $1 = 'expired' then now() else null end
+       where id = $5`,
+      [newStatus, mtStatus.transaction_id, mtStatus.payment_type, JSON.stringify(mtStatus), order.id]
+    );
+  } catch (err) {
+    console.error("[payments/sync] DB update failed for order:", order.id, err);
+    return NextResponse.json({ error: "Database error." }, { status: 500 });
+  }
 
   // 5. If paid, activate the subscription
   if (newStatus === "paid") {
     const endDate = periodEnd(order.billing_cycle);
 
-    await query(
-      `insert into subscription_entitlements
-         (user_id, plan, status, current_period_end, last_payment_order_id, payment_method)
-       values ($1, $2, 'active', $3, $4, $5)
-       on conflict (user_id) do update
-         set plan                   = excluded.plan,
-             status                 = 'active',
-             current_period_end     = excluded.current_period_end,
-             last_payment_order_id  = excluded.last_payment_order_id,
-             payment_method         = excluded.payment_method`,
-      [order.user_id, order.plan, endDate.toISOString(), order.id, mtStatus.payment_type]
-    );
+    try {
+      await query(
+        `insert into subscription_entitlements
+           (user_id, plan, status, current_period_end, last_payment_order_id, payment_method)
+         values ($1, $2, 'active', $3, $4, $5)
+         on conflict (user_id) do update
+           set plan                   = excluded.plan,
+               status                 = 'active',
+               current_period_end     = excluded.current_period_end,
+               last_payment_order_id  = excluded.last_payment_order_id,
+               payment_method         = excluded.payment_method`,
+        [order.user_id, order.plan, endDate.toISOString(), order.id, mtStatus.payment_type]
+      );
+    } catch (err) {
+      console.error("[payments/sync] Subscription upsert failed for user:", order.user_id, err);
+      return NextResponse.json({ error: "Database error." }, { status: 500 });
+    }
 
     console.info(
       `[payments/sync] Activated ${order.plan}/${order.billing_cycle} for user ${order.user_id}`
