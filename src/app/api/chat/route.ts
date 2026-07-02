@@ -4,6 +4,7 @@ import { z } from "zod";
 import { requireApiUser } from "@/lib/api/auth";
 import { parseVoiceTransaction, type ParsedVoiceTransaction } from "@/lib/voice/parse";
 import { isAiConfigured, parseVoiceWithAi } from "@/lib/voice/ai";
+import { getActivePlan } from "@/lib/plan";
 
 export const runtime = "nodejs";
 
@@ -75,6 +76,9 @@ export async function POST(request: NextRequest) {
   }
 
   const { message, commit } = parsedBody.data;
+
+  // Chat (AI transaction parsing) is available to all plans.
+  // If we ever gate it to Pro only, enforce here via getActivePlan.
 
   // Parse with rule-based first, fallback to AI
   let parsed = parseVoiceTransaction(message);

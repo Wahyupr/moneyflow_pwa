@@ -4,7 +4,7 @@ import type { PlanTier, Result } from "./types";
 
 export const PLAN_LIMITS = {
   free: {
-    wallets:              2,
+    wallets:              3,
     activeBudgets:        1,
     historyMonths:        3,
     voicePerDay:          1,

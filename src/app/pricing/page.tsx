@@ -17,40 +17,46 @@ export const metadata: Metadata = {
     "Pilih paket MoneyFlow yang sesuai. Gratis untuk mulai, Premium & Pro untuk pengguna serius.",
 };
 
-/** Reads the viewer's current active plan (lapsed entitlements count as free). */
-async function resolveCurrentPlan(token: string): Promise<{ isLoggedIn: boolean; plan: "free" | "premium" | "pro" }> {
+/** Reads the viewer's current active plan + trial expiry date. */
+async function resolveCurrentPlan(token: string): Promise<{
+  isLoggedIn: boolean;
+  plan: "free" | "premium" | "pro";
+  trialEndsAt: string | null;
+}> {
   let session: { id: string } | null = null;
   try {
     session = verifySessionToken(token);
   } catch {
     session = null;
   }
-  if (!session) return { isLoggedIn: false, plan: "free" };
+  if (!session) return { isLoggedIn: false, plan: "free", trialEndsAt: null };
 
   try {
-    const res = await query<{ plan: string }>(
-      `select plan from subscription_entitlements
+    const res = await query<{ plan: string; current_period_end: string | null; is_trial: boolean | null }>(
+      `select plan, current_period_end,
+              (source = 'trial') as is_trial
+       from subscription_entitlements
        where user_id = $1 and status = 'active'
          and (current_period_end is null or current_period_end > now())
+       order by case plan when 'pro' then 0 when 'premium' then 1 else 2 end
        limit 1`,
       [session.id]
     );
-    const plan = res.rows[0]?.plan;
-    return {
-      isLoggedIn: true,
-      plan: plan === "premium" || plan === "pro" ? plan : "free",
-    };
+    const row = res.rows[0];
+    const plan = row?.plan === "premium" || row?.plan === "pro" ? row.plan : "free";
+    const trialEndsAt = row?.is_trial && row?.current_period_end ? row.current_period_end : null;
+    return { isLoggedIn: true, plan, trialEndsAt };
   } catch {
-    return { isLoggedIn: true, plan: "free" };
+    return { isLoggedIn: true, plan: "free", trialEndsAt: null };
   }
 }
 
 export default async function PricingPage() {
   const cookieStore = await cookies();
   const token = cookieStore.get(AUTH_COOKIE_NAME)?.value ?? "";
-  const { isLoggedIn, plan } = token
+  const { isLoggedIn, plan, trialEndsAt } = token
     ? await resolveCurrentPlan(token)
-    : { isLoggedIn: false, plan: "free" as const };
+    : { isLoggedIn: false, plan: "free" as const, trialEndsAt: null as null };
 
   return (
     <div className="min-h-screen bg-background">
@@ -97,7 +103,7 @@ export default async function PricingPage() {
       </header>
 
       <main>
-        <Pricing isLoggedIn={isLoggedIn} currentPlan={plan} />
+        <Pricing isLoggedIn={isLoggedIn} currentPlan={plan} trialEndsAt={trialEndsAt} />
       </main>
 
       <footer className="border-t border-outline py-8 text-center text-sm text-muted">

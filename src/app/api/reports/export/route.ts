@@ -11,6 +11,9 @@ import {
 } from "@/lib/ai/report-insight";
 import { chatCompletion, getInsightConfig } from "@/lib/ai/insight-client";
 import { buildReportWorkbook } from "@/lib/excel/report-workbook";
+import { getActivePlan } from "@/lib/plan";
+import { PLAN_LIMITS } from "@/lib/entitlements";
+import { query } from "@/lib/db/pool";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -29,6 +32,24 @@ export async function GET(request: NextRequest) {
   const auth = await requireApiUser(request);
   if ("response" in auth) {
     return auth.response;
+  }
+
+  const plan = await getActivePlan(auth.user.id);
+  const maxExports = PLAN_LIMITS[plan].exportPerMonth;
+  if (maxExports !== null) {
+    const countResult = await query<{ count: string }>(
+      `select count(*)::text as count
+       from export_logs
+       where user_id = $1
+         and created_at >= date_trunc('month', now())`,
+      [auth.user.id]
+    );
+    if (Number(countResult.rows[0]?.count ?? 0) >= maxExports) {
+      return NextResponse.json(
+        { error: `Paket ${plan} hanya mendukung ${maxExports}× ekspor per bulan. Upgrade untuk ekspor lebih banyak.` },
+        { status: 402 }
+      );
+    }
   }
 
   const { searchParams } = new URL(request.url);
@@ -90,6 +111,12 @@ export async function GET(request: NextRequest) {
   const filename = buildFilename(window);
   const safeFilename = encodeURIComponent(filename);
   const bytes = new Uint8Array(buffer);
+
+  // Log the export for quota tracking (fire-and-forget, never fail the download)
+  query(
+    `insert into export_logs (user_id, created_at) values ($1, now())`,
+    [auth.user.id]
+  ).catch(() => undefined);
 
   return new NextResponse(bytes, {
     status: 200,

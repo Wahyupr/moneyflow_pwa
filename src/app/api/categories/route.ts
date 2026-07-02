@@ -3,6 +3,8 @@ import type { NextRequest } from "next/server";
 import { z } from "zod";
 import { requireApiUser } from "@/lib/api/auth";
 import { query } from "@/lib/db/pool";
+import { getActivePlan } from "@/lib/plan";
+import { PLAN_LIMITS } from "@/lib/entitlements";
 
 export const runtime = "nodejs";
 
@@ -53,6 +55,21 @@ export async function POST(request: NextRequest) {
   const parsed = CategoryCreateSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
     return NextResponse.json({ error: "Data tidak valid." }, { status: 400 });
+  }
+
+  const plan = await getActivePlan(auth.user.id);
+  const maxCategories = PLAN_LIMITS[plan].customCategories;
+  if (maxCategories !== null) {
+    const countResult = await query<{ count: string }>(
+      `select count(*)::text as count from categories where user_id = $1 and is_system = false`,
+      [auth.user.id]
+    );
+    if (Number(countResult.rows[0]?.count ?? 0) >= maxCategories) {
+      return NextResponse.json(
+        { error: `Paket ${plan} hanya mendukung ${maxCategories} kategori kustom. Upgrade untuk menambah lebih banyak.` },
+        { status: 402 }
+      );
+    }
   }
 
   // Default colors per type matching the app's palette

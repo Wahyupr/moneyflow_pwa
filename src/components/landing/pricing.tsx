@@ -23,7 +23,7 @@ interface FeatureRow {
 const FEATURE_ROWS: FeatureRow[] = [
   {
     label: "Dompet",
-    free:    "Maks. 2 dompet",
+    free:    "Maks. 3 dompet",
     premium: "Jumlah dompet tak terbatas",
     pro:     "Jumlah dompet tak terbatas",
   },
@@ -421,9 +421,23 @@ interface PricingProps {
   isLoggedIn?: boolean;
   /** The viewer's current active plan (from DB). Drives plan-aware CTAs & pricing. */
   currentPlan?: "free" | "premium" | "pro";
+  /** ISO timestamp when the trial expires, or null if not on trial. */
+  trialEndsAt?: string | null;
 }
 
-export function Pricing({ isLoggedIn = false, currentPlan = "free" }: PricingProps) {
+function formatTrialExpiry(iso: string): string {
+  const d = new Date(iso);
+  return d.toLocaleDateString("id-ID", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "Asia/Jakarta",
+  }) + " WIB";
+}
+
+export function Pricing({ isLoggedIn = false, currentPlan = "free", trialEndsAt = null }: PricingProps) {
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const [paidDialog, setPaidDialog] = useState<{ plan: "premium" | "pro" } | null>(null);
 
@@ -433,6 +447,7 @@ export function Pricing({ isLoggedIn = false, currentPlan = "free" }: PricingPro
 
   const isPremium = currentPlan === "premium";
   const isPro     = currentPlan === "pro";
+  const isTrial   = !!trialEndsAt;
 
   // Pro price shown depends on the viewer's current plan (server enforces this too).
   const proDisplayPrice = isPremium ? PREMIUM_TO_PRO_PRICE : isLoggedIn ? PLAN_PRICE.pro : FREE_TO_PRO_PRICE;
@@ -521,6 +536,17 @@ export function Pricing({ isLoggedIn = false, currentPlan = "free" }: PricingPro
             </div>
             <p className="mt-1 text-sm text-white/70">Tagihan bulanan, batalkan kapan saja</p>
 
+            {isPremium && isTrial && trialEndsAt && (
+              <div className="mt-3 flex items-center gap-2 rounded-xl bg-white/15 px-3.5 py-2.5 text-sm">
+                <Clock size={14} className="shrink-0 text-white/80" />
+                <div>
+                  <span className="font-bold text-white">Free Trial 7 Hari</span>
+                  <span className="ml-1 text-white/70">· berakhir</span>
+                  <div className="mt-0.5 text-xs font-medium text-white/90">{formatTrialExpiry(trialEndsAt)}</div>
+                </div>
+              </div>
+            )}
+
             {isPremium || isPro ? (
               <div className="mt-6 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-white/20 font-bold text-white">
                 {premiumCta}
@@ -569,6 +595,17 @@ export function Pricing({ isLoggedIn = false, currentPlan = "free" }: PricingPro
               </p>
             ) : (
               <p className="mt-1 text-sm text-white/70">Tagihan bulanan, batalkan kapan saja</p>
+            )}
+
+            {isPro && isTrial && trialEndsAt && (
+              <div className="mt-3 flex items-center gap-2 rounded-xl bg-white/15 px-3.5 py-2.5 text-sm">
+                <Clock size={14} className="shrink-0 text-white/80" />
+                <div>
+                  <span className="font-bold text-white">Free Trial 7 Hari</span>
+                  <span className="ml-1 text-white/70">· berakhir</span>
+                  <div className="mt-0.5 text-xs font-medium text-white/90">{formatTrialExpiry(trialEndsAt)}</div>
+                </div>
+              </div>
             )}
 
             {isPro ? (

@@ -3,6 +3,8 @@ import type { NextRequest } from "next/server";
 import { z } from "zod";
 import { requireApiUser } from "@/lib/api/auth";
 import { query } from "@/lib/db/pool";
+import { getActivePlan } from "@/lib/plan";
+import { PLAN_LIMITS } from "@/lib/entitlements";
 
 export const runtime = "nodejs";
 
@@ -60,6 +62,21 @@ export async function POST(request: NextRequest) {
   }
 
   const { category_id, amount_limit_minor, period, alert_at_percent } = parsed.data;
+
+  const plan = await getActivePlan(auth.user.id);
+  const maxBudgets = PLAN_LIMITS[plan].activeBudgets;
+  if (maxBudgets !== null) {
+    const countResult = await query<{ count: string }>(
+      `select count(*)::text as count from budgets where user_id = $1 and is_active = true`,
+      [auth.user.id]
+    );
+    if (Number(countResult.rows[0]?.count ?? 0) >= maxBudgets) {
+      return NextResponse.json(
+        { error: `Paket ${plan} hanya mendukung ${maxBudgets} anggaran aktif. Upgrade untuk menambah lebih banyak.` },
+        { status: 402 }
+      );
+    }
+  }
 
   // Verify the category exists (user-owned or system)
   const catCheck = await query<{ id: string }>(

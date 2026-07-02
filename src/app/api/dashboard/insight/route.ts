@@ -21,6 +21,7 @@ import {
   isFreeLimitReached,
   type InsightPlanTier
 } from "@/lib/insight-quota";
+import { getActivePlan } from "@/lib/plan";
 import type { LedgerTransaction } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -47,13 +48,7 @@ type StoredInsightRow = {
 
 type PlanTier = InsightPlanTier;
 
-async function resolveUserPlan(userId: string): Promise<InsightPlanTier> {
-  const result = await query<{ plan: InsightPlanTier }>(
-    `select plan from subscription_entitlements where user_id = $1`,
-    [userId]
-  );
-  return result.rows[0]?.plan ?? "free";
-}
+// resolveUserPlan replaced by shared getActivePlan (checks current_period_end)
 
 async function countCompletedInsights(userId: string): Promise<number> {
   const result = await query<{ count: string }>(
@@ -90,7 +85,7 @@ export async function GET(request: NextRequest) {
     return auth.response;
   }
 
-  const plan = await resolveUserPlan(auth.user.id);
+  const plan = await getActivePlan(auth.user.id) as InsightPlanTier;
   const latest = await fetchLatestCompletedInsight(auth.user.id);
   const usageCount = latest ? await countCompletedInsights(auth.user.id) : 0;
 
@@ -141,7 +136,7 @@ export async function POST(request: NextRequest) {
   // tagged as "manual_button".
   void body.trigger;
 
-  const plan = await resolveUserPlan(auth.user.id);
+  const plan = await getActivePlan(auth.user.id) as InsightPlanTier;
   const bounds = todayBoundsInTz(APP_TIMEZONE);
 
   if (plan === "free") {
