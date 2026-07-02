@@ -2,62 +2,67 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireApiUser } from "@/lib/api/auth";
 import { query } from "@/lib/db/pool";
 import { createSnapToken } from "@/lib/midtrans";
+import { getCheckoutAmount, type CurrentPlan } from "@/lib/pricing";
 
 type Plan = "premium" | "pro";
-type BillingCycle = "monthly" | "yearly";
 
-// Defined here to avoid importing from a "use client" component
-const PRICES: Record<Plan, { monthly: number; yearly_per_month: number }> = {
-  premium: { monthly: 49_000, yearly_per_month: 39_200 },
-  pro:     { monthly: 99_000, yearly_per_month: 79_200 },
-};
-
-function getAmount(plan: Plan, billing: BillingCycle): number {
-  if (billing === "yearly") {
-    // Charge full year upfront
-    return PRICES[plan].yearly_per_month * 12;
+/**
+ * Reads the user's current active plan from the DB. An entitlement whose
+ * period has lapsed counts as free (same rule the gating queries use). This is
+ * the trusted basis for upgrade pricing — never trust a client-sent plan.
+ */
+async function getCurrentPlan(userId: string): Promise<CurrentPlan> {
+  try {
+    const res = await query<{ plan: string }>(
+      `select plan from subscription_entitlements
+       where user_id = $1 and status = 'active'
+         and (current_period_end is null or current_period_end > now())
+       limit 1`,
+      [userId]
+    );
+    const plan = res.rows[0]?.plan;
+    if (plan === "premium" || plan === "pro") return plan;
+    return "free";
+  } catch {
+    return "free";
   }
-  return PRICES[plan].monthly;
 }
 
-function getItemLabel(plan: Plan, billing: BillingCycle): string {
+function getItemLabel(plan: Plan): string {
   const planName = plan === "premium" ? "Premium" : "Pro";
-  const period   = billing === "yearly" ? "Tahunan" : "Bulanan";
-  return `MoneyFlow ${planName} (${period})`;
+  return `MoneyFlow ${planName} (Bulanan)`;
 }
 
 export async function POST(request: NextRequest) {
   const auth = await requireApiUser(request);
   if ("response" in auth) return auth.response;
 
-  let body: { plan?: unknown; billing?: unknown };
+  let body: { plan?: unknown };
   try {
-    body = await request.json() as { plan?: unknown; billing?: unknown };
+    body = await request.json() as { plan?: unknown };
   } catch {
     return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
   }
 
-  const plan    = body.plan as Plan;
-  const billing = (body.billing ?? "monthly") as BillingCycle;
+  const plan = body.plan as Plan;
 
   if (!["premium", "pro"].includes(plan)) {
     return NextResponse.json({ error: "Invalid plan. Must be 'premium' or 'pro'." }, { status: 400 });
   }
-  if (!["monthly", "yearly"].includes(billing)) {
-    return NextResponse.json({ error: "Invalid billing cycle." }, { status: 400 });
-  }
 
-  const amount   = getAmount(plan, billing);
+  // Compute amount server-side from the DB-verified current plan.
+  const currentPlan = await getCurrentPlan(auth.user.id);
+  const amount   = getCheckoutAmount(plan, currentPlan);
   const orderId  = `MF-${crypto.randomUUID()}`;
-  const itemName = getItemLabel(plan, billing);
+  const itemName = getItemLabel(plan);
 
   // Persist the pending order first so we have a record even if Snap API fails
   try {
     await query(
       `insert into payment_orders
          (user_id, order_id, plan, billing_cycle, amount, status)
-       values ($1, $2, $3, $4, $5, 'pending')`,
-      [auth.user.id, orderId, plan, billing, amount]
+       values ($1, $2, $3, 'monthly', $4, 'pending')`,
+      [auth.user.id, orderId, plan, amount]
     );
   } catch (err) {
     console.error("[payments/snap] DB insert failed:", err);
@@ -85,7 +90,7 @@ export async function POST(request: NextRequest) {
       amount,
       customerName: displayName,
       customerEmail: auth.user.email,
-      itemId: `${plan}-${billing}`,
+      itemId: `${plan}-monthly`,
       itemName,
     });
   } catch (err) {

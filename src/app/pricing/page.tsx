@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { Pricing } from "@/components/landing/pricing";
 import { AUTH_COOKIE_NAME } from "@/lib/auth/token";
+import { verifySessionToken } from "@/lib/auth/session";
+import { query } from "@/lib/db/pool";
 import Link from "next/link";
 import Image from "next/image";
 
@@ -15,24 +17,40 @@ export const metadata: Metadata = {
     "Pilih paket MoneyFlow yang sesuai. Gratis untuk mulai, Premium & Pro untuk pengguna serius.",
 };
 
-/** Cheap structural check — same logic as middleware. No DB hit needed. */
-function hasValidTokenShape(token: string): boolean {
-  const segments = token.split(".");
-  if (segments.length !== 3) return false;
+/** Reads the viewer's current active plan (lapsed entitlements count as free). */
+async function resolveCurrentPlan(token: string): Promise<{ isLoggedIn: boolean; plan: "free" | "premium" | "pro" }> {
+  let session: { id: string } | null = null;
   try {
-    const payload = JSON.parse(
-      Buffer.from(segments[1], "base64url").toString("utf8")
-    ) as { exp?: number };
-    return typeof payload.exp === "number" && payload.exp > Math.floor(Date.now() / 1000);
+    session = verifySessionToken(token);
   } catch {
-    return false;
+    session = null;
+  }
+  if (!session) return { isLoggedIn: false, plan: "free" };
+
+  try {
+    const res = await query<{ plan: string }>(
+      `select plan from subscription_entitlements
+       where user_id = $1 and status = 'active'
+         and (current_period_end is null or current_period_end > now())
+       limit 1`,
+      [session.id]
+    );
+    const plan = res.rows[0]?.plan;
+    return {
+      isLoggedIn: true,
+      plan: plan === "premium" || plan === "pro" ? plan : "free",
+    };
+  } catch {
+    return { isLoggedIn: true, plan: "free" };
   }
 }
 
 export default async function PricingPage() {
   const cookieStore = await cookies();
   const token = cookieStore.get(AUTH_COOKIE_NAME)?.value ?? "";
-  const isLoggedIn = token ? hasValidTokenShape(token) : false;
+  const { isLoggedIn, plan } = token
+    ? await resolveCurrentPlan(token)
+    : { isLoggedIn: false, plan: "free" as const };
 
   return (
     <div className="min-h-screen bg-background">
@@ -79,7 +97,7 @@ export default async function PricingPage() {
       </header>
 
       <main>
-        <Pricing isLoggedIn={isLoggedIn} />
+        <Pricing isLoggedIn={isLoggedIn} currentPlan={plan} />
       </main>
 
       <footer className="border-t border-outline py-8 text-center text-sm text-muted">

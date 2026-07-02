@@ -4,7 +4,6 @@ import {
   Bell,
   CalendarDays,
   CalendarRange,
-  CheckCircle2,
   ChevronRight,
   Crown,
   LogOut,
@@ -18,15 +17,15 @@ import {
   UserRound,
   Wallet2,
   Zap,
-  X,
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useTheme } from "next-themes";
-import { PRICES, formatRp } from "@/components/landing/pricing";
+import { PREMIUM_TO_PRO_PRICE, formatRp } from "@/components/landing/pricing";
 import { AppFrame } from "@/components/app-frame";
 import { MerchantManager } from "@/components/merchant-manager";
 import { PushNotificationManager } from "@/components/push-notification-manager";
+import { Toast, useToast } from "@/components/ui/toast";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -42,25 +41,6 @@ type ProfilePayload = {
   };
 };
 
-// ─── Toast ────────────────────────────────────────────────────────────────────
-
-function Toast({ message, onDismiss }: { message: string; onDismiss: () => void }) {
-  useEffect(() => {
-    const t = setTimeout(onDismiss, 3000);
-    return () => clearTimeout(t);
-  }, [onDismiss]);
-
-  return (
-    <div className="fixed bottom-24 left-1/2 z-50 flex -translate-x-1/2 items-center gap-2.5 rounded-2xl bg-ink px-4 py-3 text-sm font-semibold text-white shadow-lift">
-      <CheckCircle2 size={16} className="shrink-0 text-income" />
-      {message}
-      <button onClick={onDismiss} className="ml-1 text-white/60 hover:text-white">
-        <X size={14} />
-      </button>
-    </div>
-  );
-}
-
 // ─── Page ────────────────────────────────────────────────────────────────────
 
 export default function SettingsPage() {
@@ -72,7 +52,7 @@ export default function SettingsPage() {
   const [savedSalaryDay, setSavedSalaryDay] = useState("25");
   const [budgetingPeriodMode, setBudgetingPeriodMode] = useState<BudgetingPeriodMode>("calendar_month");
   const [savedBudgetMode, setSavedBudgetMode] = useState<BudgetingPeriodMode>("calendar_month");
-  const [toast, setToast] = useState<string | null>(null);
+  const { toast, showToast } = useToast();
   const [loading, setLoading] = useState(true);
   const [savingProfile, setSavingProfile] = useState(false);
 
@@ -124,9 +104,9 @@ export default function SettingsPage() {
         setSavedName(displayName);
         setSavedSalaryDay(salaryDay);
         setSavedBudgetMode(budgetingPeriodMode);
-        setToast("Perubahan tersimpan.");
+        showToast("Perubahan tersimpan.");
       } else {
-        setToast("Gagal menyimpan — coba lagi.");
+        showToast("Gagal menyimpan — coba lagi.", "error");
       }
     } finally {
       setSavingProfile(false);
@@ -141,7 +121,7 @@ export default function SettingsPage() {
 
   return (
     <AppFrame title="Settings" subtitle="Pengaturan">
-      {toast && <Toast message={toast} onDismiss={() => setToast(null)} />}
+      {toast && <Toast toast={toast} />}
 
       <div className="mt-4 space-y-6 pb-8" suppressHydrationWarning>
 
@@ -329,7 +309,7 @@ export default function SettingsPage() {
               </Link>
               <div className="h-px bg-outline/60 mx-4" />
               <div className="px-4 py-3">
-                <MerchantManager onStatus={(msg) => setToast(msg)} />
+                <MerchantManager onStatus={(msg) => showToast(msg)} />
               </div>
             </SettingsCard>
           </SettingsGroup>
@@ -508,15 +488,11 @@ function PlanUsageSection() {
                   <div>
                     <p className="text-sm font-bold text-ink">Upgrade ke Pro</p>
                     <p className="mt-0.5 text-xs leading-5 text-muted">
-                      Bayar selisih{" "}
+                      Bayar{" "}
                       <span className="font-bold text-amber-600">
-                        {formatRp(PRICES.pro.monthly - PRICES.premium.monthly)}/bln
+                        {formatRp(PREMIUM_TO_PRO_PRICE)}
                       </span>{" "}
-                      (atau{" "}
-                      <span className="font-bold text-amber-600">
-                        {formatRp(PRICES.pro.yearly_per_month - PRICES.premium.yearly_per_month)}/bln
-                      </span>{" "}
-                      tahunan).
+                      saja untuk naik dari Premium ke Pro. Buka AI Asisten Chat & semua kuota tanpa batas.
                     </p>
                   </div>
                 </div>

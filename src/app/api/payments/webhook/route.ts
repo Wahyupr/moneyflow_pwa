@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { query } from "@/lib/db/pool";
 import { verifyNotification } from "@/lib/midtrans";
-import type MidtransClient from "midtrans-client";
+import { activateSubscription } from "@/lib/payments/activate";
 
 export const runtime = "nodejs";
 
@@ -14,12 +14,6 @@ function resolveStatus(
   if (transactionStatus === "cancel" || transactionStatus === "deny") return "failed";
   if (transactionStatus === "expire") return "expired";
   return null;
-}
-
-function periodEnd(billing: string): Date {
-  const now = new Date();
-  if (billing === "yearly") return new Date(now.setFullYear(now.getFullYear() + 1));
-  return new Date(now.setMonth(now.getMonth() + 1));
 }
 
 async function processWebhook(request: NextRequest) {
@@ -47,11 +41,12 @@ async function processWebhook(request: NextRequest) {
   );
 
   if (newStatus === "paid") {
-    const endDate = periodEnd(order.billing_cycle);
-    await query(
-      `insert into subscription_entitlements (user_id, plan, status, current_period_end, last_payment_order_id, payment_method) values ($1, $2, 'active', $3, $4, $5) on conflict (user_id) do update set plan = excluded.plan, status = 'active', current_period_end = excluded.current_period_end, last_payment_order_id = excluded.last_payment_order_id, payment_method = excluded.payment_method`,
-      [order.user_id, order.plan, endDate.toISOString(), order.id, notification.payment_type]
-    );
+    await activateSubscription({
+      userId: order.user_id,
+      plan: order.plan,
+      orderId: order.id,
+      paymentMethod: notification.payment_type,
+    });
     console.info(`[payments/webhook] Activated ${order.plan}/${order.billing_cycle} for user ${order.user_id}`);
   }
 }

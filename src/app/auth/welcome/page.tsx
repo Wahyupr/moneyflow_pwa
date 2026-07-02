@@ -2,68 +2,16 @@
 
 import {
   ArrowRight,
-  Bell,
-  Brain,
   CheckCircle2,
   Crown,
-  FileText,
-  HandCoins,
   Loader2,
-  Mic,
-  ReceiptText,
   Sparkles,
-  Wallet,
-  type LucideIcon
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { PREMIUM_HIGHLIGHTS } from "@/lib/plan-features";
 
-type PlanTier = "free" | "premium";
+type PlanTier = "free" | "premium" | "pro";
 type Stage = "loading" | "premium";
-
-type PremiumFeature = {
-  icon: LucideIcon;
-  label: string;
-  sublabel: string;
-  inDevelopment?: boolean;
-};
-
-const PREMIUM_FEATURES: PremiumFeature[] = [
-  {
-    icon: Wallet,
-    label: "Dompet tanpa batas",
-    sublabel: "Buat dompet sebanyak yang kamu butuhkan"
-  },
-  {
-    icon: Mic,
-    label: "Input Suara AI",
-    sublabel: "AI parsing tanpa batas setiap hari"
-  },
-  {
-    icon: ReceiptText,
-    label: "Scan Struk",
-    sublabel: "Scan & ekstrak struk tanpa batas"
-  },
-  {
-    icon: Brain,
-    label: "AI Insight",
-    sublabel: "Insight dashboard & laporan tanpa batas"
-  },
-  {
-    icon: HandCoins,
-    label: "Hutang & Piutang",
-    sublabel: "Kelola pinjaman dengan progress pelunasan"
-  },
-  {
-    icon: Bell,
-    label: "Pengingat Tagihan",
-    sublabel: "Notifikasi otomatis untuk tagihan rutin"
-  },
-  {
-    icon: FileText,
-    label: "Laporan Lengkap",
-    sublabel: "Ekspor Excel & riwayat semua waktu"
-  }
-];
 
 export default function WelcomePage() {
   const [stage, setStage] = useState<Stage>("loading");
@@ -128,75 +76,70 @@ export default function WelcomePage() {
 function PremiumCelebrationDialog({ onContinue }: { onContinue: () => void }) {
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-5 py-8 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 backdrop-blur-sm sm:items-center sm:p-4 animate-in fade-in duration-200"
       role="dialog"
       aria-modal="true"
       aria-labelledby="premium-welcome-title"
     >
-      <div className="relative w-full max-w-sm rounded-2xl bg-surface p-6 shadow-lift">
-        <div className="text-center">
-          <div className="relative mx-auto mb-3 flex size-16 items-center justify-center">
-            <span className="absolute inset-0 animate-ping rounded-full bg-tertiary/25" aria-hidden="true" />
-            <div className="relative flex size-16 items-center justify-center rounded-full bg-gradient-to-br from-primary to-tertiary text-white shadow-card">
-              <Crown aria-hidden="true" size={26} strokeWidth={2.4} />
+      <div className="flex w-full max-w-md flex-col rounded-t-3xl bg-surface shadow-lift sm:rounded-3xl animate-in slide-in-from-bottom-4 sm:zoom-in-95 duration-300">
+        {/* Gradient header */}
+        <div className="relative overflow-hidden rounded-t-3xl bg-gradient-to-br from-primary to-tertiary px-6 pb-8 pt-9 text-center text-white">
+          <div className="pointer-events-none absolute -right-8 -top-10 size-32 rounded-full bg-white/15 blur-2xl" aria-hidden="true" />
+          <div className="pointer-events-none absolute -bottom-12 -left-6 size-32 rounded-full bg-white/10 blur-2xl" aria-hidden="true" />
+
+          <div className="relative mx-auto flex size-[68px] items-center justify-center">
+            <span className="absolute inset-0 animate-ping rounded-3xl bg-white/25" aria-hidden="true" />
+            <div className="relative flex size-[68px] items-center justify-center rounded-3xl bg-white/20 ring-4 ring-primary/25 backdrop-blur-sm">
+              <Crown aria-hidden="true" size={28} strokeWidth={2.2} />
             </div>
+            <span className="absolute -right-1.5 -top-1.5 flex size-8 items-center justify-center rounded-full bg-income text-white shadow-card ring-2 ring-white/40">
+              <CheckCircle2 size={17} />
+            </span>
           </div>
 
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-tertiary/15 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.12em] text-tertiary">
+          <div className="relative mt-4 inline-flex items-center gap-1.5 rounded-full bg-white/20 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.14em] backdrop-blur-sm">
             <Sparkles aria-hidden="true" size={12} />
-            Premium Aktif
-          </span>
-
-          <h2 id="premium-welcome-title" className="mt-3 text-xl font-bold text-ink">
-            Selamat!
+            Uji Coba Premium
+          </div>
+          <h2 id="premium-welcome-title" className="relative mt-2.5 text-2xl font-extrabold">
+            Selamat Datang! 🎉
           </h2>
-          <p className="mx-auto mt-1.5 max-w-xs text-sm leading-5 text-muted">
-            Akun Anda telah berhasil di-upgrade ke Premium. Semua fitur premium sekarang aktif.
+          <p className="relative mx-auto mt-1 max-w-xs text-sm leading-5 text-white/85">
+            Kamu dapat 7 hari Premium gratis. Semua fitur di bawah aktif tanpa kartu kredit.
           </p>
         </div>
 
-        <ul className="mt-4 grid grid-cols-2 gap-1.5">
-          {PREMIUM_FEATURES.map((feature) => {
-            const Icon = feature.icon;
-            return (
-              <li
-                key={feature.label}
-                className="flex items-start gap-2 rounded-xl border border-outline/40 bg-surface-container/40 px-2.5 py-2"
-              >
-                <span
-                  className={`mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-md ${
-                    feature.inDevelopment ? "bg-warning/10 text-warning" : "bg-primary/10 text-primary"
-                  }`}
+        {/* Feature highlights */}
+        <div className="px-6 py-5">
+          <p className="mb-3 text-xs font-bold uppercase tracking-wider text-muted">
+            Fitur yang terbuka
+          </p>
+          <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            {PREMIUM_HIGHLIGHTS.map((feature) => {
+              const Icon = feature.icon;
+              return (
+                <li
+                  key={feature.label}
+                  className="flex items-center gap-2.5 rounded-xl border border-outline/50 bg-surface-low/50 px-3 py-2.5"
                 >
-                  <Icon aria-hidden="true" size={13} />
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="text-[11px] font-bold leading-tight text-ink">
-                    {feature.label}
-                    {feature.inDevelopment ? (
-                      <span className="ml-1 rounded-full bg-warning/15 px-1.5 py-px text-[9px] font-semibold uppercase tracking-wider text-warning">
-                        Segera
-                      </span>
-                    ) : null}
-                  </p>
-                  <p className="mt-px text-[10px] leading-tight text-muted">{feature.sublabel}</p>
-                </div>
-                {!feature.inDevelopment ? (
-                  <CheckCircle2 aria-hidden="true" size={13} className="mt-0.5 shrink-0 text-tertiary" />
-                ) : null}
-              </li>
-            );
-          })}
-        </ul>
+                  <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-tertiary text-white">
+                    <Icon aria-hidden="true" size={14} />
+                  </span>
+                  <span className="text-[13px] font-semibold leading-tight text-ink">{feature.label}</span>
+                </li>
+              );
+            })}
+          </ul>
 
-        <button
-          type="button"
-          onClick={onContinue}
-          className="mt-5 flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-primary px-4 font-bold text-white shadow-card transition hover:bg-primary-container active:scale-[0.98]"
-        >
-          Mulai
-          <ArrowRight aria-hidden="true" size={18} />
-        </button>
+          <button
+            type="button"
+            onClick={onContinue}
+            className="mt-5 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-primary to-tertiary px-4 text-sm font-bold text-white shadow-card transition hover:brightness-105 active:scale-[0.98]"
+          >
+            Mulai Sekarang
+            <ArrowRight aria-hidden="true" size={18} />
+          </button>
+        </div>
       </div>
     </div>
   );

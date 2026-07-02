@@ -103,22 +103,16 @@ const FEATURE_ROWS: FeatureRow[] = [
 
 // ─── Pricing ─────────────────────────────────────────────────────────────────
 
-export const PRICES = {
-  premium: { monthly: 49_000, yearly_per_month: 39_200 },
-  pro:     { monthly: 99_000, yearly_per_month: 79_200 },
-} as const;
-
-export function formatRp(n: number) {
-  return "Rp" + n.toLocaleString("id-ID");
-}
-
-/** Proration: what a Premium subscriber pays to upgrade to Pro */
-export function getUpgradePrice(billing: "monthly" | "yearly"): number {
-  if (billing === "yearly") {
-    return PRICES.pro.yearly_per_month - PRICES.premium.yearly_per_month;
-  }
-  return PRICES.pro.monthly - PRICES.premium.monthly;
-}
+// Prices live in the framework-agnostic lib so the server (snap route) and
+// client share one source of truth. Re-exported here for existing importers.
+export {
+  PLAN_PRICE,
+  FREE_TO_PRO_PRICE,
+  PREMIUM_TO_PRO_PRICE,
+  getCheckoutAmount,
+  formatRp,
+} from "@/lib/pricing";
+import { PLAN_PRICE, PREMIUM_TO_PRO_PRICE, FREE_TO_PRO_PRICE, formatRp } from "@/lib/pricing";
 
 // ─── FAQ ─────────────────────────────────────────────────────────────────────
 
@@ -134,7 +128,7 @@ const FAQ_ITEMS_LOGGED_OUT = [
   },
   {
     q: "Apakah ada uji coba gratis untuk Premium atau Pro?",
-    a: "Ya — setiap akun baru mendapat 14 hari Premium gratis tanpa kartu kredit. Setelah itu otomatis kembali ke Free kecuali kamu berlangganan.",
+    a: "Ya — setiap akun baru mendapat 7 hari Premium gratis tanpa kartu kredit. Setelah itu otomatis kembali ke Free kecuali kamu berlangganan.",
   },
   {
     q: "Apa bedanya Premium dan Pro?",
@@ -168,18 +162,16 @@ const FAQ_ITEMS_LOGGED_IN = [
  */
 function SnapPayButton({
   plan,
-  billing,
   label,
   className,
   isLoggedIn,
   onPaid,
 }: {
   plan: "premium" | "pro";
-  billing: "monthly" | "yearly";
   label: string;
   className?: string;
   isLoggedIn: boolean;
-  onPaid: (plan: "premium" | "pro", billing: "monthly" | "yearly") => void;
+  onPaid: (plan: "premium" | "pro") => void;
 }) {
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState<string | null>(null);
@@ -195,7 +187,7 @@ function SnapPayButton({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ plan, billing }),
+        body: JSON.stringify({ plan }),
       });
 
       if (res.status === 401) {
@@ -249,7 +241,7 @@ function SnapPayButton({
             } catch {
               // Non-fatal — webhook or a later sync will cover it.
             }
-            onPaid(plan, billing);
+            onPaid(plan);
           },
           onPending: () => {
             // Store order_id so pricing page can sync when user comes back
@@ -268,7 +260,7 @@ function SnapPayButton({
     } finally {
       setLoading(false);
     }
-  }, [plan, billing, isLoggedIn]);
+  }, [plan, isLoggedIn]);
 
   return (
     <div>
@@ -315,7 +307,7 @@ function PaymentResultBanner({
   onPaid,
 }: {
   isLoggedIn: boolean;
-  onPaid: (plan: "premium" | "pro", billing: "monthly" | "yearly") => void;
+  onPaid: (plan: "premium" | "pro") => void;
 }) {
   const params = useSearchParams();
   const payment = params?.get("payment") ?? null;
@@ -343,7 +335,7 @@ function PaymentResultBanner({
       body: JSON.stringify({ order_id: oid }),
     })
       .then((r) => r.json())
-      .then((data: { status?: string; error?: string; plan?: string; billing?: string }) => {
+      .then((data: { status?: string; error?: string; plan?: string }) => {
         if (data.error) {
           setSyncError(data.error);
         } else {
@@ -353,8 +345,7 @@ function PaymentResultBanner({
             sessionStorage.removeItem("mf_last_order_id");
           }
           if (status === "paid" && (data.plan === "premium" || data.plan === "pro")) {
-            const billing = data.billing === "yearly" ? "yearly" : "monthly";
-            onPaid(data.plan, billing);
+            onPaid(data.plan);
           }
         }
       })
@@ -428,23 +419,27 @@ function PaymentResultBanner({
 interface PricingProps {
   /** True if the viewer already has a session. Hides trial copy & free CTA changes. */
   isLoggedIn?: boolean;
+  /** The viewer's current active plan (from DB). Drives plan-aware CTAs & pricing. */
+  currentPlan?: "free" | "premium" | "pro";
 }
 
-export function Pricing({ isLoggedIn = false }: PricingProps) {
-  const [yearly, setYearly] = useState(false);
+export function Pricing({ isLoggedIn = false, currentPlan = "free" }: PricingProps) {
   const [openFaq, setOpenFaq] = useState<number | null>(null);
-  const [paidDialog, setPaidDialog] = useState<{ plan: "premium" | "pro"; billing: "monthly" | "yearly" } | null>(null);
+  const [paidDialog, setPaidDialog] = useState<{ plan: "premium" | "pro" } | null>(null);
 
-  const handlePaid = useCallback((plan: "premium" | "pro", billing: "monthly" | "yearly") => {
-    setPaidDialog({ plan, billing });
+  const handlePaid = useCallback((plan: "premium" | "pro") => {
+    setPaidDialog({ plan });
   }, []);
 
-  const premiumPrice = yearly ? PRICES.premium.yearly_per_month : PRICES.premium.monthly;
-  const proPrice     = yearly ? PRICES.pro.yearly_per_month     : PRICES.pro.monthly;
+  const isPremium = currentPlan === "premium";
+  const isPro     = currentPlan === "pro";
 
-  // CTA label: trial copy hanya untuk guest; logged-in user langsung upgrade
-  const premiumCta = isLoggedIn ? "Upgrade ke Premium" : "Coba 14 Hari Gratis";
-  const proCta     = isLoggedIn ? "Upgrade ke Pro"     : "Coba 14 Hari Gratis";
+  // Pro price shown depends on the viewer's current plan (server enforces this too).
+  const proDisplayPrice = isPremium ? PREMIUM_TO_PRO_PRICE : isLoggedIn ? PLAN_PRICE.pro : FREE_TO_PRO_PRICE;
+
+  // CTA labels adapt to the current plan.
+  const premiumCta = isPremium ? "Paket kamu saat ini" : isPro ? "Sudah di paket lebih tinggi" : isLoggedIn ? "Upgrade ke Premium" : "Coba 7 Hari Gratis";
+  const proCta     = isPro ? "Paket kamu saat ini" : isPremium ? "Upgrade ke Pro" : isLoggedIn ? "Naik ke Pro" : "Coba 7 Hari Gratis";
 
   const faqItems = isLoggedIn ? FAQ_ITEMS_LOGGED_IN : FAQ_ITEMS_LOGGED_OUT;
 
@@ -453,7 +448,6 @@ export function Pricing({ isLoggedIn = false }: PricingProps) {
       {paidDialog && (
         <PaymentSuccessDialog
           plan={paidDialog.plan}
-          billing={paidDialog.billing}
           onClose={() => setPaidDialog(null)}
         />
       )}
@@ -481,36 +475,8 @@ export function Pricing({ isLoggedIn = false }: PricingProps) {
         </p>
       </Reveal>
 
-      {/* Billing toggle */}
-      <Reveal delay={80} className="mt-8 flex items-center justify-center gap-3">
-        <span className={`text-sm font-semibold transition ${!yearly ? "text-ink" : "text-muted"}`}>
-          Bulanan
-        </span>
-        <button
-          onClick={() => setYearly((v) => !v)}
-          role="switch"
-          aria-checked={yearly}
-          aria-label="Toggle billing period"
-          className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary ${
-            yearly ? "bg-primary" : "bg-outline"
-          }`}
-        >
-          <span
-            className={`inline-block size-5 rounded-full bg-white shadow transition-transform ${
-              yearly ? "translate-x-6" : "translate-x-1"
-            }`}
-          />
-        </button>
-        <span className={`flex items-center gap-1.5 text-sm font-semibold transition ${yearly ? "text-ink" : "text-muted"}`}>
-          Tahunan
-          <span className="rounded-full bg-income/15 px-2 py-0.5 text-[10px] font-bold text-income">
-            Hemat 20%
-          </span>
-        </span>
-      </Reveal>
-
       {/* Cards — 3-column grid */}
-      <div className="mt-10 grid gap-6 lg:grid-cols-3 lg:items-start">
+      <div className="mt-12 grid gap-6 lg:grid-cols-3 lg:items-start">
         {/* Free card */}
         <Reveal delay={80} className="rounded-2xl border border-outline bg-surface p-7 shadow-card">
           <p className="text-xs font-bold uppercase tracking-widest text-muted">Free</p>
@@ -518,12 +484,9 @@ export function Pricing({ isLoggedIn = false }: PricingProps) {
           <p className="mt-1 text-sm text-muted">Selamanya gratis</p>
 
           {isLoggedIn ? (
-            <Link
-              href="/dashboard"
-              className="mt-6 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-outline font-bold text-muted transition hover:bg-surface-low active:scale-[0.98]"
-            >
-              Paket kamu saat ini
-            </Link>
+            <div className="mt-6 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-outline font-bold text-muted">
+              {currentPlan === "free" ? "Paket kamu saat ini" : "Termasuk di paketmu"}
+            </div>
           ) : (
             <Link
               href="/register"
@@ -553,27 +516,24 @@ export function Pricing({ isLoggedIn = false }: PricingProps) {
           <div className="rounded-2xl bg-gradient-to-br from-primary to-tertiary p-7 text-white shadow-lift ring-2 ring-primary/30">
             <p className="text-xs font-bold uppercase tracking-widest text-white/70">Premium</p>
             <div className="mt-2 flex items-end gap-1.5">
-              <p className="text-4xl font-extrabold tracking-tight">{formatRp(premiumPrice)}</p>
+              <p className="text-4xl font-extrabold tracking-tight">{formatRp(PLAN_PRICE.premium)}</p>
               <span className="mb-1 text-sm text-white/70">/bln</span>
             </div>
-            {yearly ? (
-              <p className="mt-1 text-sm text-white/70">
-                Ditagih tahunan ({formatRp(PRICES.premium.yearly_per_month * 12)}/thn)
-              </p>
-            ) : (
-              <p className="mt-1 text-sm text-white/70">
-                Atau {formatRp(PRICES.premium.yearly_per_month)}/bln jika bayar tahunan
-              </p>
-            )}
+            <p className="mt-1 text-sm text-white/70">Tagihan bulanan, batalkan kapan saja</p>
 
-            <SnapPayButton
-              plan="premium"
-              billing={yearly ? "yearly" : "monthly"}
-              label={premiumCta}
-              isLoggedIn={isLoggedIn}
-              onPaid={handlePaid}
-              className="mt-6 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-white font-bold text-primary shadow-card transition hover:shadow-[0_8px_30px_rgba(255,255,255,0.25)] active:scale-[0.98] disabled:opacity-70"
-            />
+            {isPremium || isPro ? (
+              <div className="mt-6 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-white/20 font-bold text-white">
+                {premiumCta}
+              </div>
+            ) : (
+              <SnapPayButton
+                plan="premium"
+                label={premiumCta}
+                isLoggedIn={isLoggedIn}
+                onPaid={handlePaid}
+                className="mt-6 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-white font-bold text-primary shadow-card transition hover:shadow-[0_8px_30px_rgba(255,255,255,0.25)] active:scale-[0.98] disabled:opacity-70"
+              />
+            )}
 
             <ul className="mt-7 space-y-3">
               {FEATURE_ROWS.map((row) => (
@@ -595,37 +555,35 @@ export function Pricing({ isLoggedIn = false }: PricingProps) {
           <div className="rounded-2xl bg-gradient-to-br from-amber-500 to-orange-600 p-7 text-white shadow-lift ring-2 ring-amber-400/40">
             <p className="text-xs font-bold uppercase tracking-widest text-white/70">Pro</p>
             <div className="mt-2 flex items-end gap-1.5">
-              <p className="text-4xl font-extrabold tracking-tight">{formatRp(proPrice)}</p>
-              <span className="mb-1 text-sm text-white/70">/bln</span>
+              <p className="text-4xl font-extrabold tracking-tight">{formatRp(proDisplayPrice)}</p>
+              <span className="mb-1 text-sm text-white/70">{isPremium ? "sekali bayar" : "/bln"}</span>
             </div>
-            {yearly ? (
-              <p className="mt-1 text-sm text-white/70">
-                Ditagih tahunan ({formatRp(PRICES.pro.yearly_per_month * 12)}/thn)
+            {isPremium ? (
+              <p className="mt-1 text-sm text-white/90">
+                Harga upgrade khusus dari Premium — hanya {formatRp(PREMIUM_TO_PRO_PRICE)}.
+              </p>
+            ) : !isLoggedIn ? (
+              <p className="mt-1 text-sm text-white/90">
+                <span className="line-through text-white/50">{formatRp(PLAN_PRICE.pro)}</span>{" "}
+                hemat {formatRp(PLAN_PRICE.pro - FREE_TO_PRO_PRICE)} untuk pengguna baru.
               </p>
             ) : (
-              <p className="mt-1 text-sm text-white/70">
-                Atau {formatRp(PRICES.pro.yearly_per_month)}/bln jika bayar tahunan
-              </p>
+              <p className="mt-1 text-sm text-white/70">Tagihan bulanan, batalkan kapan saja</p>
             )}
 
-            {/* Proration note for Premium subscribers */}
-            <div className="mt-3 rounded-xl bg-white/15 px-3 py-2 text-xs text-white/90">
-              <span className="font-bold">Sudah Premium?</span>
-              {" "}Bayar selisih{" "}
-              <span className="font-bold">
-                {formatRp(getUpgradePrice(yearly ? "yearly" : "monthly"))}/bln
-              </span>
-              {" "}saja untuk upgrade ke Pro.
-            </div>
-
-            <SnapPayButton
-              plan="pro"
-              billing={yearly ? "yearly" : "monthly"}
-              label={proCta}
-              isLoggedIn={isLoggedIn}
-              onPaid={handlePaid}
-              className="mt-4 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-white font-bold text-amber-600 shadow-card transition hover:shadow-[0_8px_30px_rgba(255,255,255,0.25)] active:scale-[0.98] disabled:opacity-70"
-            />
+            {isPro ? (
+              <div className="mt-6 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-white/20 font-bold text-white">
+                {proCta}
+              </div>
+            ) : (
+              <SnapPayButton
+                plan="pro"
+                label={proCta}
+                isLoggedIn={isLoggedIn}
+                onPaid={handlePaid}
+                className="mt-6 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-white font-bold text-amber-600 shadow-card transition hover:shadow-[0_8px_30px_rgba(255,255,255,0.25)] active:scale-[0.98] disabled:opacity-70"
+              />
+            )}
 
             <ul className="mt-7 space-y-3">
               {FEATURE_ROWS.map((row) => (
