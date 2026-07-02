@@ -10,6 +10,7 @@ export type PaymentOrder = {
   amount: number;
   status: "pending" | "paid" | "failed" | "expired";
   payment_method: string | null;
+  snap_token: string | null;
   paid_at: string | null;
   created_at: string;
 };
@@ -28,6 +29,7 @@ export async function GET(request: NextRequest) {
          amount,
          status,
          payment_method,
+         snap_token,
          paid_at,
          created_at
        from payment_orders

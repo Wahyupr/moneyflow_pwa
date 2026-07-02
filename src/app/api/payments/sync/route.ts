@@ -128,7 +128,12 @@ export async function POST(request: NextRequest) {
 
   // 2. Already finalised — return current status immediately
   if (order.status !== "pending") {
-    return NextResponse.json({ status: order.status, changed: false });
+    return NextResponse.json({
+      status: order.status,
+      changed: false,
+      plan: order.plan,
+      billing: order.billing_cycle,
+    });
   }
 
   // 3. Query Midtrans for current status
@@ -146,19 +151,24 @@ export async function POST(request: NextRequest) {
   const newStatus = resolveStatus(mtStatus.transaction_status, mtStatus.fraud_status);
   if (!newStatus) {
     // Still pending on Midtrans side
-    return NextResponse.json({ status: "pending", changed: false });
+    return NextResponse.json({
+      status: "pending",
+      changed: false,
+      plan: order.plan,
+      billing: order.billing_cycle,
+    });
   }
 
   // 4. Update payment_orders
   try {
     await query(
       `update payment_orders
-       set status                  = $1,
+       set status                  = $1::payment_order_status,
            midtrans_transaction_id = $2,
            payment_method          = $3,
            midtrans_raw            = $4,
-           paid_at                 = case when $1 = 'paid' then now() else null end,
-           expired_at              = case when $1 = 'expired' then now() else null end
+           paid_at                 = case when $1::payment_order_status = 'paid' then now() else paid_at end,
+           expired_at              = case when $1::payment_order_status = 'expired' then now() else expired_at end
        where id = $5`,
       [newStatus, mtStatus.transaction_id, mtStatus.payment_type, JSON.stringify(mtStatus), order.id]
     );
@@ -194,5 +204,10 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  return NextResponse.json({ status: newStatus, changed: true });
+  return NextResponse.json({
+    status: newStatus,
+    changed: true,
+    plan: order.plan,
+    billing: order.billing_cycle,
+  });
 }

@@ -42,7 +42,7 @@ async function processWebhook(request: NextRequest) {
   if (!newStatus) return;
 
   await query(
-    `update payment_orders set status = $1, midtrans_transaction_id = $2, payment_method = $3, midtrans_raw = $4, paid_at = case when $1 = 'paid' then now() else null end, expired_at = case when $1 = 'expired' then now() else null end where id = $5`,
+    `update payment_orders set status = $1::payment_order_status, midtrans_transaction_id = $2, payment_method = $3, midtrans_raw = $4, paid_at = case when $1::payment_order_status = 'paid' then now() else paid_at end, expired_at = case when $1::payment_order_status = 'expired' then now() else expired_at end where id = $5`,
     [newStatus, notification.transaction_id, notification.payment_type, JSON.stringify(notification), order.id]
   );
 

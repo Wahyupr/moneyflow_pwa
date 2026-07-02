@@ -9,12 +9,14 @@ import {
   Receipt,
   XCircle,
   AlertCircle,
-  ExternalLink,
   Crown,
   Zap,
   RefreshCw,
+  Wallet,
 } from "lucide-react";
 import Link from "next/link";
+import { openSnap } from "@/lib/payments/snap-client";
+import { PaymentSuccessDialog } from "@/components/payments/payment-success-dialog";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -26,6 +28,7 @@ type PaymentOrder = {
   amount: number;
   status: "pending" | "paid" | "failed" | "expired";
   payment_method: string | null;
+  snap_token: string | null;
   paid_at: string | null;
   created_at: string;
 };
@@ -139,15 +142,17 @@ type OrderStatus = PaymentOrder["status"];
 function SyncButton({
   orderId,
   onSynced,
+  onError,
 }: {
   orderId: string;
   onSynced: (newStatus: OrderStatus) => void;
+  onError: (message: string) => void;
 }) {
   const [syncing, setSyncing] = useState(false);
-  const [done, setDone] = useState(false);
 
   const handleSync = async () => {
     setSyncing(true);
+    onError("");
     try {
       const res = await fetch("/api/payments/sync", {
         method: "POST",
@@ -155,12 +160,20 @@ function SyncButton({
         credentials: "include",
         body: JSON.stringify({ order_id: orderId }),
       });
-      const data = await res.json() as { status?: string; changed?: boolean };
-      const newStatus = (data.status ?? "pending") as OrderStatus;
-      onSynced(newStatus);
-      setDone(true);
+
+      const data = await res.json().catch(() => ({})) as {
+        status?: string;
+        error?: string;
+      };
+
+      if (!res.ok) {
+        onError(data.error ?? `Gagal mengecek status (${res.status}).`);
+        return;
+      }
+
+      onSynced((data.status ?? "pending") as OrderStatus);
     } catch {
-      // Silently fail — user can retry
+      onError("Tidak dapat terhubung ke server. Coba lagi.");
     } finally {
       setSyncing(false);
     }
@@ -169,11 +182,89 @@ function SyncButton({
   return (
     <button
       onClick={handleSync}
-      disabled={syncing || done}
+      disabled={syncing}
       className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-primary/10 py-2 text-xs font-bold text-primary transition hover:bg-primary/20 disabled:opacity-60"
     >
       <RefreshCw size={12} className={syncing ? "animate-spin" : ""} />
-      {syncing ? "Mengecek…" : done ? "Selesai" : "Cek Status"}
+      {syncing ? "Mengecek…" : "Cek Status"}
+    </button>
+  );
+}
+
+// ─── Resume-payment button ──────────────────────────────────────────────────
+// Reopens the Midtrans Snap popup using the order's stored snap_token (valid
+// 24h). If the token is missing/expired, sends the user to /pricing to start
+// a fresh order.
+
+function ResumePayButton({
+  order,
+  onSynced,
+  onPaid,
+  onError,
+}: {
+  order: PaymentOrder;
+  onSynced: (newStatus: OrderStatus) => void;
+  onPaid: (plan: "premium" | "pro") => void;
+  onError: (message: string) => void;
+}) {
+  const [loading, setLoading] = useState(false);
+
+  const handleResume = async () => {
+    if (!order.snap_token) {
+      // No token to resume — start fresh from pricing.
+      window.location.href = "/pricing";
+      return;
+    }
+
+    setLoading(true);
+    onError("");
+
+    const syncAfter = async () => {
+      try {
+        const res = await fetch("/api/payments/sync", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ order_id: order.order_id }),
+        });
+        const data = await res.json().catch(() => ({})) as { status?: string };
+        return (data.status ?? "pending") as OrderStatus;
+      } catch {
+        return "pending" as OrderStatus;
+      }
+    };
+
+    try {
+      await openSnap(order.snap_token, {
+        onSuccess: async () => {
+          const status = await syncAfter();
+          onSynced(status);
+          if (status === "paid" && (order.plan === "premium" || order.plan === "pro")) {
+            onPaid(order.plan);
+          }
+        },
+        onPending: async () => {
+          const status = await syncAfter();
+          onSynced(status);
+        },
+        onError: () => onError("Pembayaran gagal. Silakan coba lagi."),
+        onClose: () => { /* user dismissed popup */ },
+      });
+    } catch {
+      onError("Gagal membuka pembayaran. Coba lagi.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <button
+      onClick={handleResume}
+      disabled={loading}
+      className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-amber-500/10 py-2 text-xs font-bold text-amber-600 transition hover:bg-amber-500/20 disabled:opacity-60 dark:text-amber-400"
+    >
+      <Wallet size={12} />
+      {loading ? "Membuka…" : "Lanjutkan Bayar"}
     </button>
   );
 }
@@ -209,6 +300,14 @@ export default function PaymentHistoryPage() {
   const [orders, setOrders] = useState<PaymentOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [paidDialog, setPaidDialog] = useState<{ plan: "premium" | "pro" } | null>(null);
+
+  const updateOrderStatus = (orderId: string, newStatus: PaymentOrder["status"]) => {
+    setOrders((prev) =>
+      prev.map((o) => (o.order_id === orderId ? { ...o, status: newStatus } : o))
+    );
+  };
 
   useEffect(() => {
     let active = true;
@@ -228,7 +327,21 @@ export default function PaymentHistoryPage() {
 
   return (
     <AppFrame title="Riwayat Pembayaran" subtitle="Transaksi langganan kamu">
+      {paidDialog && (
+        <PaymentSuccessDialog
+          plan={paidDialog.plan}
+          onClose={() => setPaidDialog(null)}
+        />
+      )}
       <div className="mt-4 space-y-3 pb-8">
+
+        {/* Action-level error (sync / resume payment) */}
+        {actionError && (
+          <div className="flex items-center gap-3 rounded-2xl border border-expense/30 bg-expense/8 px-4 py-3 text-sm font-semibold text-expense">
+            <AlertCircle size={16} className="shrink-0" />
+            {actionError}
+          </div>
+        )}
 
         {/* Summary card — only when there are paid orders */}
         {!loading && orders.some((o) => o.status === "paid") && (
@@ -337,20 +450,19 @@ export default function PaymentHistoryPage() {
                       <SyncButton
                         orderId={order.order_id}
                         onSynced={(newStatus) => {
-                          setOrders((prev) =>
-                            prev.map((o) =>
-                              o.order_id === order.order_id ? { ...o, status: newStatus } : o
-                            )
-                          );
+                          updateOrderStatus(order.order_id, newStatus);
+                          if (newStatus === "paid" && (order.plan === "premium" || order.plan === "pro")) {
+                            setPaidDialog({ plan: order.plan });
+                          }
                         }}
+                        onError={(msg) => setActionError(msg || null)}
                       />
-                      <Link
-                        href="/pricing"
-                        className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-amber-500/10 py-2 text-xs font-bold text-amber-600 transition hover:bg-amber-500/20 dark:text-amber-400"
-                      >
-                        <ExternalLink size={12} />
-                        Selesaikan
-                      </Link>
+                      <ResumePayButton
+                        order={order}
+                        onSynced={(newStatus) => updateOrderStatus(order.order_id, newStatus)}
+                        onPaid={(plan) => setPaidDialog({ plan })}
+                        onError={(msg) => setActionError(msg || null)}
+                      />
                     </div>
                   )}
                 </div>

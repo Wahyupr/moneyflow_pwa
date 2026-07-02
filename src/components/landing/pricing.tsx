@@ -5,6 +5,8 @@ import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Check, Lock, ChevronDown, Sparkles, ArrowRight, Zap, Loader2, CheckCircle2, Clock, AlertCircle } from "lucide-react";
 import { Reveal } from "@/components/landing/reveal";
+import { openSnap } from "@/lib/payments/snap-client";
+import { PaymentSuccessDialog } from "@/components/payments/payment-success-dialog";
 
 // ─── Plan definitions ────────────────────────────────────────────────────────
 
@@ -170,12 +172,14 @@ function SnapPayButton({
   label,
   className,
   isLoggedIn,
+  onPaid,
 }: {
   plan: "premium" | "pro";
   billing: "monthly" | "yearly";
   label: string;
   className?: string;
   isLoggedIn: boolean;
+  onPaid: (plan: "premium" | "pro", billing: "monthly" | "yearly") => void;
 }) {
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState<string | null>(null);
@@ -187,22 +191,6 @@ function SnapPayButton({
     setNeedsLogin(false);
 
     try {
-      // Ensure Midtrans Snap JS is loaded
-      if (typeof window !== "undefined" && !(window as unknown as Record<string, unknown>).snap) {
-        await new Promise<void>((resolve, reject) => {
-          const clientKey = process.env.NEXT_PUBLIC_MIDTRANS_CLIENT_KEY ?? "";
-          const script    = document.createElement("script");
-          const env       = process.env.NEXT_PUBLIC_MIDTRANS_IS_PRODUCTION === "true"
-            ? "app"
-            : "app.sandbox";
-          script.src      = `https://${env}.midtrans.com/snap/snap.js`;
-          script.setAttribute("data-client-key", clientKey);
-          script.onload   = () => resolve();
-          script.onerror  = () => reject(new Error("Failed to load Snap JS"));
-          document.head.appendChild(script);
-        });
-      }
-
       const res = await fetch("/api/payments/snap", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -246,12 +234,11 @@ function SnapPayButton({
         throw new Error("Response tidak valid dari server.");
       }
 
-      const snap = (window as unknown as { snap?: { pay: (token: string, opts: unknown) => void } }).snap;
-
-      if (snap?.pay) {
-        snap.pay(snapToken, {
+      await openSnap(
+        snapToken,
+        {
           onSuccess: async () => {
-            // Call sync to ensure DB is updated before leaving the page
+            // Sync so the DB reflects "paid" before we celebrate.
             try {
               await fetch("/api/payments/sync", {
                 method: "POST",
@@ -260,24 +247,22 @@ function SnapPayButton({
                 body: JSON.stringify({ order_id: returnedOrderId }),
               });
             } catch {
-              // Non-fatal — webhook or future sync will cover it
+              // Non-fatal — webhook or a later sync will cover it.
             }
-            window.location.href = "/dashboard?payment=success";
+            onPaid(plan, billing);
           },
-          onPending:  () => {
+          onPending: () => {
             // Store order_id so pricing page can sync when user comes back
             if (typeof sessionStorage !== "undefined") {
               sessionStorage.setItem("mf_last_order_id", returnedOrderId);
             }
             window.location.href = `/pricing?payment=pending&order_id=${encodeURIComponent(returnedOrderId)}`;
           },
-          onError:    () => { setError("Pembayaran gagal. Silakan coba lagi."); },
-          onClose:    () => { /* user closed popup */ },
-        });
-      } else {
-        // Popup blocked — use redirect
-        window.location.href = redirectUrl;
-      }
+          onError: () => { setError("Pembayaran gagal. Silakan coba lagi."); },
+          onClose: () => { /* user closed popup */ },
+        },
+        redirectUrl
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : "Terjadi kesalahan.");
     } finally {
@@ -325,7 +310,13 @@ function SnapPayButton({
 
 // ─── Payment result banner (auto-sync on ?payment=finish/pending) ─────────────
 
-function PaymentResultBanner({ isLoggedIn }: { isLoggedIn: boolean }) {
+function PaymentResultBanner({
+  isLoggedIn,
+  onPaid,
+}: {
+  isLoggedIn: boolean;
+  onPaid: (plan: "premium" | "pro", billing: "monthly" | "yearly") => void;
+}) {
   const params = useSearchParams();
   const payment = params?.get("payment") ?? null;
   const orderId = params?.get("order_id") ?? null;
@@ -352,13 +343,18 @@ function PaymentResultBanner({ isLoggedIn }: { isLoggedIn: boolean }) {
       body: JSON.stringify({ order_id: oid }),
     })
       .then((r) => r.json())
-      .then((data: { status?: string; error?: string }) => {
+      .then((data: { status?: string; error?: string; plan?: string; billing?: string }) => {
         if (data.error) {
           setSyncError(data.error);
         } else {
-          setSyncResult((data.status ?? "pending") as typeof syncResult);
+          const status = (data.status ?? "pending") as typeof syncResult;
+          setSyncResult(status);
           if (typeof sessionStorage !== "undefined") {
             sessionStorage.removeItem("mf_last_order_id");
+          }
+          if (status === "paid" && (data.plan === "premium" || data.plan === "pro")) {
+            const billing = data.billing === "yearly" ? "yearly" : "monthly";
+            onPaid(data.plan, billing);
           }
         }
       })
@@ -437,6 +433,11 @@ interface PricingProps {
 export function Pricing({ isLoggedIn = false }: PricingProps) {
   const [yearly, setYearly] = useState(false);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
+  const [paidDialog, setPaidDialog] = useState<{ plan: "premium" | "pro"; billing: "monthly" | "yearly" } | null>(null);
+
+  const handlePaid = useCallback((plan: "premium" | "pro", billing: "monthly" | "yearly") => {
+    setPaidDialog({ plan, billing });
+  }, []);
 
   const premiumPrice = yearly ? PRICES.premium.yearly_per_month : PRICES.premium.monthly;
   const proPrice     = yearly ? PRICES.pro.yearly_per_month     : PRICES.pro.monthly;
@@ -449,8 +450,15 @@ export function Pricing({ isLoggedIn = false }: PricingProps) {
 
   return (
     <section id="pricing" className="mx-auto max-w-6xl py-16 md:py-24">
+      {paidDialog && (
+        <PaymentSuccessDialog
+          plan={paidDialog.plan}
+          billing={paidDialog.billing}
+          onClose={() => setPaidDialog(null)}
+        />
+      )}
       <Suspense fallback={null}>
-        <PaymentResultBanner isLoggedIn={isLoggedIn} />
+        <PaymentResultBanner isLoggedIn={isLoggedIn} onPaid={handlePaid} />
       </Suspense>
       <div className="px-5">
       {/* Header */}
@@ -563,6 +571,7 @@ export function Pricing({ isLoggedIn = false }: PricingProps) {
               billing={yearly ? "yearly" : "monthly"}
               label={premiumCta}
               isLoggedIn={isLoggedIn}
+              onPaid={handlePaid}
               className="mt-6 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-white font-bold text-primary shadow-card transition hover:shadow-[0_8px_30px_rgba(255,255,255,0.25)] active:scale-[0.98] disabled:opacity-70"
             />
 
@@ -614,6 +623,7 @@ export function Pricing({ isLoggedIn = false }: PricingProps) {
               billing={yearly ? "yearly" : "monthly"}
               label={proCta}
               isLoggedIn={isLoggedIn}
+              onPaid={handlePaid}
               className="mt-4 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-white font-bold text-amber-600 shadow-card transition hover:shadow-[0_8px_30px_rgba(255,255,255,0.25)] active:scale-[0.98] disabled:opacity-70"
             />
 
