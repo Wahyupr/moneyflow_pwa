@@ -94,7 +94,7 @@ function PremiumCelebrationDialog({ onContinue }: { onContinue: () => void }) {
       aria-modal="true"
       aria-labelledby="premium-welcome-title"
     >
-      <div className="flex w-full max-w-md flex-col rounded-t-3xl bg-surface shadow-lift sm:rounded-3xl animate-in slide-in-from-bottom-4 sm:zoom-in-95 duration-300 overflow-y-auto max-h-[95dvh]">
+      <div className="flex w-full max-w-md flex-col rounded-t-3xl bg-surface shadow-lift sm:rounded-3xl animate-in slide-in-from-bottom-4 sm:zoom-in-95 duration-300 overflow-y-auto overscroll-contain max-h-[90dvh] sm:max-h-[95dvh]">
         {/* Gradient header */}
         <div className="relative overflow-hidden rounded-t-3xl bg-gradient-to-br from-primary to-tertiary px-6 pb-8 pt-9 text-center text-white">
           <div className="pointer-events-none absolute -right-8 -top-10 size-32 rounded-full bg-white/15 blur-2xl" aria-hidden="true" />
