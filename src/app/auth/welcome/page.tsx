@@ -89,12 +89,12 @@ function PremiumCelebrationDialog({ onContinue }: { onContinue: () => void }) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 backdrop-blur-sm sm:items-center sm:p-4 animate-in fade-in duration-200"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-3 backdrop-blur-sm sm:p-4 animate-in fade-in duration-200"
       role="dialog"
       aria-modal="true"
       aria-labelledby="premium-welcome-title"
     >
-      <div className="flex w-full max-w-md flex-col rounded-t-3xl bg-surface shadow-lift sm:rounded-3xl animate-in slide-in-from-bottom-4 sm:zoom-in-95 duration-300 overflow-y-auto overscroll-contain max-h-[90dvh] sm:max-h-[95dvh]">
+      <div className="flex w-full max-w-md flex-col rounded-3xl bg-surface shadow-lift animate-in zoom-in-95 duration-300 overflow-y-auto overscroll-contain max-h-[92dvh] sm:max-h-[95dvh]">
         {/* Gradient header */}
         <div className="relative overflow-hidden rounded-t-3xl bg-gradient-to-br from-primary to-tertiary px-6 pb-8 pt-9 text-center text-white">
           <div className="pointer-events-none absolute -right-8 -top-10 size-32 rounded-full bg-white/15 blur-2xl" aria-hidden="true" />
