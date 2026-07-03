@@ -546,7 +546,14 @@ function WalletsContent() {
                       ...(getProvidersForType(form.type ?? "cash") ?? []).map((provider) => ({
                         value: provider.name,
                         label: provider.name,
-                        icon: <span className="size-3 rounded-full" style={{ backgroundColor: provider.color }} />
+                        icon: (
+                          <span
+                            className="inline-flex h-5 min-w-[28px] items-center justify-center rounded-md px-1.5 text-[9px] font-black leading-none tracking-wide"
+                            style={{ background: provider.badgeBg, color: provider.badgeText }}
+                          >
+                            {provider.abbr}
+                          </span>
+                        )
                       })),
                       { value: "__manual__", label: "Manual / Lainnya" }
                     ]}

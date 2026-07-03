@@ -5,7 +5,10 @@ import {
   CheckCircle2,
   Crown,
   Loader2,
+  MessageSquare,
+  ReceiptText,
   Sparkles,
+  Zap,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { PREMIUM_HIGHLIGHTS } from "@/lib/plan-features";
@@ -73,7 +76,17 @@ export default function WelcomePage() {
   );
 }
 
+const PRO_EXCLUSIVE = [
+  { icon: MessageSquare, label: "AI Asisten Chat interaktif" },
+  { icon: ReceiptText, label: "Scan struk tanpa batas" },
+  { icon: Sparkles, label: "Prioritas fitur terbaru" },
+];
+
 function PremiumCelebrationDialog({ onContinue }: { onContinue: () => void }) {
+  function goToPricing() {
+    window.location.href = "/pricing";
+  }
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 backdrop-blur-sm sm:items-center sm:p-4 animate-in fade-in duration-200"
@@ -81,7 +94,7 @@ function PremiumCelebrationDialog({ onContinue }: { onContinue: () => void }) {
       aria-modal="true"
       aria-labelledby="premium-welcome-title"
     >
-      <div className="flex w-full max-w-md flex-col rounded-t-3xl bg-surface shadow-lift sm:rounded-3xl animate-in slide-in-from-bottom-4 sm:zoom-in-95 duration-300">
+      <div className="flex w-full max-w-md flex-col rounded-t-3xl bg-surface shadow-lift sm:rounded-3xl animate-in slide-in-from-bottom-4 sm:zoom-in-95 duration-300 overflow-y-auto max-h-[95dvh]">
         {/* Gradient header */}
         <div className="relative overflow-hidden rounded-t-3xl bg-gradient-to-br from-primary to-tertiary px-6 pb-8 pt-9 text-center text-white">
           <div className="pointer-events-none absolute -right-8 -top-10 size-32 rounded-full bg-white/15 blur-2xl" aria-hidden="true" />
@@ -110,7 +123,7 @@ function PremiumCelebrationDialog({ onContinue }: { onContinue: () => void }) {
         </div>
 
         {/* Feature highlights */}
-        <div className="px-6 py-5">
+        <div className="px-6 pt-5 pb-4">
           <p className="mb-3 text-xs font-bold uppercase tracking-wider text-muted">
             Fitur yang terbuka
           </p>
@@ -130,15 +143,60 @@ function PremiumCelebrationDialog({ onContinue }: { onContinue: () => void }) {
               );
             })}
           </ul>
+        </div>
 
+        {/* Pro upsell */}
+        <div className="mx-6 mb-5 rounded-2xl border border-amber-200/60 bg-amber-50/60 px-4 py-4 dark:border-amber-800/40 dark:bg-amber-950/30">
+          <div className="mb-2.5 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="flex size-6 items-center justify-center rounded-lg bg-gradient-to-br from-amber-400 to-orange-500 text-white">
+                <Zap aria-hidden="true" size={13} strokeWidth={2.5} />
+              </span>
+              <span className="text-[13px] font-extrabold text-amber-900 dark:text-amber-200">
+                Mau lebih? Coba Pro
+              </span>
+            </div>
+            <span className="rounded-full bg-amber-500/15 px-2.5 py-0.5 text-[11px] font-bold text-amber-700 dark:text-amber-300">
+              +Rp10.000/bln
+            </span>
+          </div>
+          <p className="mb-3 text-[12px] leading-relaxed text-amber-800/80 dark:text-amber-300/70">
+            Hanya selisih Rp10.000 dari Premium — buka fitur eksklusif yang bikin pencatatan jauh lebih pintar.
+          </p>
+          <ul className="space-y-1.5">
+            {PRO_EXCLUSIVE.map((feature) => {
+              const Icon = feature.icon;
+              return (
+                <li key={feature.label} className="flex items-center gap-2">
+                  <Icon aria-hidden="true" size={13} className="shrink-0 text-amber-600 dark:text-amber-400" />
+                  <span className="text-[12px] font-semibold text-amber-900 dark:text-amber-200">{feature.label}</span>
+                </li>
+              );
+            })}
+          </ul>
+          <button
+            type="button"
+            onClick={goToPricing}
+            className="mt-3.5 flex min-h-10 w-full items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 px-4 text-[13px] font-bold text-white shadow-sm transition hover:brightness-105 active:scale-[0.98]"
+          >
+            Lihat Paket Pro
+            <ArrowRight aria-hidden="true" size={15} />
+          </button>
+        </div>
+
+        {/* Primary CTA */}
+        <div className="px-6 pb-6">
           <button
             type="button"
             onClick={onContinue}
-            className="mt-5 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-primary to-tertiary px-4 text-sm font-bold text-white shadow-card transition hover:brightness-105 active:scale-[0.98]"
+            className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-outline bg-surface-low px-4 text-sm font-semibold text-ink transition hover:bg-surface active:scale-[0.98]"
           >
-            Mulai Sekarang
+            Mulai Sekarang dengan Premium
             <ArrowRight aria-hidden="true" size={18} />
           </button>
+          <p className="mt-2.5 text-center text-[11px] text-muted">
+            Upgrade ke Pro kapan saja dari halaman Pengaturan
+          </p>
         </div>
       </div>
     </div>
