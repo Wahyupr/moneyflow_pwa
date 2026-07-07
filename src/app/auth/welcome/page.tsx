@@ -94,9 +94,9 @@ function PremiumCelebrationDialog({ onContinue }: { onContinue: () => void }) {
       aria-modal="true"
       aria-labelledby="premium-welcome-title"
     >
-      <div className="flex w-full max-w-md flex-col rounded-3xl bg-surface shadow-lift animate-in zoom-in-95 duration-300 overflow-y-auto overscroll-contain max-h-[92dvh] sm:max-h-[95dvh]">
+      <div className="flex w-full max-w-md flex-col rounded-3xl bg-surface shadow-lift animate-in zoom-in-95 duration-300 max-h-[92dvh] sm:max-h-[95dvh]">
         {/* Gradient header */}
-        <div className="relative overflow-hidden rounded-t-3xl bg-gradient-to-br from-primary to-tertiary px-6 pb-8 pt-9 text-center text-white">
+        <div className="relative flex-shrink-0 overflow-hidden rounded-t-3xl bg-gradient-to-br from-primary to-tertiary px-6 pb-8 pt-9 text-center text-white">
           <div className="pointer-events-none absolute -right-8 -top-10 size-32 rounded-full bg-white/15 blur-2xl" aria-hidden="true" />
           <div className="pointer-events-none absolute -bottom-12 -left-6 size-32 rounded-full bg-white/10 blur-2xl" aria-hidden="true" />
 
@@ -122,70 +122,73 @@ function PremiumCelebrationDialog({ onContinue }: { onContinue: () => void }) {
           </p>
         </div>
 
-        {/* Feature highlights */}
-        <div className="px-6 pt-5 pb-4">
-          <p className="mb-3 text-xs font-bold uppercase tracking-wider text-muted">
-            Fitur yang terbuka
-          </p>
-          <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            {PREMIUM_HIGHLIGHTS.map((feature) => {
-              const Icon = feature.icon;
-              return (
-                <li
-                  key={feature.label}
-                  className="flex items-center gap-2.5 rounded-xl border border-outline/50 bg-surface-low/50 px-3 py-2.5"
-                >
-                  <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-tertiary text-white">
-                    <Icon aria-hidden="true" size={14} />
-                  </span>
-                  <span className="text-[13px] font-semibold leading-tight text-ink">{feature.label}</span>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
+        {/* Scrollable body */}
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+          {/* Feature highlights */}
+          <div className="px-6 pt-5 pb-4">
+            <p className="mb-3 text-xs font-bold uppercase tracking-wider text-muted">
+              Fitur yang terbuka
+            </p>
+            <ul className="grid grid-cols-1 gap-2">
+              {PREMIUM_HIGHLIGHTS.map((feature) => {
+                const Icon = feature.icon;
+                return (
+                  <li
+                    key={feature.label}
+                    className="flex items-center gap-2.5 rounded-xl border border-outline/50 bg-surface-low/50 px-3 py-2.5"
+                  >
+                    <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-tertiary text-white">
+                      <Icon aria-hidden="true" size={14} />
+                    </span>
+                    <span className="min-w-0 text-[13px] font-semibold leading-tight text-ink">{feature.label}</span>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
 
-        {/* Pro upsell */}
-        <div className="mx-6 mb-5 rounded-2xl border border-amber-200/60 bg-amber-50/60 px-4 py-4 dark:border-amber-800/40 dark:bg-amber-950/30">
-          <div className="mb-2.5 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="flex size-6 items-center justify-center rounded-lg bg-gradient-to-br from-amber-400 to-orange-500 text-white">
-                <Zap aria-hidden="true" size={13} strokeWidth={2.5} />
-              </span>
-              <span className="text-[13px] font-extrabold text-amber-900 dark:text-amber-200">
-                Mau lebih? Coba Pro
+          {/* Pro upsell */}
+          <div className="mx-6 mb-5 rounded-2xl border border-amber-200/60 bg-amber-50/60 px-4 py-4 dark:border-amber-800/40 dark:bg-amber-950/30">
+            <div className="mb-2.5 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="flex size-6 items-center justify-center rounded-lg bg-gradient-to-br from-amber-400 to-orange-500 text-white">
+                  <Zap aria-hidden="true" size={13} strokeWidth={2.5} />
+                </span>
+                <span className="text-[13px] font-extrabold text-amber-900 dark:text-amber-200">
+                  Mau lebih? Coba Pro
+                </span>
+              </div>
+              <span className="rounded-full bg-amber-500/15 px-2.5 py-0.5 text-[11px] font-bold text-amber-700 dark:text-amber-300">
+                +Rp10.000/bln
               </span>
             </div>
-            <span className="rounded-full bg-amber-500/15 px-2.5 py-0.5 text-[11px] font-bold text-amber-700 dark:text-amber-300">
-              +Rp10.000/bln
-            </span>
+            <p className="mb-3 text-[12px] leading-relaxed text-amber-800/80 dark:text-amber-300/70">
+              Hanya selisih Rp10.000 dari Premium — buka fitur eksklusif yang bikin pencatatan jauh lebih pintar.
+            </p>
+            <ul className="space-y-1.5">
+              {PRO_EXCLUSIVE.map((feature) => {
+                const Icon = feature.icon;
+                return (
+                  <li key={feature.label} className="flex items-center gap-2">
+                    <Icon aria-hidden="true" size={13} className="shrink-0 text-amber-600 dark:text-amber-400" />
+                    <span className="min-w-0 text-[12px] font-semibold text-amber-900 dark:text-amber-200">{feature.label}</span>
+                  </li>
+                );
+              })}
+            </ul>
+            <button
+              type="button"
+              onClick={goToPricing}
+              className="mt-3.5 flex min-h-10 w-full items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 px-4 text-[13px] font-bold text-white shadow-sm transition hover:brightness-105 active:scale-[0.98]"
+            >
+              Lihat Paket Pro
+              <ArrowRight aria-hidden="true" size={15} />
+            </button>
           </div>
-          <p className="mb-3 text-[12px] leading-relaxed text-amber-800/80 dark:text-amber-300/70">
-            Hanya selisih Rp10.000 dari Premium — buka fitur eksklusif yang bikin pencatatan jauh lebih pintar.
-          </p>
-          <ul className="space-y-1.5">
-            {PRO_EXCLUSIVE.map((feature) => {
-              const Icon = feature.icon;
-              return (
-                <li key={feature.label} className="flex items-center gap-2">
-                  <Icon aria-hidden="true" size={13} className="shrink-0 text-amber-600 dark:text-amber-400" />
-                  <span className="text-[12px] font-semibold text-amber-900 dark:text-amber-200">{feature.label}</span>
-                </li>
-              );
-            })}
-          </ul>
-          <button
-            type="button"
-            onClick={goToPricing}
-            className="mt-3.5 flex min-h-10 w-full items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 px-4 text-[13px] font-bold text-white shadow-sm transition hover:brightness-105 active:scale-[0.98]"
-          >
-            Lihat Paket Pro
-            <ArrowRight aria-hidden="true" size={15} />
-          </button>
         </div>
 
-        {/* Primary CTA */}
-        <div className="px-6 pb-6">
+        {/* Sticky footer CTA */}
+        <div className="flex-shrink-0 border-t border-outline/30 px-6 pb-6 pt-4">
           <button
             type="button"
             onClick={onContinue}

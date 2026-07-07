@@ -6,7 +6,7 @@ export type UserRow = {
   email: string;
   password_hash: string | null;
   display_name: string | null;
-  role: "user" | "admin";
+  role: "user" | "admin" | "cs";
   google_sub: string | null;
   email_verified_at: string | null;
 };

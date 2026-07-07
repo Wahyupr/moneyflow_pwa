@@ -5,6 +5,11 @@ import { requireApiUser } from "@/lib/api/auth";
 import { parseVoiceTransaction, type ParsedVoiceTransaction } from "@/lib/voice/parse";
 import { isAiConfigured, parseVoiceWithAi } from "@/lib/voice/ai";
 import { getActivePlan } from "@/lib/plan";
+import {
+  isFinancialQuestion,
+  answerFinancialQuestion,
+  type FinancialContext,
+} from "@/lib/voice/financial-ai";
 
 export const runtime = "nodejs";
 
@@ -77,8 +82,74 @@ export async function POST(request: NextRequest) {
 
   const { message, commit } = parsedBody.data;
 
-  // Chat (AI transaction parsing) is available to all plans.
-  // If we ever gate it to Pro only, enforce here via getActivePlan.
+  const plan = await getActivePlan(auth.user.id);
+
+  // PRO only: intercept financial questions before transaction parsing
+  if (plan === "pro" && commit !== true && isFinancialQuestion(message)) {
+    try {
+      const now = new Date();
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+
+      const [
+        { data: walletRows },
+        { data: expenseRows },
+        { data: incomeRows },
+        { data: budgetRows },
+        { data: categoryRows },
+      ] = await Promise.all([
+        auth.db
+          .from("wallets")
+          .select("name,balance_minor,currency")
+          .eq("user_id", auth.user.id)
+          .is("archived_at", null),
+        auth.db
+          .from("transactions")
+          .select("amount_minor,category_id")
+          .eq("user_id", auth.user.id)
+          .eq("transaction_type", "expense")
+          .gte("occurred_at", startOfMonth),
+        auth.db
+          .from("transactions")
+          .select("amount_minor")
+          .eq("user_id", auth.user.id)
+          .eq("transaction_type", "income")
+          .gte("occurred_at", startOfMonth),
+        auth.db
+          .from("budgets")
+          .select("name,allocated_minor,spent_minor")
+          .eq("user_id", auth.user.id),
+        auth.db.from("categories").select("id,name"),
+      ]);
+
+      // Aggregate expenses by category
+      const catMap = Object.fromEntries(
+        ((categoryRows ?? []) as { id: string; name: string }[]).map((c) => [c.id, c.name])
+      );
+      const catTotals: Record<string, number> = {};
+      for (const row of (expenseRows ?? []) as { amount_minor: number; category_id: string | null }[]) {
+        const name = row.category_id ? (catMap[row.category_id] ?? "Lainnya") : "Lainnya";
+        catTotals[name] = (catTotals[name] ?? 0) + row.amount_minor;
+      }
+      const topCategories = Object.entries(catTotals)
+        .map(([name, total_minor]) => ({ name, total_minor }))
+        .sort((a, b) => b.total_minor - a.total_minor);
+
+      const ctx: FinancialContext = {
+        wallets: (walletRows ?? []) as FinancialContext["wallets"],
+        thisMonthExpense: ((expenseRows ?? []) as { amount_minor: number }[])
+          .reduce((s, r) => s + r.amount_minor, 0),
+        thisMonthIncome: ((incomeRows ?? []) as { amount_minor: number }[])
+          .reduce((s, r) => s + r.amount_minor, 0),
+        topCategories,
+        budgets: (budgetRows ?? []) as FinancialContext["budgets"],
+      };
+
+      const reply = await answerFinancialQuestion(message, ctx);
+      return NextResponse.json({ reply });
+    } catch {
+      // Fall through to transaction parsing on error
+    }
+  }
 
   // Parse with rule-based first, fallback to AI
   let parsed = parseVoiceTransaction(message);

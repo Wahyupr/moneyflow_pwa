@@ -9,6 +9,7 @@ import {
   ChevronLeft,
   ChevronRight,
   HandCoins,
+  HeadphonesIcon,
   Home,
   Landmark,
   Mic,
@@ -58,11 +59,16 @@ const toolNav: NavItem[] = [
   { label: "Kategori", icon: Tags, href: "/categories" },
 ];
 
+const supportNav: NavItem[] = [
+  { label: "Bantuan", icon: HeadphonesIcon, href: "/support", matchPrefix: true },
+];
+
 const bottomNav: NavItem[] = [
   { label: "Pengaturan", icon: Settings, href: "/settings" },
 ];
 
 const adminNavItem: NavItem = { label: "Admin", icon: ShieldCheck, href: "/admin" };
+const adminSupportNavItem: NavItem = { label: "Support", icon: HeadphonesIcon, href: "/admin/support", matchPrefix: true };
 
 function SideNavLink({ item, pathname, collapsed }: { item: NavItem; pathname: string; collapsed: boolean }) {
   const Icon = item.icon;
@@ -101,6 +107,7 @@ export function AppFrame({
 }) {
   const pathname = usePathname() ?? "/";
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isStaff, setIsStaff] = useState(false);
   const [displayName, setDisplayName] = useState<string>("...");
   const [collapsed, setCollapsed] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -114,7 +121,9 @@ export function AppFrame({
       .then((response) => (response.ok ? response.json() : null))
       .then((json) => {
         if (!active) return;
-        if (json?.profile?.role === "admin") setIsAdmin(true);
+        const role = json?.profile?.role as string | undefined;
+        if (role === "admin") setIsAdmin(true);
+        if (role === "admin" || role === "cs") setIsStaff(true);
         const name = json?.profile?.display_name as string | undefined;
         if (name?.trim()) setDisplayName(name.trim());
       })
@@ -170,11 +179,18 @@ export function AppFrame({
               <SideNavLink key={item.href} item={item} pathname={pathname} collapsed={collapsed} />
             ))}
 
-            {isAdmin && (
+            {!collapsed && <p className="mb-1 mt-4 px-2 text-[10px] font-bold uppercase tracking-widest text-muted/60">Dukungan</p>}
+            {collapsed && <div className="my-2 h-px bg-surface-container" />}
+            {supportNav.map((item) => (
+              <SideNavLink key={item.href} item={item} pathname={pathname} collapsed={collapsed} />
+            ))}
+
+            {isStaff && (
               <>
                 {!collapsed && <p className="mb-1 mt-4 px-2 text-[10px] font-bold uppercase tracking-widest text-muted/60">Admin</p>}
                 {collapsed && <div className="my-2 h-px bg-surface-container" />}
-                <SideNavLink item={adminNavItem} pathname={pathname} collapsed={collapsed} />
+                {isAdmin && <SideNavLink item={adminNavItem} pathname={pathname} collapsed={collapsed} />}
+                <SideNavLink item={adminSupportNavItem} pathname={pathname} collapsed={collapsed} />
               </>
             )}
           </nav>
