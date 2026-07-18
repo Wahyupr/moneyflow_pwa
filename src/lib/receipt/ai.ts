@@ -32,7 +32,7 @@ export type ParsedReceipt = {
   notes: string | null;
 };
 
-const DEFAULT_MODEL = "gemini/gemini-2.5-pro";
+const DEFAULT_MODEL = "claude-sonnet-4.6";
 
 function getConfig() {
   // Prefer the new GATEWAY_* envs (struk-ocr style); fall back to AI_* so

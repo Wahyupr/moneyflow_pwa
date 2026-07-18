@@ -24,10 +24,14 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       user_email: string;
       subject: string;
       status: string;
+      category: string;
+      rating: number | null;
+      rating_comment: string | null;
       created_at: string;
       updated_at: string;
     }>(
-      `select t.id, t.user_id, u.email as user_email, t.subject, t.status, t.created_at, t.updated_at
+      `select t.id, t.user_id, u.email as user_email, t.subject, t.status,
+              t.category, t.rating, t.rating_comment, t.created_at, t.updated_at
        from support_tickets t
        join users u on u.id = t.user_id
        where t.id = $1`,
@@ -50,11 +54,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       sender_display_name: string | null;
       sender_role: string;
       body: string;
+      attachment_url: string | null;
       created_at: string;
     }>(
       `select m.id, m.sender_id, u.email as sender_email,
               u.display_name as sender_display_name, u.role as sender_role,
-              m.body, m.created_at
+              m.body, m.attachment_url, m.created_at
        from support_messages m
        join users u on u.id = m.sender_id
        where m.ticket_id = $1

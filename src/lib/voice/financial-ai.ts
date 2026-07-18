@@ -4,7 +4,7 @@
  */
 
 // Reuse the same gateway config as voice AI
-const DEFAULT_MODEL = "kr/claude-sonnet-4.6";
+const DEFAULT_MODEL = "claude-sonnet-4.6";
 
 function getConfig() {
   const apiKey = process.env.GATEWAY_API_KEY ?? process.env.AI_API_KEY ?? process.env.ANTHROPIC_API_KEY;
@@ -45,13 +45,15 @@ export type FinancialContext = {
   thisMonthIncome: number;
   topCategories: { name: string; total_minor: number }[];
   budgets: { name: string; allocated_minor: number; spent_minor: number }[];
+  debts: { name: string; creditor_name: string; total_amount_minor: number; remaining_minor: number }[];
+  receivables: { name: string; borrower_name: string; total_amount_minor: number; remaining_minor: number }[];
 };
 
 function formatRupiah(minor: number): string {
-  const major = minor / 100;
-  if (major >= 1_000_000) return `Rp ${(major / 1_000_000).toFixed(1)} juta`;
-  if (major >= 1_000) return `Rp ${(major / 1_000).toFixed(0)} ribu`;
-  return `Rp ${major.toFixed(0)}`;
+  // amount_minor in this app = rupiah (not cents), so no division needed
+  if (minor >= 1_000_000) return `Rp ${(minor / 1_000_000).toFixed(1)} juta`;
+  if (minor >= 1_000) return `Rp ${(minor / 1_000).toFixed(0)} ribu`;
+  return `Rp ${minor.toFixed(0)}`;
 }
 
 function buildSystemPrompt(ctx: FinancialContext): string {
@@ -75,18 +77,38 @@ function buildSystemPrompt(ctx: FinancialContext): string {
         .join("\n")
     : "  (tidak ada budget aktif)";
 
+  const debtSummary = ctx.debts.length
+    ? ctx.debts
+        .map((d) => `  - ${d.name} (ke ${d.creditor_name}): sisa ${formatRupiah(d.remaining_minor)} dari ${formatRupiah(d.total_amount_minor)}`)
+        .join("\n")
+    : "  (tidak ada hutang)";
+
+  const receivableSummary = ctx.receivables.length
+    ? ctx.receivables
+        .map((r) => `  - ${r.name} (dari ${r.borrower_name}): sisa tagih ${formatRupiah(r.remaining_minor)} dari ${formatRupiah(r.total_amount_minor)}`)
+        .join("\n")
+    : "  (tidak ada piutang)";
+
   return [
     "Kamu adalah asisten keuangan personal yang cerdas dan ramah untuk aplikasi MoneyFlow.",
-    "Kamu memiliki akses ke data keuangan nyata user dan harus menjawab berdasarkan data tersebut.",
-    "Jawab dalam Bahasa Indonesia, singkat dan actionable. Gunakan angka nyata dari data.",
-    "JANGAN keluar dari konteks keuangan personal. Tolak pertanyaan di luar topik keuangan dengan sopan.",
+    "Kamu memiliki akses ke data keuangan nyata pengguna dan harus menjawab berdasarkan data tersebut.",
+    "",
+    "ATURAN BAHASA (WAJIB DIPATUHI):",
+    "- Gunakan Bahasa Indonesia yang baku, benar, dan natural — tidak kaku dan tidak gaul berlebihan.",
+    "- Ejaan harus tepat: tidak boleh ada typo, salah ketik, atau penggunaan kata yang tidak baku.",
+    "- Gunakan tanda baca dengan benar. Kalimat diakhiri titik. Tidak berlebihan dalam tanda seru.",
+    "- Angka Rupiah: tulis 'Rp 1,5 juta' bukan 'Rp 1500000'. Gunakan satuan ribu/juta.",
+    "- Nada: profesional tapi hangat, seperti konsultan keuangan muda yang terpercaya.",
+    "- Respons singkat dan actionable. Fokus pada saran konkret, bukan penjelasan panjang.",
+    "- Gunakan markdown untuk struktur: **bold** untuk angka penting, bullet list untuk beberapa poin.",
+    "- JANGAN keluar dari konteks keuangan personal. Tolak pertanyaan di luar topik dengan sopan.",
     "",
     "=== DATA KEUANGAN USER SAAT INI ===",
     "",
     "Saldo Dompet:",
     walletSummary || "  (tidak ada dompet)",
     "",
-    `Bulan Ini:`,
+    "Bulan Ini:",
     `  - Total pengeluaran: ${formatRupiah(ctx.thisMonthExpense)}`,
     `  - Total pemasukan: ${formatRupiah(ctx.thisMonthIncome)}`,
     `  - Selisih: ${formatRupiah(ctx.thisMonthIncome - ctx.thisMonthExpense)}`,
@@ -96,6 +118,12 @@ function buildSystemPrompt(ctx: FinancialContext): string {
     "",
     "Status Budget:",
     budgetSummary,
+    "",
+    "Hutang (uang yang harus dibayar user):",
+    debtSummary,
+    "",
+    "Piutang (uang yang harus diterima user):",
+    receivableSummary,
     "",
     "=== AKHIR DATA ===",
     "",

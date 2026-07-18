@@ -150,6 +150,12 @@ function WalletsContent() {
 
   useEffect(() => {
     void load();
+
+    function handleVisibility() {
+      if (document.visibilityState === "visible") void load();
+    }
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => document.removeEventListener("visibilitychange", handleVisibility);
   }, [load]);
 
   function openCreate() {

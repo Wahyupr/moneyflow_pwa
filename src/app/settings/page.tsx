@@ -6,7 +6,10 @@ import {
   CalendarRange,
   ChevronRight,
   Crown,
+  HelpCircle,
+  Headphones,
   LogOut,
+  MessageSquare,
   Monitor,
   Moon,
   Receipt,
@@ -20,8 +23,8 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { useTheme } from "next-themes";
-import { PREMIUM_TO_PRO_PRICE, formatRp } from "@/components/landing/pricing";
+import { useTheme } from "@/components/theme-provider";
+import { PREMIUM_TO_PRO_PRICE, formatRp } from "@/lib/pricing";
 import { AppFrame } from "@/components/app-frame";
 import { MerchantManager } from "@/components/merchant-manager";
 import { PushNotificationManager } from "@/components/push-notification-manager";
@@ -314,6 +317,53 @@ export default function SettingsPage() {
             </SettingsCard>
           </SettingsGroup>
         )}
+
+        {/* ── Bantuan ────────────────────────────────────────── */}
+        <SettingsGroup label="Bantuan">
+          <SettingsCard>
+            <Link
+              href="/support"
+              className="flex items-center gap-3 px-4 py-3.5 transition hover:bg-surface-low active:scale-[0.99]"
+            >
+              <div className="flex size-9 shrink-0 items-center justify-center rounded-2xl bg-blue-500/10 text-blue-600 dark:text-blue-400">
+                <Headphones size={17} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="font-semibold text-ink">Hubungi CS / Support</p>
+                <p className="text-sm text-muted">Buat tiket, lacak status bantuan</p>
+              </div>
+              <ChevronRight size={16} className="text-muted" />
+            </Link>
+            <div className="h-px bg-outline/60 mx-4" />
+            <Link
+              href="/faq"
+              className="flex items-center gap-3 px-4 py-3.5 transition hover:bg-surface-low active:scale-[0.99]"
+            >
+              <div className="flex size-9 shrink-0 items-center justify-center rounded-2xl bg-green-500/10 text-green-600 dark:text-green-400">
+                <HelpCircle size={17} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="font-semibold text-ink">FAQ</p>
+                <p className="text-sm text-muted">Pertanyaan yang sering ditanyakan</p>
+              </div>
+              <ChevronRight size={16} className="text-muted" />
+            </Link>
+            <div className="h-px bg-outline/60 mx-4" />
+            <Link
+              href="/kontak"
+              className="flex items-center gap-3 px-4 py-3.5 transition hover:bg-surface-low active:scale-[0.99]"
+            >
+              <div className="flex size-9 shrink-0 items-center justify-center rounded-2xl bg-purple-500/10 text-purple-600 dark:text-purple-400">
+                <MessageSquare size={17} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="font-semibold text-ink">Kontak</p>
+                <p className="text-sm text-muted">Hubungi tim kami langsung</p>
+              </div>
+              <ChevronRight size={16} className="text-muted" />
+            </Link>
+          </SettingsCard>
+        </SettingsGroup>
 
         {/* ── Keluar ─────────────────────────────────────────── */}
         <SettingsGroup label="Akses">

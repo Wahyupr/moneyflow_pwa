@@ -10,7 +10,7 @@ import type { ParsedVoiceTransaction } from "@/lib/voice/parse";
 
 // Voice prompts are short — sonnet is plenty (and cheaper than opus). Override
 // per-feature with AI_VOICE_MODEL; the receipt path uses AI_MODEL separately.
-const DEFAULT_MODEL = "kr/claude-sonnet-4.6";
+const DEFAULT_MODEL = "claude-sonnet-4.6";
 
 function getConfig() {
   const apiKey = process.env.GATEWAY_API_KEY ?? process.env.AI_API_KEY ?? process.env.ANTHROPIC_API_KEY;

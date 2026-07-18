@@ -5,6 +5,7 @@ import { formatCurrency } from "@/lib/money";
 import type { LedgerTransaction } from "@/lib/types";
 
 type DayBucket = { day: number; income: number; expense: number };
+type ChartType = "line" | "bar";
 
 function buildDailyBuckets(transactions: LedgerTransaction[], month: string): DayBucket[] {
   const [y, m] = month.split("-").map(Number);
@@ -64,9 +65,80 @@ function buildAreaPath(buckets: DayBucket[], key: "income" | "expense", maxVal: 
   return `${curvePart} L ${last[0].toFixed(1)} ${baseline} L ${first[0].toFixed(1)} ${baseline} Z`;
 }
 
-// Label sumbu X: tampilkan tiap 5 hari (1, 5, 10, 15, 20, 25, 30)
 function shouldShowLabel(day: number): boolean {
   return day === 1 || day % 5 === 0;
+}
+
+const BAR_GAP = 1;
+
+function BarChart({ buckets, maxVal }: { buckets: DayBucket[]; maxVal: number }) {
+  const n = buckets.length;
+  const slotW = innerW / n;
+  const barW = Math.max((slotW - BAR_GAP * 3) / 2, 1);
+
+  return (
+    <>
+      {buckets.map((b, i) => {
+        const slotX = PAD.left + i * slotW;
+        const incomeH = (b.income / maxVal) * innerH;
+        const expenseH = (b.expense / maxVal) * innerH;
+        const baseline = PAD.top + innerH;
+        return (
+          <g key={b.day}>
+            <rect
+              x={slotX + BAR_GAP}
+              y={baseline - incomeH}
+              width={barW}
+              height={incomeH}
+              fill="#10B981"
+              fillOpacity={0.8}
+              rx={1}
+            />
+            <rect
+              x={slotX + BAR_GAP * 2 + barW}
+              y={baseline - expenseH}
+              width={barW}
+              height={expenseH}
+              fill="#EF4444"
+              fillOpacity={0.8}
+              rx={1}
+            />
+          </g>
+        );
+      })}
+    </>
+  );
+}
+
+function LineChart({
+  incomePath,
+  expensePath,
+  incomeArea,
+  expenseArea,
+}: {
+  incomePath: string;
+  expensePath: string;
+  incomeArea: string;
+  expenseArea: string;
+}) {
+  return (
+    <>
+      <defs>
+        <linearGradient id="grad-income" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#10B981" stopOpacity="0.25" />
+          <stop offset="100%" stopColor="#10B981" stopOpacity="0" />
+        </linearGradient>
+        <linearGradient id="grad-expense" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#EF4444" stopOpacity="0.2" />
+          <stop offset="100%" stopColor="#EF4444" stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <path d={incomeArea} fill="url(#grad-income)" />
+      <path d={expenseArea} fill="url(#grad-expense)" />
+      <path d={incomePath} fill="none" stroke="#10B981" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+      <path d={expensePath} fill="none" stroke="#EF4444" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+    </>
+  );
 }
 
 export function SpendingChart({
@@ -78,6 +150,8 @@ export function SpendingChart({
   month: string;
   hidden: boolean;
 }) {
+  const [chartType, setChartType] = useState<ChartType>("line");
+
   const buckets = useMemo(() => buildDailyBuckets(transactions, month), [transactions, month]);
   const maxVal = Math.max(...buckets.flatMap((b) => [b.income, b.expense]), 1);
 
@@ -86,7 +160,6 @@ export function SpendingChart({
   const incomeArea = useMemo(() => buildAreaPath(buckets, "income", maxVal), [buckets, maxVal]);
   const expenseArea = useMemo(() => buildAreaPath(buckets, "expense", maxVal), [buckets, maxVal]);
 
-  // Hitung total untuk summary row
   const totalIncome = useMemo(() => buckets.reduce((s, b) => s + b.income, 0), [buckets]);
   const totalExpense = useMemo(() => buckets.reduce((s, b) => s + b.expense, 0), [buckets]);
 
@@ -95,37 +168,54 @@ export function SpendingChart({
       {/* Header */}
       <div className="mb-3 flex items-center justify-between">
         <h2 className="text-sm font-bold text-ink">Arus Kas Harian</h2>
-        <div className="flex items-center gap-3 text-xs text-muted">
-          <span className="flex items-center gap-1.5">
-            <span className="inline-block h-0.5 w-4 rounded-full bg-income" />
-            Pemasukan
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="inline-block h-0.5 w-4 rounded-full bg-expense" />
-            Pengeluaran
-          </span>
+        <div className="flex items-center gap-3">
+          {/* Toggle diagram */}
+          <div className="flex items-center rounded-lg bg-surface-container p-0.5">
+            <button
+              onClick={() => setChartType("line")}
+              aria-pressed={chartType === "line"}
+              className={`rounded-md px-2 py-1 text-xs transition-colors ${
+                chartType === "line"
+                  ? "bg-surface text-ink shadow-sm"
+                  : "text-muted hover:text-ink"
+              }`}
+            >
+              Garis
+            </button>
+            <button
+              onClick={() => setChartType("bar")}
+              aria-pressed={chartType === "bar"}
+              className={`rounded-md px-2 py-1 text-xs transition-colors ${
+                chartType === "bar"
+                  ? "bg-surface text-ink shadow-sm"
+                  : "text-muted hover:text-ink"
+              }`}
+            >
+              Batang
+            </button>
+          </div>
+          {/* Legend */}
+          <div className="flex items-center gap-3 text-xs text-muted">
+            <span className="flex items-center gap-1.5">
+              <span className="inline-block h-0.5 w-4 rounded-full bg-income" />
+              Pemasukan
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="inline-block h-0.5 w-4 rounded-full bg-expense" />
+              Pengeluaran
+            </span>
+          </div>
         </div>
       </div>
 
-      {/* SVG line chart */}
+      {/* SVG chart */}
       <svg
         viewBox={`0 0 ${W} ${H}`}
         className="w-full"
         style={{ height: H }}
-        aria-label="Grafik arus kas harian"
+        aria-label={`Grafik arus kas harian - diagram ${chartType === "line" ? "garis" : "batang"}`}
         role="img"
       >
-        <defs>
-          <linearGradient id="grad-income" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#10B981" stopOpacity="0.25" />
-            <stop offset="100%" stopColor="#10B981" stopOpacity="0" />
-          </linearGradient>
-          <linearGradient id="grad-expense" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#EF4444" stopOpacity="0.2" />
-            <stop offset="100%" stopColor="#EF4444" stopOpacity="0" />
-          </linearGradient>
-        </defs>
-
         {/* Horizontal grid lines */}
         {[0, 0.25, 0.5, 0.75, 1].map((frac) => (
           <line
@@ -140,29 +230,18 @@ export function SpendingChart({
           />
         ))}
 
-        {/* Area fills */}
-        <path d={incomeArea} fill="url(#grad-income)" />
-        <path d={expenseArea} fill="url(#grad-expense)" />
+        {chartType === "line" ? (
+          <LineChart
+            incomePath={incomePath}
+            expensePath={expensePath}
+            incomeArea={incomeArea}
+            expenseArea={expenseArea}
+          />
+        ) : (
+          <BarChart buckets={buckets} maxVal={maxVal} />
+        )}
 
-        {/* Lines — pakai <path> bukan <polyline> agar smooth */}
-        <path
-          d={incomePath}
-          fill="none"
-          stroke="#10B981"
-          strokeWidth={2}
-          strokeLinejoin="round"
-          strokeLinecap="round"
-        />
-        <path
-          d={expensePath}
-          fill="none"
-          stroke="#EF4444"
-          strokeWidth={2}
-          strokeLinejoin="round"
-          strokeLinecap="round"
-        />
-
-        {/* X-axis labels — hanya tampil tiap 5 hari, tanpa dot (terlalu rapat) */}
+        {/* X-axis labels */}
         {buckets.map((b, i) => {
           if (!shouldShowLabel(b.day)) return null;
           const x = PAD.left + (i / Math.max(buckets.length - 1, 1)) * innerW;
@@ -182,7 +261,7 @@ export function SpendingChart({
         })}
       </svg>
 
-      {/* Summary row — total bulan, bukan per minggu */}
+      {/* Summary row */}
       <div className="mt-3 grid grid-cols-2 gap-2">
         <div className="rounded-lg bg-surface-container px-3 py-2 text-xs">
           <p className="mb-0.5 font-bold text-muted">Total Pemasukan</p>

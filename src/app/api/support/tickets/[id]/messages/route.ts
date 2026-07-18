@@ -9,6 +9,7 @@ export const runtime = "nodejs";
 
 const CreateMessageSchema = z.object({
   body: z.string().min(1).max(5000),
+  attachment_url: z.string().url().optional(),
 });
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -51,12 +52,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       id: string;
       sender_id: string;
       body: string;
+      attachment_url: string | null;
       created_at: string;
     }>(
-      `insert into support_messages (ticket_id, sender_id, body)
-       values ($1, $2, $3)
-       returning id, sender_id, body, created_at`,
-      [ticketId, auth.user.id, parsed.data.body]
+      `insert into support_messages (ticket_id, sender_id, body, attachment_url)
+       values ($1, $2, $3, $4)
+       returning id, sender_id, body, attachment_url, created_at`,
+      [ticketId, auth.user.id, parsed.data.body, parsed.data.attachment_url ?? null]
     );
 
     // Update timestamp tiket supaya muncul di atas di list

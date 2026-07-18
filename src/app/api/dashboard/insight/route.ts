@@ -9,6 +9,7 @@ import {
   fallbackDailyInsight,
   type DailyInsightBudget,
   type DailyInsightContext,
+  type DailyInsightDebt,
   type DailyInsightSharingContribution,
   type DailyInsightWallet,
   type ParsedDailyInsight
@@ -45,8 +46,6 @@ type StoredInsightRow = {
   payload: ParsedDailyInsight & { ai_error?: string | null };
   model: string;
 };
-
-type PlanTier = InsightPlanTier;
 
 // resolveUserPlan replaced by shared getActivePlan (checks current_period_end)
 
@@ -141,7 +140,7 @@ export async function POST(request: NextRequest) {
 
   if (plan === "free") {
     const usageCount = await countCompletedInsights(auth.user.id);
-    const decision = decideInsightQuota({ plan, usageCount });
+    const decision = decideInsightQuota({ plan: plan as InsightPlanTier, usageCount });
     if (!decision.allowed) {
       return NextResponse.json(
         {
@@ -165,7 +164,8 @@ export async function POST(request: NextRequest) {
   const client = await getPool().connect();
   try {
     await client.query("begin");
-    if (plan === "premium") {
+    if (plan === "premium" || plan === "pro") {
+      // Paid plan regenerate path: replace any existing row for today.
       await client.query(
         `delete from daily_insights where user_id = $1 and insight_date = $2`,
         [auth.user.id, bounds.date]
@@ -358,6 +358,27 @@ async function buildContext(
     })) as unknown as LedgerTransaction[];
   }
 
+  // Fetch last 90 days for trend analysis — passed as all_transactions to the AI.
+  let allTx: LedgerTransaction[] = [];
+  if (walletIds.length > 0) {
+    const ninetyDaysAgoIso = new Date(new Date(bounds.startUtc).getTime() - 90 * 86_400_000).toISOString();
+    const walletPlaceholders2 = walletIds.map((_, i) => `$${i + 1}`).join(",");
+    const allTxParams: unknown[] = [...walletIds, ninetyDaysAgoIso, bounds.endUtc];
+    const allTxRes = await query<Record<string, unknown>>(
+      `select t.id, t.user_id, t.wallet_id, t.category_id, t.merchant_name,
+              t.payment_method, t.transaction_type, t.amount_minor, t.currency,
+              t.occurred_at, t.transfer_pair_id
+       from transactions t
+       where t.wallet_id in (${walletPlaceholders2})
+         and t.occurred_at >= $${walletIds.length + 1}
+         and t.occurred_at < $${walletIds.length + 2}
+       order by t.occurred_at desc
+       limit 500`,
+      allTxParams
+    );
+    allTx = allTxRes.rows.map(normalizeTransaction);
+  }
+
   const todayTx = recentTx.filter((t) => t.occurred_at >= bounds.startUtc && t.occurred_at < bounds.endUtc);
 
   let yesterday_income_minor = 0;
@@ -445,6 +466,34 @@ async function buildContext(
     others_contributed_minor
   };
 
+  // Fetch active debts with remaining balance (total - sum of payments)
+  const debtsRes = await query<{
+    id: string;
+    name: string;
+    total_amount_minor: string;
+    paid_minor: string;
+    next_due_date: string | null;
+  }>(
+    `select d.id, d.name,
+            d.total_amount_minor,
+            coalesce(sum(dp.amount_minor), 0)::bigint as paid_minor,
+            d.next_due_date
+     from debts d
+     left join debt_payments dp on dp.debt_id = d.id
+     where d.user_id = $1 and d.status = 'active'
+     group by d.id
+     order by d.next_due_date asc nulls last`,
+    [userId]
+  );
+
+  const debts: DailyInsightDebt[] = debtsRes.rows.map((d) => ({
+    id: d.id,
+    name: d.name,
+    principal_minor: Number(d.total_amount_minor),
+    remaining_minor: Math.max(0, Number(d.total_amount_minor) - Number(d.paid_minor)),
+    next_due_date: d.next_due_date ?? null
+  }));
+
   const profileRes = await query<{ hide_nominal_default: boolean | null }>(
     `select hide_nominal_default from profiles where id = $1`,
     [userId]
@@ -461,11 +510,13 @@ async function buildContext(
     privacyEnabled,
     wallets,
     today_transactions: todayTx,
+    all_transactions: allTx,
     yesterday_totals: {
       income_minor: yesterday_income_minor,
       expense_minor: yesterday_expense_minor
     },
     budgets,
+    debts,
     sharing
   };
 }

@@ -8,8 +8,6 @@ const nextConfig = {
   outputFileTracingRoot: projectRoot,
   reactStrictMode: true,
   poweredByHeader: false,
-  transpilePackages: ["next-themes"],
-
   // Added to resolve OOM build issues
   eslint: {
     ignoreDuringBuilds: true,

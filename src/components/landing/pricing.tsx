@@ -103,15 +103,6 @@ const FEATURE_ROWS: FeatureRow[] = [
 
 // ─── Pricing ─────────────────────────────────────────────────────────────────
 
-// Prices live in the framework-agnostic lib so the server (snap route) and
-// client share one source of truth. Re-exported here for existing importers.
-export {
-  PLAN_PRICE,
-  FREE_TO_PRO_PRICE,
-  PREMIUM_TO_PRO_PRICE,
-  getCheckoutAmount,
-  formatRp,
-} from "@/lib/pricing";
 import { PLAN_PRICE, PREMIUM_TO_PRO_PRICE, FREE_TO_PRO_PRICE, formatRp } from "@/lib/pricing";
 
 // ─── FAQ ─────────────────────────────────────────────────────────────────────

@@ -7,9 +7,13 @@ import { sendNewTicketNotification } from "@/lib/email/resend";
 
 export const runtime = "nodejs";
 
+const TICKET_CATEGORIES = ["Bug", "Pertanyaan", "Fitur", "Billing", "Lainnya"] as const;
+type TicketCategory = typeof TICKET_CATEGORIES[number];
+
 const CreateTicketSchema = z.object({
   subject: z.string().min(3).max(200),
   body: z.string().min(1).max(5000),
+  category: z.enum(TICKET_CATEGORIES).default("Lainnya"),
   attachment_url: z.string().url().optional(),
 });
 
@@ -20,6 +24,18 @@ export async function GET(request: NextRequest) {
   const isStaff = auth.user.role === "admin" || auth.user.role === "cs";
 
   try {
+    // Ensure columns exist (idempotent)
+    await query(`
+      alter table support_tickets
+        add column if not exists category text not null default 'Lainnya',
+        add column if not exists rating smallint,
+        add column if not exists rating_comment text
+    `);
+    await query(`
+      alter table support_messages
+        add column if not exists attachment_url text
+    `);
+
     if (isStaff) {
       const result = await query<{
         id: string;
@@ -27,12 +43,13 @@ export async function GET(request: NextRequest) {
         user_email: string;
         subject: string;
         status: string;
+        category: string;
         created_at: string;
         updated_at: string;
         message_count: string;
       }>(
         `select t.id, t.user_id, u.email as user_email, t.subject, t.status,
-                t.created_at, t.updated_at,
+                t.category, t.created_at, t.updated_at,
                 count(m.id)::text as message_count
          from support_tickets t
          join users u on u.id = t.user_id
@@ -47,12 +64,13 @@ export async function GET(request: NextRequest) {
       id: string;
       subject: string;
       status: string;
+      category: string;
       created_at: string;
       updated_at: string;
       message_count: string;
       queue_number: number | null;
     }>(
-      `select t.id, t.subject, t.status, t.created_at, t.updated_at,
+      `select t.id, t.subject, t.status, t.category, t.created_at, t.updated_at,
               t.queue_number,
               count(m.id)::text as message_count
        from support_tickets t
@@ -80,10 +98,10 @@ export async function POST(request: NextRequest) {
 
   try {
     const ticketResult = await query<{ id: string; subject: string; status: string; created_at: string }>(
-      `insert into support_tickets (user_id, subject)
-       values ($1, $2)
+      `insert into support_tickets (user_id, subject, category)
+       values ($1, $2, $3)
        returning id, subject, status, created_at`,
-      [auth.user.id, parsed.data.subject]
+      [auth.user.id, parsed.data.subject, parsed.data.category]
     );
     const ticket = ticketResult.rows[0];
 

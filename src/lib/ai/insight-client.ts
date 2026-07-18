@@ -46,7 +46,7 @@ export type ChatResult = {
   usage: TokenUsage | null;
 };
 
-const DEFAULT_MODEL = "glm-4.7";
+const DEFAULT_MODEL = "claude-sonnet-4.6";
 
 export type InsightClientConfig = {
   apiKey: string | undefined;

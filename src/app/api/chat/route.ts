@@ -96,6 +96,10 @@ export async function POST(request: NextRequest) {
         { data: incomeRows },
         { data: budgetRows },
         { data: categoryRows },
+        { data: debtRows },
+        { data: debtPaymentRows },
+        { data: receivableRows },
+        { data: receivablePaymentRows },
       ] = await Promise.all([
         auth.db
           .from("wallets")
@@ -119,6 +123,26 @@ export async function POST(request: NextRequest) {
           .select("name,allocated_minor,spent_minor")
           .eq("user_id", auth.user.id),
         auth.db.from("categories").select("id,name"),
+        auth.db
+          .from("debts")
+          .select("id,name,creditor_name,total_amount_minor")
+          .eq("user_id", auth.user.id)
+          .eq("status", "active")
+          .limit(200),
+        auth.db
+          .from("debt_payments")
+          .select("debt_id,amount_minor")
+          .eq("user_id", auth.user.id),
+        auth.db
+          .from("receivables")
+          .select("id,name,borrower_name,total_amount_minor")
+          .eq("user_id", auth.user.id)
+          .eq("status", "active")
+          .limit(200),
+        auth.db
+          .from("receivable_payments")
+          .select("receivable_id,amount_minor")
+          .eq("user_id", auth.user.id),
       ]);
 
       // Aggregate expenses by category
@@ -134,6 +158,34 @@ export async function POST(request: NextRequest) {
         .map(([name, total_minor]) => ({ name, total_minor }))
         .sort((a, b) => b.total_minor - a.total_minor);
 
+      // Compute remaining balance for debts (total - sum of payments)
+      type DebtRow = { id: string; name: string; creditor_name: string; total_amount_minor: number };
+      type DebtPaymentRow = { debt_id: string; amount_minor: number };
+      const debtPaymentMap: Record<string, number> = {};
+      for (const p of (debtPaymentRows ?? []) as DebtPaymentRow[]) {
+        debtPaymentMap[p.debt_id] = (debtPaymentMap[p.debt_id] ?? 0) + p.amount_minor;
+      }
+      const debts = ((debtRows ?? []) as DebtRow[]).map((d) => ({
+        name: d.name,
+        creditor_name: d.creditor_name,
+        total_amount_minor: d.total_amount_minor,
+        remaining_minor: Math.max(0, d.total_amount_minor - (debtPaymentMap[d.id] ?? 0)),
+      }));
+
+      // Compute remaining balance for receivables
+      type ReceivableRow = { id: string; name: string; borrower_name: string; total_amount_minor: number };
+      type ReceivablePaymentRow = { receivable_id: string; amount_minor: number };
+      const receivablePaymentMap: Record<string, number> = {};
+      for (const p of (receivablePaymentRows ?? []) as ReceivablePaymentRow[]) {
+        receivablePaymentMap[p.receivable_id] = (receivablePaymentMap[p.receivable_id] ?? 0) + p.amount_minor;
+      }
+      const receivables = ((receivableRows ?? []) as ReceivableRow[]).map((r) => ({
+        name: r.name,
+        borrower_name: r.borrower_name,
+        total_amount_minor: r.total_amount_minor,
+        remaining_minor: Math.max(0, r.total_amount_minor - (receivablePaymentMap[r.id] ?? 0)),
+      }));
+
       const ctx: FinancialContext = {
         wallets: (walletRows ?? []) as FinancialContext["wallets"],
         thisMonthExpense: ((expenseRows ?? []) as { amount_minor: number }[])
@@ -142,6 +194,8 @@ export async function POST(request: NextRequest) {
           .reduce((s, r) => s + r.amount_minor, 0),
         topCategories,
         budgets: (budgetRows ?? []) as FinancialContext["budgets"],
+        debts,
+        receivables,
       };
 
       const reply = await answerFinancialQuestion(message, ctx);

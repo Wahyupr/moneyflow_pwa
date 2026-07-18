@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Suspense } from "react";
 import {
   ArrowRight,
   BarChart3,
@@ -33,7 +34,9 @@ export default function LandingPage() {
       <StatsBand />
       <Features />
       <HowItWorks />
-      <Pricing />
+      <Suspense fallback={null}>
+        <Pricing />
+      </Suspense>
       <CtaSection />
       <LandingFooter />
 

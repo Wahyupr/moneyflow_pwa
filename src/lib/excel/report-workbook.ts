@@ -98,23 +98,6 @@ export async function buildReportWorkbook(
   return Buffer.from(buffer);
 }
 
-function styleHeaderRow(ws: ExcelJS.Worksheet, fillColor: string): void {
-  const headerRow = ws.getRow(1);
-  headerRow.height = 24;
-  headerRow.eachCell((cell) => {
-    cell.font = { bold: true, color: { argb: "FFFFFFFF" }, size: 12 };
-    cell.fill = {
-      type: "pattern",
-      pattern: "solid",
-      fgColor: { argb: fillColor }
-    };
-    cell.alignment = { vertical: "middle", horizontal: "left", indent: 1 };
-    cell.border = {
-      bottom: { style: "medium", color: { argb: "FF000000" } }
-    };
-  });
-}
-
 function applyBandedRows(ws: ExcelJS.Worksheet, startRow: number, endRow: number, lightColor: string): void {
   for (let r = startRow; r <= endRow; r++) {
     if ((r - startRow) % 2 !== 0) continue; // even index → banded
@@ -334,6 +317,7 @@ function buildCategorySheet(wb: ExcelJS.Workbook, data: ReportData): void {
     { header: "Kategori", key: "name", width: 32 },
     { header: "Pengeluaran", key: "expense", width: 22 },
     { header: "% dari Total", key: "pct", width: 16 },
+    { header: "Bar", key: "bar", width: 22 },
     { header: "Jumlah Tx", key: "count", width: 12 }
   ];
 
@@ -343,20 +327,22 @@ function buildCategorySheet(wb: ExcelJS.Workbook, data: ReportData): void {
   const headerRowNum = 3;
   const headerRow = ws.getRow(headerRowNum);
   headerRow.height = 22;
-  ws.columns.forEach((col, i) => {
+  const catHeaders = ["Kategori", "Pengeluaran", "% dari Total", "Visualisasi", "Jumlah Tx"];
+  catHeaders.forEach((h, i) => {
     const cell = headerRow.getCell(i + 1);
-    cell.value = String(col.header ?? "");
+    cell.value = h;
     cell.style = { ...BOLD_WHITE, fill: { type: "pattern", pattern: "solid", fgColor: { argb: theme.header } } };
-    cell.alignment = { vertical: "middle", horizontal: i === 0 ? "left" : "right", indent: 1 };
+    cell.alignment = { vertical: "middle", horizontal: i === 0 ? "left" : i === 3 ? "left" : "right", indent: 1 };
   });
 
   const startDataRow = 4;
   if (data.by_category.length === 0) {
-    writeEmptyState(ws, startDataRow, "Belum ada pengeluaran tercatat pada periode ini.", 4);
+    writeEmptyState(ws, startDataRow, "Belum ada pengeluaran tercatat pada periode ini.", 5);
     return;
   }
   data.by_category.forEach((cat, idx) => {
     const r = ws.getRow(startDataRow + idx);
+    r.height = 20;
     r.getCell(1).value = cat.category_name;
     r.getCell(2).value = cat.expense_minor / 100;
     r.getCell(2).numFmt = CURRENCY_FMT;
@@ -364,8 +350,15 @@ function buildCategorySheet(wb: ExcelJS.Workbook, data: ReportData): void {
     r.getCell(3).value = cat.expense_pct / 100;
     r.getCell(3).numFmt = PERCENT_FMT;
     r.getCell(3).alignment = { horizontal: "right" };
-    r.getCell(4).value = cat.transaction_count;
-    r.getCell(4).alignment = { horizontal: "right" };
+
+    // Unicode block bar chart — 20 blocks max
+    const blocks = Math.round((cat.expense_pct / 100) * 20);
+    r.getCell(4).value = "█".repeat(Math.max(0, blocks)) + "░".repeat(Math.max(0, 20 - blocks));
+    r.getCell(4).font = { color: { argb: hexWithAlpha(cat.category_color, "FF") }, size: 9 };
+    r.getCell(4).alignment = { horizontal: "left" };
+
+    r.getCell(5).value = cat.transaction_count;
+    r.getCell(5).alignment = { horizontal: "right" };
 
     // Color bar on category cell using the category's own color (subtle).
     r.getCell(1).font = { bold: idx < 3, color: { argb: "FF1E293B" } };
@@ -385,10 +378,11 @@ function buildCategorySheet(wb: ExcelJS.Workbook, data: ReportData): void {
     { col: 1, value: "TOTAL", align: "left" },
     { col: 2, value: totalExpenseMinor / 100, numFmt: CURRENCY_FMT },
     { col: 3, value: 1, numFmt: PERCENT_FMT },
-    { col: 4, value: totalCount }
+    { col: 4, value: "" },
+    { col: 5, value: totalCount }
   ], theme.light);
 
-  autoFitColumns(ws, 4, 3, lastDataRow + 1, { minWidth: 12, maxWidth: 50 });
+  autoFitColumns(ws, 5, 3, lastDataRow + 1, { minWidth: 12, maxWidth: 50 });
 }
 
 function buildMerchantSheet(wb: ExcelJS.Workbook, data: ReportData): void {
@@ -423,11 +417,20 @@ function buildMerchantSheet(wb: ExcelJS.Workbook, data: ReportData): void {
     writeEmptyState(ws, startDataRow, "Belum ada merchant dengan pengeluaran pada periode ini.", 5);
     return;
   }
+  // Gold / Silver / Bronze medal colors for top 3
+  const medalColors = ["FFFBBF24", "FFA1A1AA", "FFCD7C2A"];
+
   data.top_merchants.forEach((m, idx) => {
     const r = ws.getRow(startDataRow + idx);
-    r.getCell(1).value = idx + 1;
+    r.height = 20;
+    const medal = idx < 3 ? ["🥇", "🥈", "🥉"][idx] : String(idx + 1);
+    r.getCell(1).value = medal;
     r.getCell(1).alignment = { horizontal: "center" };
-    r.getCell(1).font = { bold: idx < 3, color: { argb: theme.tab } };
+    r.getCell(1).font = { bold: idx < 3, size: idx < 3 ? 13 : 11, color: { argb: idx < 3 ? medalColors[idx] : theme.tab } };
+    if (idx < 3) {
+      r.getCell(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: idx === 0 ? "FFFFF9C4" : idx === 1 ? "FFF5F5F5" : "FFFFF3E0" } };
+      r.getCell(2).font = { bold: true, color: { argb: "FF1E293B" } };
+    }
     r.getCell(2).value = m.name;
     r.getCell(3).value = m.expense_minor / 100;
     r.getCell(3).numFmt = CURRENCY_FMT;
@@ -464,10 +467,11 @@ function buildTrendSheet(wb: ExcelJS.Workbook, data: ReportData): void {
   });
 
   ws.columns = [
-    { header: "Bulan", key: "month", width: 16 },
+    { header: "Bulan", key: "month", width: 18 },
     { header: "Pemasukan", key: "income", width: 22 },
     { header: "Pengeluaran", key: "expense", width: 22 },
-    { header: "Net", key: "net", width: 22 }
+    { header: "Net", key: "net", width: 22 },
+    { header: "vs Bulan Lalu", key: "delta", width: 14 }
   ];
 
   writeTitleBanner(ws, "Tren 6 Bulan", "Pemasukan vs Pengeluaran", theme.tab);
@@ -475,16 +479,18 @@ function buildTrendSheet(wb: ExcelJS.Workbook, data: ReportData): void {
   const headerRowNum = 3;
   const headerRow = ws.getRow(headerRowNum);
   headerRow.height = 22;
-  ws.columns.forEach((col, i) => {
+  const trendHeaders = ["Bulan", "Pemasukan", "Pengeluaran", "Net", "vs Bulan Lalu"];
+  trendHeaders.forEach((h, i) => {
     const cell = headerRow.getCell(i + 1);
-    cell.value = String(col.header ?? "");
+    cell.value = h;
     cell.style = { ...BOLD_WHITE, fill: { type: "pattern", pattern: "solid", fgColor: { argb: theme.header } } };
-    cell.alignment = { vertical: "middle", horizontal: i === 0 ? "left" : "right", indent: 1 };
+    cell.alignment = { vertical: "middle", horizontal: i === 0 ? "left" : "center", indent: 1 };
   });
 
   const startDataRow = 4;
   data.trend.forEach((t, idx) => {
     const r = ws.getRow(startDataRow + idx);
+    r.height = 20;
     const [y, m] = t.month.split("-").map(Number);
     const label = new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString("id-ID", {
       month: "long",
@@ -497,13 +503,34 @@ function buildTrendSheet(wb: ExcelJS.Workbook, data: ReportData): void {
     r.getCell(3).value = t.expense_minor / 100;
     r.getCell(3).numFmt = CURRENCY_FMT;
     r.getCell(3).alignment = { horizontal: "right" };
-    r.getCell(4).value = (t.income_minor - t.expense_minor) / 100;
+    const net = t.income_minor - t.expense_minor;
+    r.getCell(4).value = net / 100;
     r.getCell(4).numFmt = CURRENCY_FMT;
     r.getCell(4).alignment = { horizontal: "right" };
     r.getCell(4).font = {
       bold: true,
-      color: { argb: t.income_minor - t.expense_minor >= 0 ? "FF10B981" : "FFEF4444" }
+      color: { argb: net >= 0 ? "FF10B981" : "FFEF4444" }
     };
+
+    // Month-over-month expense direction indicator
+    if (idx > 0) {
+      const prev = data.trend[idx - 1];
+      const deltaExp = t.expense_minor - prev.expense_minor;
+      const deltaPctVal = prev.expense_minor > 0 ? Math.round((deltaExp / prev.expense_minor) * 100) : 0;
+      const arrow = deltaExp > 0 ? "▲" : deltaExp < 0 ? "▼" : "—";
+      const deltaCell = r.getCell(5);
+      deltaCell.value = `${arrow} ${Math.abs(deltaPctVal)}%`;
+      deltaCell.alignment = { horizontal: "center" };
+      deltaCell.font = {
+        bold: true,
+        size: 11,
+        color: { argb: deltaExp > 0 ? "FFEF4444" : deltaExp < 0 ? "FF10B981" : "FF64748B" }
+      };
+    } else {
+      r.getCell(5).value = "—";
+      r.getCell(5).alignment = { horizontal: "center" };
+      r.getCell(5).font = { color: { argb: "FF94A3B8" } };
+    }
   });
   const lastDataRow = startDataRow + Math.max(0, data.trend.length - 1);
   applyBandedRows(ws, startDataRow, lastDataRow, theme.light);
@@ -517,11 +544,12 @@ function buildTrendSheet(wb: ExcelJS.Workbook, data: ReportData): void {
       { col: 1, value: "RATA-RATA", align: "left" },
       { col: 2, value: avgIncome / 100, numFmt: CURRENCY_FMT },
       { col: 3, value: avgExpense / 100, numFmt: CURRENCY_FMT },
-      { col: 4, value: avgNet / 100, numFmt: CURRENCY_FMT }
+      { col: 4, value: avgNet / 100, numFmt: CURRENCY_FMT },
+      { col: 5, value: "", align: "center" }
     ], theme.light);
   }
 
-  autoFitColumns(ws, 4, 3, lastDataRow + 1, { minWidth: 14, maxWidth: 40 });
+  autoFitColumns(ws, 5, 3, lastDataRow + 1, { minWidth: 14, maxWidth: 40 });
 }
 
 function buildTransactionsSheet(wb: ExcelJS.Workbook, data: ReportData): void {
@@ -722,11 +750,10 @@ function writeBulletList(ws: ExcelJS.Worksheet, row: number, items: string[], co
     const marker = ws.getCell(`B${row}`);
     marker.value = `●  ${item}`;
     marker.alignment = { vertical: "top", horizontal: "left", wrapText: true, indent: 1 };
-    marker.font = { size: 11, color: { argb: "FF1E293B" } };
+    // Apply the accent color to the bullet text itself.
+    marker.font = { size: 11, color: { argb: color } };
     const lineCount = Math.max(1, Math.ceil(item.length / 100));
-    ws.getRow(row).height = 16 * lineCount;
-    // Tint the marker bullet by overriding via a left-indent colored cell.
-    void color;
+    ws.getRow(row).height = Math.max(18, 16 * lineCount);
     row += 1;
   }
   return row;

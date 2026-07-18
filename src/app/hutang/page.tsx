@@ -9,7 +9,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { SelectMenu } from "@/components/ui/select-menu";
 import { getCategoryIcon } from "@/lib/category-icons";
 import { formatCurrency } from "@/lib/money";
-import { DebtCard, type Debt } from "./components";
+import { DebtCard, EditDebtSheet, type Debt } from "./components";
 import { DebtFormSheet } from "./form-sheet";
 
 type Summary = {
@@ -56,6 +56,7 @@ function HutangContent() {
   const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [payTarget, setPayTarget] = useState<Debt | null>(null);
+  const [editTarget, setEditTarget] = useState<Debt | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Debt | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [wallets, setWallets] = useState<WalletOption[]>([]);
@@ -113,6 +114,12 @@ function HutangContent() {
   useEffect(() => {
     void load();
     void loadWalletsAndCategories();
+
+    function handleVisibility() {
+      if (document.visibilityState === "visible") void load();
+    }
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => document.removeEventListener("visibilitychange", handleVisibility);
   }, [load, loadWalletsAndCategories]);
 
   async function archive(id: string) {
@@ -193,6 +200,7 @@ function HutangContent() {
                 debt={debt}
                 busy={busyId === debt.id}
                 onPay={() => setPayTarget(debt)}
+                onEdit={() => setEditTarget(debt)}
                 onDelete={() => setDeleteTarget(debt)}
                 displayAmount={displayAmount}
               />
@@ -240,6 +248,17 @@ function HutangContent() {
           onClose={() => setShowForm(false)}
           onSaved={async () => {
             setShowForm(false);
+            await load();
+          }}
+        />
+      ) : null}
+
+      {editTarget ? (
+        <EditDebtSheet
+          debt={editTarget}
+          onClose={() => setEditTarget(null)}
+          onSaved={async () => {
+            setEditTarget(null);
             await load();
           }}
         />

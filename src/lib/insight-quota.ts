@@ -6,10 +6,10 @@
  * UI components consume the resulting decisions via the API response.
  */
 
-export type InsightPlanTier = "free" | "premium";
+export type InsightPlanTier = "free" | "premium" | "pro";
 
 /**
- * Free plan lifetime insight quota. Premium is unlimited.
+ * Free plan lifetime insight quota. Premium and Pro are unlimited.
  */
 export const FREE_PLAN_INSIGHT_LIMIT = 1;
 
@@ -40,7 +40,7 @@ export function decideInsightQuota(input: {
 }
 
 export function canRegenerateInsight(plan: InsightPlanTier): boolean {
-  return plan === "premium";
+  return plan === "premium" || plan === "pro";
 }
 
 export function isFreeLimitReached(input: {
