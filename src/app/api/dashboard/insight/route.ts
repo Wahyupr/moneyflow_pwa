@@ -23,7 +23,9 @@ import {
   type InsightPlanTier
 } from "@/lib/insight-quota";
 import { getActivePlan } from "@/lib/plan";
+import { consumeAiCredits } from "@/lib/ai-credits";
 import type { LedgerTransaction } from "@/lib/types";
+
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -225,7 +227,25 @@ export async function POST(request: NextRequest) {
     const insightId = claim.rows[0].id;
     await client.query("commit");
 
+    // Deduct AI credits. If the wallet is empty, roll back the placeholder row
+    // so the user isn't left with a stuck "pending" insight, and report 402.
+    const credit = await consumeAiCredits({ userId: auth.user.id, action: "insight" });
+    if (!credit.ok) {
+      await query(`delete from daily_insights where id = $1 and user_id = $2`, [insightId, auth.user.id]);
+      return NextResponse.json(
+        {
+          exists: false,
+          can_generate: false,
+          reason: "insufficient_credits",
+          message: credit.reason,
+          plan
+        },
+        { status: 402 }
+      );
+    }
+
     const ctx = await buildContext(auth.user.id, auth.user.user_metadata.display_name, bounds);
+
 
     let parsed: ParsedDailyInsight;
     let model: string;

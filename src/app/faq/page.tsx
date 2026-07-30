@@ -1,5 +1,9 @@
 import Link from "next/link";
-import { ArrowLeft, ChevronDown } from "lucide-react";
+import { ChevronDown } from "lucide-react";
+import { LegalNav } from "@/components/legal-nav";
+
+export { LegalNav };
+
 
 export const metadata = {
   title: "FAQ — MoneyFlow",
@@ -108,26 +112,8 @@ export default function FaqPage() {
   );
 }
 
-export function LegalNav() {
-  return (
-    <nav className="sticky top-0 z-50 border-b border-outline/60 bg-background/80 backdrop-blur-md">
-      <div className="mx-auto flex max-w-3xl items-center gap-3 px-5 py-4">
-        <Link href="/" className="flex items-center gap-1.5 text-sm font-semibold text-muted hover:text-ink">
-          <ArrowLeft size={16} />
-          Kembali
-        </Link>
-        <span className="text-outline">|</span>
-        <div className="flex items-center gap-2">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo/brand-mark.svg" alt="MoneyFlow" className="size-7 rounded-lg" />
-          <span className="font-bold">MoneyFlow</span>
-        </div>
-      </div>
-    </nav>
-  );
-}
-
 export function LegalFooter() {
+
   return (
     <footer className="border-t border-outline/60">
       <div className="mx-auto max-w-3xl px-5 py-8">

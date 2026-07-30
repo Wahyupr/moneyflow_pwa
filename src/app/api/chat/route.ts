@@ -4,12 +4,16 @@ import { z } from "zod";
 import { requireApiUser } from "@/lib/api/auth";
 import { parseVoiceTransaction, type ParsedVoiceTransaction } from "@/lib/voice/parse";
 import { isAiConfigured, parseVoiceWithAi } from "@/lib/voice/ai";
-import { getActivePlan } from "@/lib/plan";
+import { consumeAiCredits } from "@/lib/ai-credits";
+
+import { query } from "@/lib/db/pool";
+
 import {
   isFinancialQuestion,
   answerFinancialQuestion,
   type FinancialContext,
 } from "@/lib/voice/financial-ai";
+
 
 export const runtime = "nodejs";
 
@@ -24,8 +28,51 @@ const TRANSACTION_KEYWORDS: string[] = [
 const ChatSchema = z.object({
   message: z.string().min(1).max(500),
   /** When false, only parse and preview — do not save to DB. */
-  commit: z.boolean().optional()
+  commit: z.boolean().optional(),
+  /** Optional chat session to persist the financial Q&A conversation into. */
+  session_id: z.string().uuid().optional()
 });
+
+/**
+ * Persists a user question + assistant answer into a chat session (owned by
+ * the user). Also bumps the session's updated_at and derives a title from the
+ * first question. Best-effort: failures are logged but never block the reply.
+ */
+async function persistChatTurn(input: {
+  userId: string;
+  sessionId: string;
+  question: string;
+  answer: string;
+}): Promise<void> {
+  try {
+    const owns = await query<{ id: string; title: string }>(
+      `select id, title from chat_sessions where id = $1 and user_id = $2`,
+      [input.sessionId, input.userId]
+    );
+    if (owns.rows.length === 0) return;
+
+    await query(
+      `insert into chat_messages (session_id, user_id, role, content)
+       values ($1, $2, 'user', $3), ($1, $2, 'assistant', $4)`,
+      [input.sessionId, input.userId, input.question, input.answer]
+    );
+
+    // Name the session after the first question (trimmed) if still default.
+    const title = owns.rows[0].title;
+    if (title === "Percakapan baru") {
+      const derived = input.question.slice(0, 60);
+      await query(`update chat_sessions set title = $2, updated_at = now() where id = $1`, [
+        input.sessionId,
+        derived
+      ]);
+    } else {
+      await query(`update chat_sessions set updated_at = now() where id = $1`, [input.sessionId]);
+    }
+  } catch (err) {
+    console.error("[chat persist]", err);
+  }
+}
+
 
 type WalletRow = { id: string; name: string; type: string; institution_name: string | null };
 type CategoryRow = { id: string; name: string; type: string };
@@ -80,13 +127,21 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Pesan tidak valid." }, { status: 400 });
   }
 
-  const { message, commit } = parsedBody.data;
+  const { message, commit, session_id } = parsedBody.data;
 
-  const plan = await getActivePlan(auth.user.id);
+  // Financial assistant is available to ALL plans now (free, premium, pro).
 
-  // PRO only: intercept financial questions before transaction parsing
-  if (plan === "pro" && commit !== true && isFinancialQuestion(message)) {
+  // Each answered question consumes AI chat credits, and the conversation is
+  // persisted into the given chat session.
+  if (commit !== true && isFinancialQuestion(message)) {
+    // Financial Q&A consumes AI chat credits.
+    const credit = await consumeAiCredits({ userId: auth.user.id, action: "chat" });
+    if (!credit.ok) {
+      return NextResponse.json({ reply: credit.reason });
+    }
     try {
+
+
       const now = new Date();
       const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
 
@@ -199,11 +254,15 @@ export async function POST(request: NextRequest) {
       };
 
       const reply = await answerFinancialQuestion(message, ctx);
+      if (session_id) {
+        await persistChatTurn({ userId: auth.user.id, sessionId: session_id, question: message, answer: reply });
+      }
       return NextResponse.json({ reply });
     } catch {
       // Fall through to transaction parsing on error
     }
   }
+
 
   // Parse with rule-based first, fallback to AI
   let parsed = parseVoiceTransaction(message);
@@ -286,7 +345,16 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // Charge AI credits only when the AI parser actually interpreted the message.
+  if (usedAi) {
+    const credit = await consumeAiCredits({ userId: auth.user.id, action: "voice" });
+    if (!credit.ok) {
+      return NextResponse.json({ error: credit.reason, preview }, { status: 402 });
+    }
+  }
+
   // Auto-create cash wallet if needed
+
   if (!wallet && isCashHint(parsed)) {
     const { data: createdCash, error: cashError } = await auth.db
       .from("wallets")

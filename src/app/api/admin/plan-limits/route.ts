@@ -27,8 +27,10 @@ const PlanLimitsSchema = z.object({
   reminders: NullableInt,
   custom_merchants: NullableInt,
   custom_categories: NullableInt,
+  ai_credits_per_cycle: NullableInt,
   ai_chat: z.boolean().optional(),
 });
+
 
 export async function GET(request: NextRequest) {
   const auth = await requireApiAdmin(request);

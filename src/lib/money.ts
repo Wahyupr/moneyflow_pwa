@@ -1,15 +1,19 @@
 import type { CurrencyCode } from "./types";
 
-const currencyFractions: Record<CurrencyCode, number> = {
+export const currencyFractions: Record<CurrencyCode, number> = {
   IDR: 0,
   MYR: 2,
   SGD: 2,
   USD: 2
 };
 
+export function amountMinorToMajor(amountMinor: number, currency: CurrencyCode): number {
+  return amountMinor / 10 ** currencyFractions[currency];
+}
+
 export function formatCurrency(amountMinor: number, currency: CurrencyCode): string {
   const fractionDigits = currencyFractions[currency];
-  const majorAmount = amountMinor / 10 ** fractionDigits;
+  const majorAmount = amountMinorToMajor(amountMinor, currency);
 
   return new Intl.NumberFormat("id-ID", {
     style: "currency",

@@ -6,7 +6,9 @@ import { parseVoiceTransaction, type ParsedVoiceTransaction } from "@/lib/voice/
 import { isAiConfigured, parseVoiceWithAi } from "@/lib/voice/ai";
 import { getActivePlan } from "@/lib/plan";
 import { PLAN_LIMITS } from "@/lib/entitlements";
+import { consumeAiCredits } from "@/lib/ai-credits";
 import { query } from "@/lib/db/pool";
+
 
 export const runtime = "nodejs";
 
@@ -191,6 +193,16 @@ export async function POST(request: NextRequest) {
   if (parsed.amount_minor <= 0) {
     return NextResponse.json({ error: "Nominal tidak terdeteksi dari suara.", preview }, { status: 422 });
   }
+
+  // Charge AI credits only when the AI parser was actually used to interpret
+  // the transcript (the rule-based path is free).
+  if (usedAi) {
+    const credit = await consumeAiCredits({ userId: auth.user.id, action: "voice" });
+    if (!credit.ok) {
+      return NextResponse.json({ error: credit.reason, preview }, { status: 402 });
+    }
+  }
+
 
   // Auto-provision a default Cash wallet so "tanpa sebut dompet = cash" always
   // lands on a real cash wallet instead of an unrelated e-wallet.

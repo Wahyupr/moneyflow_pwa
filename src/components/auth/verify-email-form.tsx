@@ -114,7 +114,10 @@ export function VerifyEmailForm() {
       }
 
       setStatus("Email verified. Opening dashboard.");
-      router.push("/dashboard");
+      // Route through the welcome interstitial so newly-verified users are
+      // offered the one-time 7-day Premium trial popup before landing.
+      router.push("/auth/welcome?next=/dashboard");
+
     } catch {
       setError("Network error. Please try again.");
     } finally {

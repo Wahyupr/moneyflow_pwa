@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { Bot, CheckCircle, Crown, MessageCircle, Send, Sparkles, X, Zap } from "lucide-react";
-import Link from "next/link";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Bot, CheckCircle, History, MessageCircle, Plus, Send, Sparkles, Trash2, X } from "lucide-react";
 import { formatCurrency } from "@/lib/money";
+
 
 /** Renders a subset of markdown: headings, bold, bullet lists, numbered lists, horizontal rules. */
 function MarkdownText({ text }: { text: string }) {
@@ -155,67 +155,90 @@ const WELCOME: BotMsg = {
   text: "Halo! Saya asisten keuangan kamu 💰\n\nCatat transaksi atau tanya seputar keuangan kamu.\n\nContoh:\n• \"beli kopi 25rb gopay\"\n• \"bagaimana cara menabung lebih efektif?\"\n• \"analisis pengeluaran bulan ini\"",
 };
 
-// Minimal plan check — fetched once per widget mount
-type PlanInfo = { plan: string };
-
-function ProUpgradeWall({ onClose }: { onClose: () => void }) {
-  return (
-    <div className="flex flex-1 flex-col items-center justify-center gap-4 p-6 text-center">
-      <div className="flex size-16 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-400 to-orange-500 text-white shadow-lg">
-        <Zap size={28} strokeWidth={2.5} />
-      </div>
-      <div>
-        <p className="text-base font-extrabold text-ink">Fitur Pro</p>
-        <p className="mt-1 text-sm leading-relaxed text-muted">
-          AI Asisten Chat interaktif hanya tersedia di paket Pro. Tanya apa saja seputar keuangan, budgeting, hingga solusi finansial.
-        </p>
-      </div>
-      <div className="w-full space-y-2">
-        <Link
-          href="/pricing"
-          className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-sm font-bold text-white shadow-card transition hover:brightness-110 active:scale-[0.98]"
-          onClick={onClose}
-        >
-          <Crown size={15} />
-          Upgrade ke Pro
-        </Link>
-        <button
-          type="button"
-          onClick={onClose}
-          className="flex min-h-10 w-full items-center justify-center rounded-xl border border-outline text-sm font-semibold text-muted transition hover:bg-surface-low active:scale-[0.98]"
-        >
-          Nanti saja
-        </button>
-      </div>
-    </div>
-  );
-}
+type ChatSession = { id: string; title: string; updated_at: string };
 
 export function ChatWidget() {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([WELCOME]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const [plan, setPlan] = useState<string | null>(null);
+  const [sessions, setSessions] = useState<ChatSession[]>([]);
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [showHistory, setShowHistory] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  // Fetch plan once when widget mounts
-  useEffect(() => {
-    fetch("/api/profile")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((json: (PlanInfo & { entitlement?: { plan?: string } }) | null) => {
-        // /api/profile returns plan nested under entitlement
-        const p = (json as { entitlement?: { plan?: string } } | null)?.entitlement?.plan ?? "free";
-        setPlan(p);
-      })
-      .catch(() => setPlan("free"));
+  const loadSessions = useCallback(async () => {
+    try {
+      const res = await fetch("/api/chat/sessions");
+      if (res.ok) setSessions(((await res.json()).sessions ?? []) as ChatSession[]);
+    } catch {
+      // ignore — history is best-effort
+    }
   }, []);
+
+  // Load session list once when the widget first opens.
+  useEffect(() => {
+    if (open) void loadSessions();
+  }, [open, loadSessions]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const isPro = plan === "pro";
+  /** Ensures we have a session to persist into, creating one lazily. */
+  async function ensureSession(): Promise<string | null> {
+    if (sessionId) return sessionId;
+    try {
+      const res = await fetch("/api/chat/sessions", { method: "POST" });
+      if (!res.ok) return null;
+      const created = (await res.json()).session as ChatSession;
+      setSessionId(created.id);
+      void loadSessions();
+      return created.id;
+    } catch {
+      return null;
+    }
+  }
+
+  /** Starts a fresh conversation (clears the transcript, drops the session). */
+  function newChat() {
+    setSessionId(null);
+    setMessages([WELCOME]);
+    setShowHistory(false);
+  }
+
+  /** Loads an existing conversation's messages into the transcript. */
+  async function openSession(id: string) {
+    setShowHistory(false);
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/chat/sessions/${id}`);
+      if (res.ok) {
+        const rows = ((await res.json()).messages ?? []) as { role: string; content: string }[];
+        const loaded: Message[] = rows.map((m) =>
+          m.role === "user"
+            ? { role: "user", text: m.content }
+            : { role: "bot", text: m.content }
+        );
+        setMessages(loaded.length ? loaded : [WELCOME]);
+        setSessionId(id);
+      }
+    } catch {
+      // ignore
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function deleteSession(id: string) {
+    try {
+      await fetch(`/api/chat/sessions/${id}`, { method: "DELETE" });
+      setSessions((prev) => prev.filter((s) => s.id !== id));
+      if (id === sessionId) newChat();
+    } catch {
+      // ignore
+    }
+  }
 
   async function send(text: string) {
     const trimmed = text.trim();
@@ -223,11 +246,13 @@ export function ChatWidget() {
     setInput("");
     setMessages((prev) => [...prev, { role: "user", text: trimmed }]);
     setLoading(true);
+    // Create/attach a session so the financial Q&A is persisted.
+    const activeSession = await ensureSession();
     try {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: trimmed, commit: false }),
+        body: JSON.stringify({ message: trimmed, commit: false, session_id: activeSession ?? undefined }),
       });
       const data = await res.json() as { reply?: string; preview?: Preview; error?: string };
       setMessages((prev) => [
@@ -241,12 +266,14 @@ export function ChatWidget() {
           originalMessage: trimmed,
         },
       ]);
+      if (!data.preview) void loadSessions();
     } catch {
       setMessages((prev) => [...prev, { role: "bot", text: "Koneksi gagal, coba lagi." }]);
     } finally {
       setLoading(false);
     }
   }
+
 
   async function confirmSave(msgIndex: number) {
     const msg = messages[msgIndex] as BotMsg;
@@ -305,30 +332,82 @@ export function ChatWidget() {
         >
           {/* Header */}
           <div className="flex items-center justify-between rounded-t-2xl bg-primary px-4 py-3">
-            <div className="flex items-center gap-2 text-white">
+            <div className="flex min-w-0 items-center gap-2 text-white">
               <Bot size={20} aria-hidden="true" />
-              <div>
+              <div className="min-w-0">
                 <p className="text-sm font-bold">Asisten Keuangan</p>
-                <p className="text-[10px] opacity-80">
-                  {isPro ? "Pro · Tanya apa saja tentang keuangan" : "Catat transaksi dengan bahasa natural"}
-                </p>
+                <p className="truncate text-[10px] opacity-80">Catat transaksi & tanya keuangan</p>
               </div>
             </div>
-            <button
-              type="button"
-              onClick={() => setOpen(false)}
-              aria-label="Tutup chat"
-              className="flex size-8 items-center justify-center rounded-full text-white/80 hover:bg-white/20"
-            >
-              <X size={18} />
-            </button>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => setShowHistory((v) => !v)}
+                aria-label="Riwayat percakapan"
+                className={`flex size-8 items-center justify-center rounded-full text-white/80 hover:bg-white/20 ${showHistory ? "bg-white/20" : ""}`}
+              >
+                <History size={16} />
+              </button>
+              <button
+                type="button"
+                onClick={newChat}
+                aria-label="Percakapan baru"
+                className="flex size-8 items-center justify-center rounded-full text-white/80 hover:bg-white/20"
+              >
+                <Plus size={18} />
+              </button>
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                aria-label="Tutup chat"
+                className="flex size-8 items-center justify-center rounded-full text-white/80 hover:bg-white/20"
+              >
+                <X size={18} />
+              </button>
+            </div>
           </div>
 
-          {/* Pro upgrade wall — shown only for non-pro users */}
-          {plan !== null && !isPro ? (
-            <ProUpgradeWall onClose={() => setOpen(false)} />
+          {showHistory ? (
+            <div className="flex-1 space-y-1.5 overflow-y-auto p-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              <button
+                type="button"
+                onClick={newChat}
+                className="mb-1 flex w-full items-center gap-2 rounded-xl bg-primary/10 px-3 py-2.5 text-sm font-semibold text-primary transition hover:bg-primary/20 active:scale-[0.99]"
+              >
+                <Plus size={16} /> Percakapan baru
+              </button>
+              {sessions.length === 0 && (
+                <p className="px-1 py-4 text-center text-sm text-muted">Belum ada riwayat percakapan.</p>
+              )}
+              {sessions.map((s) => (
+                <div
+                  key={s.id}
+                  className={`group flex items-center gap-2 rounded-xl border px-3 py-2.5 transition ${
+                    s.id === sessionId ? "border-primary bg-primary/5" : "border-outline bg-surface hover:bg-surface-low"
+                  }`}
+                >
+                  <button
+                    type="button"
+                    onClick={() => openSession(s.id)}
+                    className="min-w-0 flex-1 text-left"
+                  >
+                    <p className="truncate text-sm font-medium text-ink">{s.title}</p>
+                    <p className="text-[10px] text-muted">{new Date(s.updated_at).toLocaleString("id-ID")}</p>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => deleteSession(s.id)}
+                    aria-label="Hapus percakapan"
+                    className="flex size-7 shrink-0 items-center justify-center rounded-lg text-muted hover:bg-expense/10 hover:text-expense"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              ))}
+            </div>
           ) : (
             <>
+
               {/* Messages */}
               <div className="flex-1 space-y-3 overflow-y-auto p-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 {messages.map((msg, idx) => (
@@ -425,7 +504,8 @@ export function ChatWidget() {
                   type="text"
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
-                  placeholder={isPro ? "Ketik transaksi atau pertanyaan..." : "Ketik transaksi..."}
+                  placeholder="Ketik transaksi atau pertanyaan..."
+
                   disabled={loading}
                   aria-label="Pesan"
                   className="min-h-10 flex-1 rounded-xl border border-surface-container bg-surface-low px-3 text-sm text-ink placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-primary/40 disabled:opacity-50"

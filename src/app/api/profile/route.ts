@@ -42,6 +42,18 @@ export async function GET(request: NextRequest) {
   // granted, so we surface the session role to the client.
   const profileWithRole = profile ? { ...profile, role: auth.user.role } : { role: auth.user.role };
 
+  // The 7-day Premium trial is a one-time opt-in. A user is eligible when they
+  // have never claimed it (profiles.trial_claimed_at is null) and don't already
+  // hold an active entitlement. The post-registration popup uses this flag to
+  // decide whether to offer the trial.
+  const hasActiveEntitlement = Boolean(
+    entitlement &&
+      entitlement.status === "active" &&
+      (entitlement.current_period_end === null ||
+        new Date(entitlement.current_period_end).getTime() > Date.now())
+  );
+  const trialEligible = Boolean(profile) && !profile?.trial_claimed_at && !hasActiveEntitlement;
+
   return NextResponse.json({
     user: {
       id: auth.user.id,
@@ -49,10 +61,12 @@ export async function GET(request: NextRequest) {
       role: auth.user.role
     },
     profile: profileWithRole,
-    entitlement: entitlement ?? { plan: "free", status: "active", current_period_end: null }
+    entitlement: entitlement ?? { plan: "free", status: "active", current_period_end: null },
+    trial_eligible: trialEligible
   });
 
 }
+
 
 export async function PATCH(request: NextRequest) {
   const auth = await requireApiUser(request);
