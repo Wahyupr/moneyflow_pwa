@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, Landmark, Plus, WalletCards } from "lucide-react";
+import { Landmark, Plus, WalletCards } from "lucide-react";
 import Link from "next/link";
 import { createElement, useCallback, useEffect, useState, type FormEvent } from "react";
 import { AppFrame } from "@/components/app-frame";
@@ -157,9 +157,8 @@ function HutangContent() {
     }
   }
 
-  if (plan === "free") {
-    return <PremiumGate />;
-  }
+  const FREE_LIMIT = 1;
+  const atFreeLimit = plan === "free" && debts.length >= FREE_LIMIT;
 
   const progressPct = summary.total_principal_minor > 0
     ? Math.min(100, Math.round((summary.total_paid_minor / summary.total_principal_minor) * 100))
@@ -208,11 +207,23 @@ function HutangContent() {
           </div>
         )}
 
+        {/* Free-tier limit notice */}
+        {atFreeLimit ? (
+          <div className="rounded-2xl border border-warning/30 bg-warning/5 p-4 text-center">
+            <p className="text-sm font-semibold text-ink">Batas paket gratis tercapai (1 hutang).</p>
+            <p className="mt-1 text-xs text-muted">Upgrade ke Premium untuk tambah lebih banyak hutang.</p>
+            <Link href="/settings" className="mt-3 inline-flex min-h-9 items-center justify-center rounded-full bg-primary px-4 text-sm font-bold text-white active:scale-[0.98]">
+              Upgrade ke Premium
+            </Link>
+          </div>
+        ) : null}
+
         {/* Add button — mobile only; desktop has it in right col */}
         <button
           type="button"
-          className="flex min-h-14 w-full items-center justify-center gap-2 rounded-full bg-primary px-4 font-bold text-white shadow-card active:scale-[0.98] lg:hidden"
+          className="flex min-h-14 w-full items-center justify-center gap-2 rounded-full bg-primary px-4 font-bold text-white shadow-card active:scale-[0.98] disabled:opacity-50 lg:hidden"
           onClick={() => setShowForm(true)}
+          disabled={atFreeLimit}
         >
           <Plus size={20} />
           Tambah Hutang
@@ -235,8 +246,9 @@ function HutangContent() {
         {/* Add button */}
         <button
           type="button"
-          className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 font-bold text-white shadow-card transition hover:opacity-90 active:scale-[0.98]"
+          className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 font-bold text-white shadow-card transition hover:opacity-90 active:scale-[0.98] disabled:opacity-50"
           onClick={() => setShowForm(true)}
+          disabled={atFreeLimit}
         >
           <Plus size={18} />
           Tambah Hutang Baru
@@ -616,21 +628,3 @@ function PaymentDialog({
   );
 }
 
-function PremiumGate() {
-  return (
-    <div className="mt-5">
-      <div className="rounded-2xl border border-warning/30 bg-warning/5 p-5 text-center shadow-card">
-        <span className="mx-auto flex size-12 items-center justify-center rounded-full bg-warning/15 text-warning">
-          <AlertTriangle size={24} />
-        </span>
-        <h3 className="mt-3 text-base font-bold text-ink">Fitur Premium</h3>
-        <p className="mx-auto mt-1 max-w-xs text-sm text-muted">
-          Hutang & Piutang hanya tersedia untuk member Premium. Upgrade akun Anda untuk mulai melacak pinjaman dan tagihan.
-        </p>
-        <Link href="/settings" className="mt-4 inline-flex min-h-11 items-center justify-center rounded-full bg-primary px-5 font-bold text-white active:scale-[0.98]">
-          Kelola Langganan
-        </Link>
-      </div>
-    </div>
-  );
-}

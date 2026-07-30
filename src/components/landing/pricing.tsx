@@ -13,7 +13,7 @@ import { PaymentSuccessDialog } from "@/components/payments/payment-success-dial
 // CellValue: false = fitur dikunci, string = label yang ditampilkan
 type CellValue = string | false;
 
-interface FeatureRow {
+export interface FeatureRow {
   label: string;
   free: CellValue;
   premium: CellValue;
@@ -414,6 +414,8 @@ interface PricingProps {
   currentPlan?: "free" | "premium" | "pro";
   /** ISO timestamp when the trial expires, or null if not on trial. */
   trialEndsAt?: string | null;
+  /** Live feature rows from plan_limits DB table. Falls back to static list if absent. */
+  featureRows?: FeatureRow[];
 }
 
 function formatTrialExpiry(iso: string): string {
@@ -428,7 +430,7 @@ function formatTrialExpiry(iso: string): string {
   }) + " WIB";
 }
 
-export function Pricing({ isLoggedIn = false, currentPlan = "free", trialEndsAt = null }: PricingProps) {
+export function Pricing({ isLoggedIn = false, currentPlan = "free", trialEndsAt = null, featureRows = FEATURE_ROWS }: PricingProps) {
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const [paidDialog, setPaidDialog] = useState<{ plan: "premium" | "pro" } | null>(null);
 

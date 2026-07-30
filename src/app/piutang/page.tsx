@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, Calendar, HandCoins, NotebookPen, Plus, Trash2, X } from "lucide-react";
+import { Calendar, HandCoins, NotebookPen, Plus, Trash2, X } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { AppFrame } from "@/components/app-frame";
@@ -56,6 +56,7 @@ function PiutangContent() {
         const profile = await profileRes.json();
         setPlan((profile.entitlement?.plan as "free" | "premium") ?? "free");
       }
+      // 402 no longer returned on GET — keep as fallback only
       if (res.status === 402) {
         setPlan("free");
         return;
@@ -114,9 +115,8 @@ function PiutangContent() {
     }
   }
 
-  if (plan === "free") {
-    return <PremiumGate />;
-  }
+  const FREE_LIMIT = 1;
+  const atFreeLimit = plan === "free" && receivables.length >= FREE_LIMIT;
 
   const progressPct = summary.total_lent_minor > 0
     ? Math.min(100, Math.round((summary.total_collected_minor / summary.total_lent_minor) * 100))
@@ -157,10 +157,21 @@ function PiutangContent() {
         </div>
       )}
 
+      {atFreeLimit ? (
+        <div className="rounded-2xl border border-warning/30 bg-warning/5 p-4 text-center">
+          <p className="text-sm font-semibold text-ink">Batas paket gratis tercapai (1 piutang).</p>
+          <p className="mt-1 text-xs text-muted">Upgrade ke Premium untuk tambah lebih banyak piutang.</p>
+          <Link href="/settings" className="mt-3 inline-flex min-h-9 items-center justify-center rounded-full bg-primary px-4 text-sm font-bold text-white active:scale-[0.98]">
+            Upgrade ke Premium
+          </Link>
+        </div>
+      ) : null}
+
       <button
         type="button"
-        className="flex min-h-14 w-full items-center justify-center gap-2 rounded-full bg-primary px-4 font-bold text-white shadow-card active:scale-[0.98]"
+        className="flex min-h-14 w-full items-center justify-center gap-2 rounded-full bg-primary px-4 font-bold text-white shadow-card active:scale-[0.98] disabled:opacity-50"
         onClick={() => setShowForm(true)}
+        disabled={atFreeLimit}
       >
         <Plus size={20} />
         Tambah Piutang
@@ -499,21 +510,3 @@ function PaymentDialog({
   );
 }
 
-function PremiumGate() {
-  return (
-    <div className="mt-5">
-      <div className="rounded-2xl border border-warning/30 bg-warning/5 p-5 text-center shadow-card">
-        <span className="mx-auto flex size-12 items-center justify-center rounded-full bg-warning/15 text-warning">
-          <AlertTriangle size={24} />
-        </span>
-        <h3 className="mt-3 text-base font-bold text-ink">Fitur Premium</h3>
-        <p className="mx-auto mt-1 max-w-xs text-sm text-muted">
-          Hutang & Piutang hanya tersedia untuk member Premium. Upgrade akun Anda untuk mulai melacak pinjaman dan tagihan.
-        </p>
-        <Link href="/settings" className="mt-4 inline-flex min-h-11 items-center justify-center rounded-full bg-primary px-5 font-bold text-white active:scale-[0.98]">
-          Kelola Langganan
-        </Link>
-      </div>
-    </div>
-  );
-}
