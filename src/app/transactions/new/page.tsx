@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { AppFrame } from "@/components/app-frame";
 import { SelectMenu } from "@/components/ui/select-menu";
 import { getCategoryIcon } from "@/lib/category-icons";
+import { formatThousands, parseThousands } from "@/lib/money";
 
 type TransactionType = "expense" | "income";
 
@@ -103,7 +104,7 @@ function NewTransactionForm() {
       setError("Pilih dompet terlebih dahulu.");
       return;
     }
-    const amountvalue = Math.round(Number(amount));
+    const amountvalue = Math.round(Number(parseThousands(amount)));
     if (!Number.isFinite(amountvalue) || amountvalue <= 0) {
       setError("Nominal harus lebih dari 0.");
       return;
@@ -180,7 +181,7 @@ function NewTransactionForm() {
         />
       </div>
 
-      <Field label="Nominal (Rp)" placeholder="50000" inputMode="numeric" value={amount} onChange={setAmount} />
+      <Field label="Nominal (Rp)" placeholder="Masukkan nominal" inputMode="numeric" value={amount} onChange={setAmount} />
 
       <div className="block">
         <span className="text-sm font-semibold text-muted">Tipe</span>
@@ -257,6 +258,17 @@ function Field({
   value: string;
   onChange: (value: string) => void;
 }) {
+  const displayValue = inputMode === "numeric" ? formatThousands(value) : value;
+
+  function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
+    if (inputMode === "numeric") {
+      // strip dots, keep only digits, store raw
+      onChange(parseThousands(e.target.value).replace(/\D/g, ""));
+    } else {
+      onChange(e.target.value);
+    }
+  }
+
   return (
     <label className="block">
       <span className="text-sm font-semibold text-muted">{label}</span>
@@ -264,8 +276,8 @@ function Field({
         className="mt-2 min-h-12 w-full rounded-lg border border-outline bg-surface px-3 text-ink placeholder:text-muted focus:border-primary focus:outline-none"
         placeholder={placeholder}
         inputMode={inputMode}
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
+        value={displayValue}
+        onChange={handleChange}
       />
     </label>
   );

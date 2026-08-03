@@ -8,7 +8,7 @@ import { usePrivacy } from "@/components/privacy-provider";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { SelectMenu } from "@/components/ui/select-menu";
 import { getCategoryIcon } from "@/lib/category-icons";
-import { formatCurrency } from "@/lib/money";
+import { formatCurrency, formatThousands, parseThousands } from "@/lib/money";
 import { DebtCard, EditDebtSheet, type Debt } from "./components";
 import { DebtFormSheet } from "./form-sheet";
 
@@ -406,10 +406,10 @@ function PaymentDialog({
     quickOptions.push({ label: "Lunas", amount: remaining });
   }
 
-  const principalMinor = Math.round(Number(amount) || 0);
+  const principalMinor = Math.round(Number(parseThousands(amount)) || 0);
   const pct = Math.max(0, Math.min(100, Number(bungaPct) || 0));
   const bungaMinor = pct > 0 ? Math.round((principalMinor * pct) / 100) : 0;
-  const adjMinor = Math.max(0, Math.round(Number(adjAmount) || 0));
+  const adjMinor = Math.max(0, Math.round(Number(parseThousands(adjAmount)) || 0));
   const adjSigned = adjType === "fee" ? adjMinor : -adjMinor;
   const totalMinor = Math.max(0, principalMinor + bungaMinor + adjSigned);
   const hasBreakdown = bungaMinor > 0 || adjMinor > 0;
@@ -460,7 +460,7 @@ function PaymentDialog({
                 <button
                   key={option.label}
                   type="button"
-                  onClick={() => { setAmount(String(option.amount)); setError(null); }}
+                  onClick={() => { setAmount(String(option.amount)); setError(null); }} 
                   className={`flex flex-col items-center gap-0.5 rounded-xl border px-2 py-2 transition active:scale-[0.98] ${
                     active
                       ? "border-primary bg-primary/10 text-primary"
@@ -480,9 +480,9 @@ function PaymentDialog({
           <input
             className="mt-1 min-h-12 w-full rounded-lg border border-outline bg-surface px-3 focus:border-primary focus:outline-none"
             inputMode="numeric"
-            value={amount}
-            onChange={(e) => { setAmount(e.target.value); setError(null); }}
-            placeholder="2800000"
+            value={formatThousands(amount)}
+            onChange={(e) => { setAmount(parseThousands(e.target.value).replace(/\D/g, "")); setError(null); }}
+            placeholder="Masukkan nominal"
             autoFocus
           />
         </label>
@@ -494,7 +494,7 @@ function PaymentDialog({
             inputMode="decimal"
             value={bungaPct}
             onChange={(e) => { setBungaPct(e.target.value); setError(null); }}
-            placeholder="0"
+            placeholder="Masukkan nominal"
           />
         </label>
 
@@ -524,9 +524,9 @@ function PaymentDialog({
             <input
               className="min-h-12 w-full rounded-lg border border-outline bg-surface px-3 focus:border-primary focus:outline-none"
               inputMode="numeric"
-              value={adjAmount}
-              onChange={(e) => { setAdjAmount(e.target.value); setError(null); }}
-              placeholder="2500"
+              value={formatThousands(adjAmount)}
+              onChange={(e) => { setAdjAmount(parseThousands(e.target.value).replace(/\D/g, "")); setError(null); }}
+              placeholder="Masukkan nominal"
             />
           </div>
           <span className="mt-1 block text-xs text-muted">

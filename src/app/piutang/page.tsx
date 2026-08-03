@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { AppFrame } from "@/components/app-frame";
 import { usePrivacy } from "@/components/privacy-provider";
-import { formatCurrency } from "@/lib/money";
+import { formatCurrency, formatThousands, parseThousands } from "@/lib/money";
 
 type Receivable = {
   id: string;
@@ -345,8 +345,8 @@ function ReceivableFormSheet({
     event.preventDefault();
     setError(null);
 
-    const totalMinor = Math.round(Number(totalAmount));
-    const remainingMinor = remainingAmount.trim() === "" ? totalMinor : Math.round(Number(remainingAmount));
+    const totalMinor = Math.round(Number(parseThousands(totalAmount)));
+    const remainingMinor = remainingAmount.trim() === "" ? totalMinor : Math.round(Number(parseThousands(remainingAmount)));
 
     if (!name.trim()) return setError("Nama piutang wajib diisi.");
     if (!borrowerName.trim()) return setError("Nama peminjam wajib diisi.");
@@ -406,12 +406,12 @@ function ReceivableFormSheet({
 
             <label className="block">
               <span className="text-sm font-semibold text-muted">Total Piutang (Rp)</span>
-              <input className="mt-1 min-h-12 w-full rounded-lg border border-outline bg-surface px-3 focus:border-primary focus:outline-none" inputMode="numeric" value={totalAmount} onChange={(e) => setTotalAmount(e.target.value)} placeholder="1000000" />
+              <input className="mt-1 min-h-12 w-full rounded-lg border border-outline bg-surface px-3 focus:border-primary focus:outline-none" inputMode="numeric" value={formatThousands(totalAmount)} onChange={(e) => setTotalAmount(parseThousands(e.target.value).replace(/\D/g, ""))} placeholder="Masukkan nominal" />
             </label>
 
             <label className="block">
               <span className="text-sm font-semibold text-muted">Sisa Belum Dibayar (Rp) — opsional</span>
-              <input className="mt-1 min-h-12 w-full rounded-lg border border-outline bg-surface px-3 focus:border-primary focus:outline-none" inputMode="numeric" value={remainingAmount} onChange={(e) => setRemainingAmount(e.target.value)} placeholder="Kosongkan jika baru dipinjamkan" />
+              <input className="mt-1 min-h-12 w-full rounded-lg border border-outline bg-surface px-3 focus:border-primary focus:outline-none" inputMode="numeric" value={formatThousands(remainingAmount)} onChange={(e) => setRemainingAmount(parseThousands(e.target.value).replace(/\D/g, ""))} placeholder="Kosongkan jika baru dipinjamkan" />
               <span className="mt-1 block text-xs text-muted">Isi hanya jika piutang sudah sebagian terkumpul sebelum dicatat.</span>
             </label>
 
@@ -457,7 +457,7 @@ function PaymentDialog({
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const amountMinor = Math.round(Number(amount));
+    const amountMinor = Math.round(Number(parseThousands(amount)));
     if (!Number.isFinite(amountMinor) || amountMinor <= 0) {
       setError("Nominal harus lebih dari 0.");
       return;
@@ -489,9 +489,9 @@ function PaymentDialog({
           <input
             className="mt-1 min-h-12 w-full rounded-lg border border-outline bg-surface px-3 focus:border-primary focus:outline-none"
             inputMode="numeric"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            placeholder="500000"
+            value={formatThousands(amount)}
+            onChange={(e) => setAmount(parseThousands(e.target.value).replace(/\D/g, ""))}
+            placeholder="Masukkan nominal"
             autoFocus
           />
         </label>

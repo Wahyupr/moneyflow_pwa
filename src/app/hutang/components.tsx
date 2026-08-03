@@ -4,7 +4,7 @@ import { AlertTriangle, Calendar, CalendarClock, CheckCircle2, ChevronDown, Chev
 import { useMemo, useState, type FormEvent } from "react";
 import { SelectMenu } from "@/components/ui/select-menu";
 import { DEBT_CATEGORIES } from "@/lib/entitlements";
-import { formatCurrency } from "@/lib/money";
+import { formatCurrency, formatThousands, parseThousands } from "@/lib/money";
 
 export type Debt = {
   id: string;
@@ -393,6 +393,7 @@ export function EditDebtSheet({
   const [monthlyInstallment, setMonthlyInstallment] = useState(
     debt.monthly_installment_minor != null ? String(debt.monthly_installment_minor) : ""
   );
+  // keep raw numeric string internally; display formatted
   const [nextDueDate, setNextDueDate] = useState(
     debt.next_due_date ? debt.next_due_date.slice(0, 10) : ""
   );
@@ -414,7 +415,7 @@ export function EditDebtSheet({
     if (!effectiveCategory) return setError("Kategori wajib dipilih.");
 
     const monthlyMinor = monthlyInstallment.trim()
-      ? Math.round(Number(monthlyInstallment) || 0)
+      ? Math.round(Number(parseThousands(monthlyInstallment)) || 0)
       : null;
 
     setBusy(true);
@@ -516,8 +517,8 @@ export function EditDebtSheet({
               <input
                 className="mt-1 min-h-12 w-full rounded-lg border border-outline bg-surface px-3 focus:border-primary focus:outline-none"
                 inputMode="numeric"
-                value={monthlyInstallment}
-                onChange={(e) => setMonthlyInstallment(e.target.value)}
+                value={formatThousands(monthlyInstallment)}
+                onChange={(e) => setMonthlyInstallment(parseThousands(e.target.value).replace(/\D/g, ""))}
                 placeholder="Kosongkan untuk tidak mengubah"
               />
             </label>

@@ -8,7 +8,7 @@ import { ConfirmDialog, type ConfirmState } from "@/components/ui/confirm-dialog
 import { SelectMenu } from "@/components/ui/select-menu";
 import { AppFrame } from "@/components/app-frame";
 import { usePrivacy } from "@/components/privacy-provider";
-import { formatCurrency } from "@/lib/money";
+import { formatCurrency, formatThousands, parseThousands } from "@/lib/money";
 
 type Transaction = {
   id: string;
@@ -184,6 +184,7 @@ function EditSheet({
   onSaved: (updated: Transaction) => void;
 }) {
   const [amount, setAmount] = useState(String(tx.amount_minor));
+  // amount state stores raw digits; display is formatted
   const [type, setType] = useState(tx.transaction_type);
   const [merchantName, setMerchantName] = useState(tx.merchant_name ?? "");
   const [walletId, setWalletId] = useState(tx.wallet_id);
@@ -196,7 +197,7 @@ function EditSheet({
 
   async function submit(e: FormEvent) {
     e.preventDefault();
-    const amountMinor = Math.round(Number(amount));
+    const amountMinor = Math.round(Number(parseThousands(amount)));
     if (!Number.isFinite(amountMinor) || amountMinor <= 0) { setError("Nominal harus lebih dari 0."); return; }
     setBusy(true);
     setError(null);
@@ -247,7 +248,7 @@ function EditSheet({
             </div>
             <label className="block">
               <span className="text-sm font-semibold text-muted">Nominal (Rp)</span>
-              <input className="mt-1 min-h-12 w-full rounded-lg border border-outline bg-surface px-3 focus:border-primary focus:outline-none" inputMode="numeric" value={amount} onChange={(e) => setAmount(e.target.value)} />
+              <input className="mt-1 min-h-12 w-full rounded-lg border border-outline bg-surface px-3 focus:border-primary focus:outline-none" inputMode="numeric" value={formatThousands(amount)} onChange={(e) => setAmount(parseThousands(e.target.value).replace(/\D/g, ""))} />
             </label>
             <label className="block">
               <span className="text-sm font-semibold text-muted">Merchant</span>

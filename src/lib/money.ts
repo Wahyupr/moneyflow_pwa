@@ -54,3 +54,24 @@ function detectDecimalSeparator(value: string): "." | "," {
 
   return lastComma > lastDot ? "," : ".";
 }
+
+/**
+ * Format raw digits string (or number) to thousand-separated display string.
+ * "10000" → "10.000", 1500000 → "1.500.000"
+ */
+export function formatThousands(value: string | number): string {
+  const digits =
+    typeof value === "number"
+      ? String(Math.round(Math.abs(value)))
+      : value.replace(/\D/g, "");
+  if (!digits) return "";
+  return digits.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+}
+
+/**
+ * Strip thousand separators so the raw digits string can be parsed.
+ * "10.000" → "10000"
+ */
+export function parseThousands(value: string): string {
+  return value.replace(/\./g, "");
+}

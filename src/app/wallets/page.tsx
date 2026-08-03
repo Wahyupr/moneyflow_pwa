@@ -18,7 +18,7 @@ import { useCallback, useEffect, useState } from "react";
 import { AppFrame } from "@/components/app-frame";
 import { usePrivacy } from "@/components/privacy-provider";
 import { SelectMenu } from "@/components/ui/select-menu";
-import { formatCurrency } from "@/lib/money";
+import { formatCurrency, formatThousands, parseThousands } from "@/lib/money";
 import { validateWalletInput, type WalletInput, type WalletType } from "@/lib/wallets";
 import { getProvider } from "@/lib/wallet-providers";
 
@@ -613,7 +613,7 @@ function WalletsContent() {
                 <Input label="Nomor Rekening" value={form.account_number ?? ""} onChange={(value) => setForm((current) => ({ ...current, account_number: value }))} error={errors.account_number} inputMode="numeric" />
               ) : null}
 
-              <Input label="Saldo Awal (Rp)" value={String(form.opening_balance_minor ?? 0)} onChange={(value) => setForm((current) => ({ ...current, opening_balance_minor: Number(value) || 0 }))} error={errors.opening_balance_minor} inputMode="numeric" />
+              <Input label="Saldo Awal (Rp)" value={formatThousands(String(form.opening_balance_minor ?? 0))} onChange={(value) => setForm((current) => ({ ...current, opening_balance_minor: Number(parseThousands(value)) || 0 }))} error={errors.opening_balance_minor} inputMode="numeric" />
 
               <label className="block">
                 <span className="text-sm font-semibold text-muted">Mata Uang</span>
