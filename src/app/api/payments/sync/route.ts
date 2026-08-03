@@ -1,0 +1,197 @@
+/**
+ * POST /api/payments/sync
+ *
+ * Pulls the current transaction status from Midtrans API by order_id
+ * and updates the local DB. This is a client-initiated fallback for
+ * cases where the Midtrans webhook cannot reach the server (e.g. localhost,
+ * tunnel down, or missed webhook).
+ *
+ * Body: { order_id: string }
+ * Auth: requires logged-in user (ownership is verified).
+ */
+
+import { NextRequest, NextResponse } from "next/server";
+import { requireApiUser } from "@/lib/api/auth";
+import { query } from "@/lib/db/pool";
+import { activateSubscription } from "@/lib/payments/activate";
+
+export const runtime = "nodejs";
+
+type MidtransStatusResponse = {
+  order_id:           string;
+  transaction_id:     string;
+  transaction_status: string;
+  fraud_status?:      string;
+  payment_type:       string;
+  status_code:        string;
+  gross_amount:       string;
+};
+
+/** Same logic as webhook handler */
+function resolveStatus(
+  transactionStatus: string,
+  fraudStatus: string | undefined
+): "paid" | "failed" | "expired" | null {
+  if (transactionStatus === "capture") {
+    return fraudStatus === "accept" ? "paid" : "failed";
+  }
+  if (transactionStatus === "settlement") return "paid";
+  if (transactionStatus === "cancel" || transactionStatus === "deny") return "failed";
+  if (transactionStatus === "expire") return "expired";
+  return null; // pending / authorize
+}
+
+/**
+ * Fetches transaction status directly from Midtrans Status API.
+ * Uses Basic Auth: base64(serverKey + ":").
+ * Docs: https://api-docs.midtrans.com/#get-status
+ */
+async function fetchMidtransStatus(orderId: string): Promise<MidtransStatusResponse> {
+  const serverKey = process.env.MIDTRANS_SERVER_KEY ?? "";
+  if (!serverKey) throw new Error("MIDTRANS_SERVER_KEY not configured.");
+
+  const isProduction = process.env.MIDTRANS_IS_PRODUCTION === "true";
+  const baseUrl = isProduction
+    ? "https://api.midtrans.com/v2"
+    : "https://api.sandbox.midtrans.com/v2";
+
+  const credentials = Buffer.from(`${serverKey}:`).toString("base64");
+
+  const res = await fetch(`${baseUrl}/${encodeURIComponent(orderId)}/status`, {
+    method: "GET",
+    headers: {
+      "Accept": "application/json",
+      "Authorization": `Basic ${credentials}`,
+    },
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Midtrans status check failed (${res.status}): ${text}`);
+  }
+
+  return res.json() as Promise<MidtransStatusResponse>;
+}
+
+export async function POST(request: NextRequest) {
+  const auth = await requireApiUser(request);
+  if ("response" in auth) return auth.response;
+
+  let body: { order_id?: unknown };
+  try {
+    body = await request.json() as { order_id?: unknown };
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON." }, { status: 400 });
+  }
+
+  const orderId = typeof body.order_id === "string" ? body.order_id.trim() : null;
+  if (!orderId) {
+    return NextResponse.json({ error: "order_id is required." }, { status: 400 });
+  }
+
+  // 1. Load order from DB — verify it belongs to the requesting user
+  let orderResult: Awaited<ReturnType<typeof query<{ id: string; user_id: string; plan: string; billing_cycle: string; status: string }>>>;
+  try {
+    orderResult = await query<{
+      id: string;
+      user_id: string;
+      plan: string;
+      billing_cycle: string;
+      status: string;
+    }>(
+      `select id, user_id, plan, billing_cycle, status
+       from payment_orders
+       where order_id = $1
+       limit 1`,
+      [orderId]
+    );
+  } catch (err) {
+    console.error("[payments/sync] DB lookup failed for order:", orderId, err);
+    return NextResponse.json({ error: "Database error." }, { status: 500 });
+  }
+
+  const order = orderResult.rows[0];
+  if (!order) {
+    return NextResponse.json({ error: "Order not found." }, { status: 404 });
+  }
+  if (order.user_id !== auth.user.id) {
+    return NextResponse.json({ error: "Forbidden." }, { status: 403 });
+  }
+
+  // 2. Already finalised — return current status immediately
+  if (order.status !== "pending") {
+    return NextResponse.json({
+      status: order.status,
+      changed: false,
+      plan: order.plan,
+      billing: order.billing_cycle,
+    });
+  }
+
+  // 3. Query Midtrans for current status
+  let mtStatus: MidtransStatusResponse;
+  try {
+    mtStatus = await fetchMidtransStatus(orderId);
+  } catch (err) {
+    console.error("[payments/sync] Midtrans status check failed:", err);
+    return NextResponse.json(
+      { error: "Failed to check status from Midtrans. Try again shortly." },
+      { status: 502 }
+    );
+  }
+
+  const newStatus = resolveStatus(mtStatus.transaction_status, mtStatus.fraud_status);
+  if (!newStatus) {
+    // Still pending on Midtrans side
+    return NextResponse.json({
+      status: "pending",
+      changed: false,
+      plan: order.plan,
+      billing: order.billing_cycle,
+    });
+  }
+
+  // 4. Update payment_orders
+  try {
+    await query(
+      `update payment_orders
+       set status                  = $1::payment_order_status,
+           midtrans_transaction_id = $2,
+           payment_method          = $3,
+           midtrans_raw            = $4,
+           paid_at                 = case when $1::payment_order_status = 'paid' then now() else paid_at end,
+           expired_at              = case when $1::payment_order_status = 'expired' then now() else expired_at end
+       where id = $5`,
+      [newStatus, mtStatus.transaction_id, mtStatus.payment_type, JSON.stringify(mtStatus), order.id]
+    );
+  } catch (err) {
+    console.error("[payments/sync] DB update failed for order:", order.id, err);
+    return NextResponse.json({ error: "Database error." }, { status: 500 });
+  }
+
+  // 5. If paid, activate the subscription
+  if (newStatus === "paid") {
+    try {
+      await activateSubscription({
+        userId: order.user_id,
+        plan: order.plan,
+        orderId: order.id,
+        paymentMethod: mtStatus.payment_type,
+      });
+    } catch (err) {
+      console.error("[payments/sync] Subscription activation failed for user:", order.user_id, err);
+      return NextResponse.json({ error: "Database error." }, { status: 500 });
+    }
+
+    console.info(
+      `[payments/sync] Activated ${order.plan}/${order.billing_cycle} for user ${order.user_id}`
+    );
+  }
+
+  return NextResponse.json({
+    status: newStatus,
+    changed: true,
+    plan: order.plan,
+    billing: order.billing_cycle,
+  });
+}

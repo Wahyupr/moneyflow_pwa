@@ -4,6 +4,8 @@ import { z } from "zod";
 import { requireApiUser } from "@/lib/api/auth";
 import { isValidLogoReference } from "@/lib/merchant-logo";
 import { query } from "@/lib/db/pool";
+import { getActivePlan } from "@/lib/plan";
+import { PLAN_LIMITS } from "@/lib/entitlements";
 
 export const runtime = "nodejs";
 
@@ -52,6 +54,21 @@ export async function POST(request: NextRequest) {
   const parsed = MerchantCreateSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
     return NextResponse.json({ error: "Nama merchant wajib diisi." }, { status: 400 });
+  }
+
+  const plan = await getActivePlan(auth.user.id);
+  const maxMerchants = PLAN_LIMITS[plan].customMerchants;
+  if (maxMerchants !== null) {
+    const countResult = await query<{ count: string }>(
+      `select count(*)::text as count from merchants where created_by = $1 and is_system = false`,
+      [auth.user.id]
+    );
+    if (Number(countResult.rows[0]?.count ?? 0) >= maxMerchants) {
+      return NextResponse.json(
+        { error: `Paket ${plan} hanya mendukung ${maxMerchants} merchant kustom. Upgrade untuk menambah lebih banyak.` },
+        { status: 402 }
+      );
+    }
   }
 
   const { data, error } = await auth.db

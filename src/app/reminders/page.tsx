@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react
 import { AppFrame } from "@/components/app-frame";
 import { usePrivacy } from "@/components/privacy-provider";
 import { SelectMenu } from "@/components/ui/select-menu";
-import { formatCurrency } from "@/lib/money";
+import { formatCurrency, formatThousands, parseThousands } from "@/lib/money";
 
 type Reminder = {
   id: string;
@@ -397,7 +397,7 @@ function ReminderFormSheet({
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
-    const amountMinor = Math.round(Number(amount));
+    const amountMinor = Math.round(Number(parseThousands(amount)));
     if (!name.trim()) return setError("Nama pengingat wajib diisi.");
     if (!Number.isFinite(amountMinor) || amountMinor <= 0) return setError("Nominal harus lebih dari 0.");
     if (!walletId) return setError("Pilih dompet.");
@@ -471,7 +471,7 @@ function ReminderFormSheet({
 
           <label className="block">
             <span className="text-sm font-semibold text-muted">Nominal (Rp)</span>
-            <input className="mt-1 min-h-12 w-full rounded-lg border border-outline bg-surface px-3 focus:border-primary focus:outline-none" inputMode="numeric" value={amount} onChange={(event) => setAmount(event.target.value)} placeholder="300000" />
+            <input className="mt-1 min-h-12 w-full rounded-lg border border-outline bg-surface px-3 focus:border-primary focus:outline-none" inputMode="numeric" value={formatThousands(amount)} onChange={(event) => setAmount(parseThousands(event.target.value).replace(/\D/g, ""))} placeholder="Masukkan nominal" />
           </label>
 
           <div className="block">

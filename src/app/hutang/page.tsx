@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, Landmark, Plus, WalletCards } from "lucide-react";
+import { Landmark, Plus, WalletCards } from "lucide-react";
 import Link from "next/link";
 import { createElement, useCallback, useEffect, useState, type FormEvent } from "react";
 import { AppFrame } from "@/components/app-frame";
@@ -8,8 +8,8 @@ import { usePrivacy } from "@/components/privacy-provider";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { SelectMenu } from "@/components/ui/select-menu";
 import { getCategoryIcon } from "@/lib/category-icons";
-import { formatCurrency } from "@/lib/money";
-import { DebtCard, type Debt } from "./components";
+import { formatCurrency, formatThousands, parseThousands } from "@/lib/money";
+import { DebtCard, EditDebtSheet, type Debt } from "./components";
 import { DebtFormSheet } from "./form-sheet";
 
 type Summary = {
@@ -56,6 +56,7 @@ function HutangContent() {
   const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [payTarget, setPayTarget] = useState<Debt | null>(null);
+  const [editTarget, setEditTarget] = useState<Debt | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Debt | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [wallets, setWallets] = useState<WalletOption[]>([]);
@@ -113,6 +114,12 @@ function HutangContent() {
   useEffect(() => {
     void load();
     void loadWalletsAndCategories();
+
+    function handleVisibility() {
+      if (document.visibilityState === "visible") void load();
+    }
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => document.removeEventListener("visibilitychange", handleVisibility);
   }, [load, loadWalletsAndCategories]);
 
   async function archive(id: string) {
@@ -150,9 +157,8 @@ function HutangContent() {
     }
   }
 
-  if (plan === "free") {
-    return <PremiumGate />;
-  }
+  const FREE_LIMIT = 1;
+  const atFreeLimit = plan === "free" && debts.length >= FREE_LIMIT;
 
   const progressPct = summary.total_principal_minor > 0
     ? Math.min(100, Math.round((summary.total_paid_minor / summary.total_principal_minor) * 100))
@@ -193,6 +199,7 @@ function HutangContent() {
                 debt={debt}
                 busy={busyId === debt.id}
                 onPay={() => setPayTarget(debt)}
+                onEdit={() => setEditTarget(debt)}
                 onDelete={() => setDeleteTarget(debt)}
                 displayAmount={displayAmount}
               />
@@ -200,11 +207,23 @@ function HutangContent() {
           </div>
         )}
 
+        {/* Free-tier limit notice */}
+        {atFreeLimit ? (
+          <div className="rounded-2xl border border-warning/30 bg-warning/5 p-4 text-center">
+            <p className="text-sm font-semibold text-ink">Batas paket gratis tercapai (1 hutang).</p>
+            <p className="mt-1 text-xs text-muted">Upgrade ke Premium untuk tambah lebih banyak hutang.</p>
+            <Link href="/settings" className="mt-3 inline-flex min-h-9 items-center justify-center rounded-full bg-primary px-4 text-sm font-bold text-white active:scale-[0.98]">
+              Upgrade ke Premium
+            </Link>
+          </div>
+        ) : null}
+
         {/* Add button — mobile only; desktop has it in right col */}
         <button
           type="button"
-          className="flex min-h-14 w-full items-center justify-center gap-2 rounded-full bg-primary px-4 font-bold text-white shadow-card active:scale-[0.98] lg:hidden"
+          className="flex min-h-14 w-full items-center justify-center gap-2 rounded-full bg-primary px-4 font-bold text-white shadow-card active:scale-[0.98] disabled:opacity-50 lg:hidden"
           onClick={() => setShowForm(true)}
+          disabled={atFreeLimit}
         >
           <Plus size={20} />
           Tambah Hutang
@@ -227,8 +246,9 @@ function HutangContent() {
         {/* Add button */}
         <button
           type="button"
-          className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 font-bold text-white shadow-card transition hover:opacity-90 active:scale-[0.98]"
+          className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 font-bold text-white shadow-card transition hover:opacity-90 active:scale-[0.98] disabled:opacity-50"
           onClick={() => setShowForm(true)}
+          disabled={atFreeLimit}
         >
           <Plus size={18} />
           Tambah Hutang Baru
@@ -240,6 +260,17 @@ function HutangContent() {
           onClose={() => setShowForm(false)}
           onSaved={async () => {
             setShowForm(false);
+            await load();
+          }}
+        />
+      ) : null}
+
+      {editTarget ? (
+        <EditDebtSheet
+          debt={editTarget}
+          onClose={() => setEditTarget(null)}
+          onSaved={async () => {
+            setEditTarget(null);
             await load();
           }}
         />
@@ -375,10 +406,10 @@ function PaymentDialog({
     quickOptions.push({ label: "Lunas", amount: remaining });
   }
 
-  const principalMinor = Math.round(Number(amount) || 0);
+  const principalMinor = Math.round(Number(parseThousands(amount)) || 0);
   const pct = Math.max(0, Math.min(100, Number(bungaPct) || 0));
   const bungaMinor = pct > 0 ? Math.round((principalMinor * pct) / 100) : 0;
-  const adjMinor = Math.max(0, Math.round(Number(adjAmount) || 0));
+  const adjMinor = Math.max(0, Math.round(Number(parseThousands(adjAmount)) || 0));
   const adjSigned = adjType === "fee" ? adjMinor : -adjMinor;
   const totalMinor = Math.max(0, principalMinor + bungaMinor + adjSigned);
   const hasBreakdown = bungaMinor > 0 || adjMinor > 0;
@@ -429,7 +460,7 @@ function PaymentDialog({
                 <button
                   key={option.label}
                   type="button"
-                  onClick={() => { setAmount(String(option.amount)); setError(null); }}
+                  onClick={() => { setAmount(String(option.amount)); setError(null); }} 
                   className={`flex flex-col items-center gap-0.5 rounded-xl border px-2 py-2 transition active:scale-[0.98] ${
                     active
                       ? "border-primary bg-primary/10 text-primary"
@@ -449,9 +480,9 @@ function PaymentDialog({
           <input
             className="mt-1 min-h-12 w-full rounded-lg border border-outline bg-surface px-3 focus:border-primary focus:outline-none"
             inputMode="numeric"
-            value={amount}
-            onChange={(e) => { setAmount(e.target.value); setError(null); }}
-            placeholder="2800000"
+            value={formatThousands(amount)}
+            onChange={(e) => { setAmount(parseThousands(e.target.value).replace(/\D/g, "")); setError(null); }}
+            placeholder="Masukkan nominal"
             autoFocus
           />
         </label>
@@ -463,7 +494,7 @@ function PaymentDialog({
             inputMode="decimal"
             value={bungaPct}
             onChange={(e) => { setBungaPct(e.target.value); setError(null); }}
-            placeholder="0"
+            placeholder="Masukkan nominal"
           />
         </label>
 
@@ -493,9 +524,9 @@ function PaymentDialog({
             <input
               className="min-h-12 w-full rounded-lg border border-outline bg-surface px-3 focus:border-primary focus:outline-none"
               inputMode="numeric"
-              value={adjAmount}
-              onChange={(e) => { setAdjAmount(e.target.value); setError(null); }}
-              placeholder="2500"
+              value={formatThousands(adjAmount)}
+              onChange={(e) => { setAdjAmount(parseThousands(e.target.value).replace(/\D/g, "")); setError(null); }}
+              placeholder="Masukkan nominal"
             />
           </div>
           <span className="mt-1 block text-xs text-muted">
@@ -597,21 +628,3 @@ function PaymentDialog({
   );
 }
 
-function PremiumGate() {
-  return (
-    <div className="mt-5">
-      <div className="rounded-2xl border border-warning/30 bg-warning/5 p-5 text-center shadow-card">
-        <span className="mx-auto flex size-12 items-center justify-center rounded-full bg-warning/15 text-warning">
-          <AlertTriangle size={24} />
-        </span>
-        <h3 className="mt-3 text-base font-bold text-ink">Fitur Premium</h3>
-        <p className="mx-auto mt-1 max-w-xs text-sm text-muted">
-          Hutang & Piutang hanya tersedia untuk member Premium. Upgrade akun Anda untuk mulai melacak pinjaman dan tagihan.
-        </p>
-        <Link href="/settings" className="mt-4 inline-flex min-h-11 items-center justify-center rounded-full bg-primary px-5 font-bold text-white active:scale-[0.98]">
-          Kelola Langganan
-        </Link>
-      </div>
-    </div>
-  );
-}

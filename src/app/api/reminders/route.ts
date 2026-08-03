@@ -3,6 +3,8 @@ import type { NextRequest } from "next/server";
 import { z } from "zod";
 import { requireApiUser } from "@/lib/api/auth";
 import { toViewModel, type ReminderRow } from "@/lib/reminders";
+import { getActivePlan } from "@/lib/plan";
+import { PLAN_LIMITS } from "@/lib/entitlements";
 
 export const runtime = "nodejs";
 
@@ -68,6 +70,22 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Data tidak valid." }, { status: 400 });
   }
   const input = parsed.data;
+
+  const plan = await getActivePlan(auth.user.id);
+  const maxReminders = PLAN_LIMITS[plan].reminders;
+  if (maxReminders !== null) {
+    const { count } = await auth.db
+      .from("recurring_rules")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", auth.user.id)
+      .eq("is_active", true);
+    if ((count ?? 0) >= maxReminders) {
+      return NextResponse.json(
+        { error: `Paket ${plan} hanya mendukung ${maxReminders} pengingat aktif. Upgrade untuk menambah lebih banyak.` },
+        { status: 402 }
+      );
+    }
+  }
 
   const { data, error } = await auth.db
     .from("recurring_rules")

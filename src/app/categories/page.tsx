@@ -4,6 +4,7 @@ import { Check, ChevronDown, Plus, Search, Tags, Trash2, X } from "lucide-react"
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AppFrame } from "@/components/app-frame";
 import { ConfirmDialog, type ConfirmState } from "@/components/ui/confirm-dialog";
+import { Toast, useToast } from "@/components/ui/toast";
 import { CATEGORY_ICON_OPTIONS, getCategoryIcon, getCategoryIconLabel } from "@/lib/category-icons";
 
 type CategoryType = "expense" | "income" | "transfer";
@@ -47,8 +48,8 @@ function CategoriesContent() {
   const [showSystem, setShowSystem] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
   const [confirm, setConfirm] = useState<ConfirmTarget | null>(null);
-  const [status, setStatus] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const { toast, showToast } = useToast();
 
   useEffect(() => {
     let active = true;
@@ -86,29 +87,17 @@ function CategoriesContent() {
   async function handleDelete(id: string) {
     const res = await fetch(`/api/categories?id=${id}`, { method: "DELETE" });
     if (res.ok) {
-      setStatus("Kategori dihapus.");
+      showToast("Kategori dihapus.");
       const refresh = await fetch("/api/categories");
       if (refresh.ok) setCategories(((await refresh.json()).categories ?? []) as Category[]);
     } else {
-      setStatus("Gagal menghapus kategori.");
+      showToast("Gagal menghapus kategori.", "error");
     }
   }
 
   return (
     <div className="mt-5 space-y-5">
-      {status ? (
-        <div className="flex items-center justify-between rounded-lg bg-surface-container px-3 py-2 text-sm font-semibold text-primary">
-          <span>{status}</span>
-          <button
-            type="button"
-            onClick={() => setStatus(null)}
-            className="flex size-6 items-center justify-center rounded-full text-muted hover:bg-surface-low"
-            aria-label="Tutup pesan"
-          >
-            <X size={14} />
-          </button>
-        </div>
-      ) : null}
+      <Toast toast={toast} />
 
       <section className="rounded-2xl bg-surface p-4 shadow-card">
         <div className="flex items-center gap-3">
@@ -184,7 +173,7 @@ function CategoriesContent() {
         </section>
       ) : query.trim() ? (
         <div className="rounded-2xl bg-surface p-6 text-center shadow-card">
-          <p className="text-sm text-muted">Tidak ada kategori cocok dengan "{query}".</p>
+          <p className="text-sm text-muted">Tidak ada kategori cocok dengan &ldquo;{query}&rdquo;.</p>
         </div>
       ) : (
         <div className="rounded-2xl bg-surface p-6 text-center shadow-card">
@@ -237,7 +226,7 @@ function CategoriesContent() {
         <CategoryFormDialog
           onClose={() => setFormOpen(false)}
           onSaved={(message) => {
-            setStatus(message);
+            showToast(message);
             setFormOpen(false);
             void refresh();
           }}

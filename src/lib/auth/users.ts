@@ -6,7 +6,7 @@ export type UserRow = {
   email: string;
   password_hash: string | null;
   display_name: string | null;
-  role: "user" | "admin";
+  role: "user" | "admin" | "cs";
   google_sub: string | null;
   email_verified_at: string | null;
 };
@@ -58,8 +58,13 @@ export async function setUserGoogleSub(userId: string, sub: string): Promise<voi
 }
 
 /**
- * Ensures the baseline profile + entitlement rows exist for a user. Idempotent
- * via upsert, so it is safe to call on every successful sign-in.
+ * Ensures the baseline profile row exists for a user. Idempotent via upsert, so
+ * it is safe to call on every successful sign-in.
+ *
+ * NOTE: This no longer auto-grants the Premium trial. New users start on the
+ * free plan and explicitly claim their 7-day trial from the post-registration
+ * popup (see POST /api/trial/claim). The gating queries fall back to "free"
+ * when no active entitlement exists.
  */
 export async function provisionUser(input: { userId: string; displayName?: string | null }): Promise<void> {
   await query(
@@ -67,17 +72,6 @@ export async function provisionUser(input: { userId: string; displayName?: strin
      values ($1, $2, 'IDR', 'id-ID')
      on conflict (id) do update set display_name = coalesce(excluded.display_name, profiles.display_name)`,
     [input.userId, input.displayName?.trim() || null]
-  );
-  // Grant every new user a 1-month Premium free trial. We store it as an active
-  // premium entitlement whose current_period_end is one month out; the gating
-  // queries treat an entitlement whose period has lapsed as free (see the
-  // `current_period_end is null or current_period_end > now()` filters), so the
-  // trial automatically downgrades to free after a month without a cron job.
-  await query(
-    `insert into subscription_entitlements (user_id, plan, status, current_period_end)
-     values ($1, 'premium', 'active', now() + interval '7 days')
-     on conflict (user_id) do nothing`,
-    [input.userId]
   );
 }
 

@@ -4,7 +4,7 @@ import { X } from "lucide-react";
 import { useMemo, useState, type FormEvent } from "react";
 import { SelectMenu } from "@/components/ui/select-menu";
 import { DEBT_CATEGORIES } from "@/lib/entitlements";
-import { formatCurrency } from "@/lib/money";
+import { formatCurrency, formatThousands, parseThousands } from "@/lib/money";
 
 const CATEGORY_OPTIONS = [
   ...DEBT_CATEGORIES.map((value) => ({ value, label: value })),
@@ -64,7 +64,7 @@ export function DebtFormSheet({
     return tenorMode;
   }, [tenorMode, customTenor]);
 
-  const principalMinor = Math.round(Number(totalAmount) || 0);
+  const principalMinor = Math.round(Number(parseThousands(totalAmount)) || 0);
   const bpsPerMonth = Math.round((Number(interestPctMonth) || 0) * 100); // 1% = 100 bps
   const computedMonthly = useMemo(() => {
     if (principalMinor <= 0 || tenorMonths <= 0) return 0;
@@ -72,7 +72,7 @@ export function DebtFormSheet({
   }, [principalMinor, tenorMonths, bpsPerMonth]);
 
   // If user typed a manual installment, use that. Otherwise use computed.
-  const manualMinor = manualInstallment.trim() === "" ? null : Math.round(Number(manualInstallment) || 0);
+  const manualMinor = manualInstallment.trim() === "" ? null : Math.round(Number(parseThousands(manualInstallment)) || 0);
   const effectiveMonthly = manualMinor && manualMinor > 0 ? manualMinor : computedMonthly;
 
   // Derived totals for preview
@@ -86,7 +86,7 @@ export function DebtFormSheet({
     setError(null);
 
     const totalMinor = principalMinor;
-    const remainingMinor = remainingAmount.trim() === "" ? totalMinor : Math.round(Number(remainingAmount) || 0);
+    const remainingMinor = remainingAmount.trim() === "" ? totalMinor : Math.round(Number(parseThousands(remainingAmount)) || 0);
     const monthlyMinor = effectiveMonthly > 0 ? effectiveMonthly : null;
 
     if (!name.trim()) return setError("Nama hutang wajib diisi.");
@@ -174,12 +174,12 @@ export function DebtFormSheet({
 
             <label className="block">
               <span className="text-sm font-semibold text-muted">Total Pinjaman (Rp)</span>
-              <input className="mt-1 min-h-12 w-full rounded-lg border border-outline bg-surface px-3 focus:border-primary focus:outline-none" inputMode="numeric" value={totalAmount} onChange={(e) => setTotalAmount(e.target.value)} placeholder="10000000" />
+              <input className="mt-1 min-h-12 w-full rounded-lg border border-outline bg-surface px-3 focus:border-primary focus:outline-none" inputMode="numeric" value={formatThousands(totalAmount)} onChange={(e) => setTotalAmount(parseThousands(e.target.value).replace(/\D/g, ""))} placeholder="Masukkan nominal" />
             </label>
 
             <label className="block">
               <span className="text-sm font-semibold text-muted">Sisa Hutang (Rp) — opsional</span>
-              <input className="mt-1 min-h-12 w-full rounded-lg border border-outline bg-surface px-3 focus:border-primary focus:outline-none" inputMode="numeric" value={remainingAmount} onChange={(e) => setRemainingAmount(e.target.value)} placeholder="Kosongkan jika baru diambil" />
+              <input className="mt-1 min-h-12 w-full rounded-lg border border-outline bg-surface px-3 focus:border-primary focus:outline-none" inputMode="numeric" value={formatThousands(remainingAmount)} onChange={(e) => setRemainingAmount(parseThousands(e.target.value).replace(/\D/g, ""))} placeholder="Kosongkan jika baru diambil" />
               <span className="mt-1 block text-xs text-muted">Isi jika hutang sudah sebagian dibayar sebelum dicatat.</span>
             </label>
 
@@ -236,7 +236,7 @@ export function DebtFormSheet({
 
             <label className="block">
               <span className="text-sm font-semibold text-muted">Cicilan / Bulan (Rp) — opsional</span>
-              <input className="mt-1 min-h-12 w-full rounded-lg border border-outline bg-surface px-3 focus:border-primary focus:outline-none" inputMode="numeric" value={manualInstallment} onChange={(e) => setManualInstallment(e.target.value)} placeholder="Isi manual untuk override hitungan" />
+              <input className="mt-1 min-h-12 w-full rounded-lg border border-outline bg-surface px-3 focus:border-primary focus:outline-none" inputMode="numeric" value={formatThousands(manualInstallment)} onChange={(e) => setManualInstallment(parseThousands(e.target.value).replace(/\D/g, ""))} placeholder="Isi manual untuk override hitungan" />
             </label>
 
             {principalMinor > 0 && tenorMonths > 0 && effectiveMonthly > 0 ? (

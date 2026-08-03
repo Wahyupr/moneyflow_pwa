@@ -54,21 +54,19 @@ function calcFlatInstallment(principalMinor: number, months: number, bpsPerMonth
   return Math.ceil((principalMinor + totalInterest) / months);
 }
 
-async function requirePremium(userId: string) {
+async function getPlan(userId: string): Promise<"free" | "premium" | "pro"> {
   const result = await query<{ plan: string | null }>(
     "select plan from subscription_entitlements where user_id = $1 and status = 'active' and (current_period_end is null or current_period_end > now())",
     [userId]
   );
-  const plan = (result.rows[0]?.plan ?? "free") as "free" | "premium";
-  return canAccessHutangPiutang(plan);
+  return (result.rows[0]?.plan ?? "free") as "free" | "premium" | "pro";
 }
 
 export async function GET(request: NextRequest) {
   const auth = await requireApiUser(request);
   if ("response" in auth) return auth.response;
 
-  const access = await requirePremium(auth.user.id);
-  if (!access.ok) return NextResponse.json({ error: access.reason }, { status: 402 });
+  // Free users can read their existing records — no gate on GET.
 
   const result = await query<DebtRow>(
     `select d.*, coalesce(p.paid, 0) as paid_amount_minor
@@ -161,7 +159,14 @@ export async function POST(request: NextRequest) {
   const auth = await requireApiUser(request);
   if ("response" in auth) return auth.response;
 
-  const access = await requirePremium(auth.user.id);
+  // Count existing active debts to enforce free-tier limit before inserting.
+  const plan = await getPlan(auth.user.id);
+  const countRes = await query<{ cnt: string }>(
+    "select count(*) as cnt from debts where user_id = $1 and status = 'active'",
+    [auth.user.id]
+  );
+  const recordCount = Number(countRes.rows[0]?.cnt ?? 0);
+  const access = canAccessHutangPiutang({ plan, recordCount });
   if (!access.ok) return NextResponse.json({ error: access.reason }, { status: 402 });
 
   const parsed = CreateSchema.safeParse(await request.json().catch(() => null));

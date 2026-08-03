@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { z } from "zod";
 import { requireApiAdmin } from "@/lib/api/auth";
+import { query } from "@/lib/db/pool";
 
 export const runtime = "nodejs";
 
@@ -21,10 +22,7 @@ type RouteContext = { params: Promise<{ id: string }> };
 
 export async function PATCH(request: NextRequest, context: RouteContext) {
   const auth = await requireApiAdmin(request);
-
-  if ("response" in auth) {
-    return auth.response;
-  }
+  if ("response" in auth) return auth.response;
 
   const { id } = await context.params;
   const parsed = CategoryUpdateSchema.safeParse(await request.json().catch(() => null));
@@ -33,48 +31,76 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     return NextResponse.json({ error: "Invalid category payload." }, { status: 400 });
   }
 
-  const patch: Record<string, unknown> = {};
+  // Build SET clause dynamically
+  const fields: string[] = [];
+  const values: unknown[] = [];
+  let idx = 1;
+
   if (parsed.data.name !== undefined) {
-    patch.name = parsed.data.name.trim();
+    fields.push(`name = $${idx++}`);
+    values.push(parsed.data.name.trim());
   }
   if (parsed.data.icon !== undefined) {
-    patch.icon = parsed.data.icon.trim();
+    fields.push(`icon = $${idx++}`);
+    values.push(parsed.data.icon.trim());
   }
   if (parsed.data.color !== undefined) {
-    patch.color = parsed.data.color;
+    fields.push(`color = $${idx++}`);
+    values.push(parsed.data.color);
   }
   if (parsed.data.type !== undefined) {
-    patch.type = parsed.data.type;
+    fields.push(`type = $${idx++}`);
+    values.push(parsed.data.type);
   }
 
-  const { data, error } = await auth.db
-    .from("categories")
-    .update(patch)
-    .eq("id", id)
-    .eq("is_system", true)
-    .select("id,name,icon,color,type,is_system")
-    .single();
+  values.push(id); // $idx for WHERE id
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  try {
+    const result = await query<{
+      id: string;
+      name: string;
+      icon: string;
+      color: string;
+      type: string;
+      is_system: boolean;
+    }>(
+      `update categories
+       set ${fields.join(", ")}
+       where id = $${idx} and is_system = true
+       returning id, name, icon, color, type, is_system`,
+      values
+    );
+
+    if (result.rowCount === 0) {
+      return NextResponse.json({ error: "Category not found." }, { status: 404 });
+    }
+
+    return NextResponse.json({ category: result.rows[0] });
+  } catch (err) {
+    console.error("[admin/categories PATCH]", err);
+    return NextResponse.json({ error: "Failed to update category." }, { status: 500 });
   }
-
-  return NextResponse.json({ category: data });
 }
 
 export async function DELETE(request: NextRequest, context: RouteContext) {
   const auth = await requireApiAdmin(request);
-
-  if ("response" in auth) {
-    return auth.response;
-  }
+  if ("response" in auth) return auth.response;
 
   const { id } = await context.params;
-  const { error } = await auth.db.from("categories").delete().eq("id", id).eq("is_system", true);
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  try {
+    const result = await query(
+      `delete from categories where id = $1 and is_system = true`,
+      [id]
+    );
+
+    if (result.rowCount === 0) {
+      return NextResponse.json({ error: "Category not found." }, { status: 404 });
+    }
+
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    console.error("[admin/categories DELETE]", err);
+    return NextResponse.json({ error: "Failed to delete category." }, { status: 500 });
   }
-
-  return NextResponse.json({ ok: true });
 }

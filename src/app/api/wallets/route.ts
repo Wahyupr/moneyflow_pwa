@@ -4,6 +4,7 @@ import { requireApiUser } from "@/lib/api/auth";
 import { canCreateWallet } from "@/lib/entitlements";
 import { validateWalletInput } from "@/lib/wallets";
 import { query } from "@/lib/db/pool";
+import { getActivePlan } from "@/lib/plan";
 
 export const runtime = "nodejs";
 
@@ -102,17 +103,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid wallet payload.", errors: parsed.errors }, { status: 400 });
   }
 
-  const { count } = await auth.db
-    .from("wallets")
-    .select("id", { count: "exact", head: true })
-    .eq("user_id", auth.user.id);
-  const { data: entitlement } = await auth.db
-    .from("subscription_entitlements")
-    .select("plan")
-    .eq("user_id", auth.user.id)
-    .eq("status", "active")
-    .maybeSingle();
-  const limit = canCreateWallet({ plan: entitlement?.plan === "premium" ? "premium" : "free", walletCount: count ?? 0 });
+  const [{ count }, plan] = await Promise.all([
+    auth.db.from("wallets").select("id", { count: "exact", head: true }).eq("user_id", auth.user.id),
+    getActivePlan(auth.user.id)
+  ]);
+  const limit = canCreateWallet({ plan, walletCount: count ?? 0 });
 
   if (!limit.ok) {
     return NextResponse.json({ error: limit.reason }, { status: 402 });

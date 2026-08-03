@@ -4,6 +4,11 @@ import { z } from "zod";
 import { requireApiUser } from "@/lib/api/auth";
 import { parseVoiceTransaction, type ParsedVoiceTransaction } from "@/lib/voice/parse";
 import { isAiConfigured, parseVoiceWithAi } from "@/lib/voice/ai";
+import { getActivePlan } from "@/lib/plan";
+import { PLAN_LIMITS } from "@/lib/entitlements";
+import { consumeAiCredits } from "@/lib/ai-credits";
+import { query } from "@/lib/db/pool";
+
 
 export const runtime = "nodejs";
 
@@ -98,6 +103,30 @@ export async function POST(request: NextRequest) {
 
   const { transcript, occurred_at, commit } = parsedBody.data;
 
+  // Enforce voicePerDay limit for free plan — only on commit=true to avoid
+  // counting previews against the quota.
+  if (commit !== false) {
+    const plan = await getActivePlan(auth.user.id);
+    const maxPerDay = PLAN_LIMITS[plan].voicePerDay;
+    if (maxPerDay !== null) {
+      const countResult = await query<{ count: string }>(
+        `select count(*)::text as count
+         from transactions
+         where user_id = $1
+           and input_method = 'voice'
+           and occurred_at >= current_date
+           and occurred_at < current_date + interval '1 day'`,
+        [auth.user.id]
+      );
+      if (Number(countResult.rows[0]?.count ?? 0) >= maxPerDay) {
+        return NextResponse.json(
+          { error: `Paket ${plan} hanya mendukung ${maxPerDay} transaksi suara per hari. Upgrade untuk limit lebih banyak.` },
+          { status: 402 }
+        );
+      }
+    }
+  }
+
   // 1) Try the rule-based parser. 2) Fall back to AI only when not confident
   // and AI is configured. AI errors degrade gracefully to the rule result.
   let parsed = parseVoiceTransaction(transcript);
@@ -164,6 +193,16 @@ export async function POST(request: NextRequest) {
   if (parsed.amount_minor <= 0) {
     return NextResponse.json({ error: "Nominal tidak terdeteksi dari suara.", preview }, { status: 422 });
   }
+
+  // Charge AI credits only when the AI parser was actually used to interpret
+  // the transcript (the rule-based path is free).
+  if (usedAi) {
+    const credit = await consumeAiCredits({ userId: auth.user.id, action: "voice" });
+    if (!credit.ok) {
+      return NextResponse.json({ error: credit.reason, preview }, { status: 402 });
+    }
+  }
+
 
   // Auto-provision a default Cash wallet so "tanpa sebut dompet = cash" always
   // lands on a real cash wallet instead of an unrelated e-wallet.

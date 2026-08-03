@@ -8,7 +8,7 @@ import { verifySessionToken, type SessionUser } from "@/lib/auth/session";
 export type ApiUser = {
   id: string;
   email: string;
-  role: "user" | "admin";
+  role: "user" | "admin" | "cs";
   user_metadata: { display_name: string | null };
 };
 
@@ -72,6 +72,25 @@ export async function requireApiAdmin(request: NextRequest) {
   if (auth.user.role !== "admin") {
     return {
       response: NextResponse.json({ error: "Admin access required." }, { status: 403 })
+    } as const;
+  }
+
+  return auth;
+}
+
+/**
+ * Like {@link requireApiUser} but asserts the caller has the `cs` or `admin` role.
+ */
+export async function requireApiCs(request: NextRequest) {
+  const auth = await requireApiUser(request);
+
+  if ("response" in auth) {
+    return auth;
+  }
+
+  if (auth.user.role !== "admin" && auth.user.role !== "cs") {
+    return {
+      response: NextResponse.json({ error: "CS or admin access required." }, { status: 403 })
     } as const;
   }
 

@@ -9,6 +9,7 @@ import {
   fallbackDailyInsight,
   type DailyInsightBudget,
   type DailyInsightContext,
+  type DailyInsightDebt,
   type DailyInsightSharingContribution,
   type DailyInsightWallet,
   type ParsedDailyInsight
@@ -21,7 +22,10 @@ import {
   isFreeLimitReached,
   type InsightPlanTier
 } from "@/lib/insight-quota";
+import { getActivePlan } from "@/lib/plan";
+import { consumeAiCredits } from "@/lib/ai-credits";
 import type { LedgerTransaction } from "@/lib/types";
+
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -45,15 +49,7 @@ type StoredInsightRow = {
   model: string;
 };
 
-type PlanTier = InsightPlanTier;
-
-async function resolveUserPlan(userId: string): Promise<InsightPlanTier> {
-  const result = await query<{ plan: InsightPlanTier }>(
-    `select plan from subscription_entitlements where user_id = $1`,
-    [userId]
-  );
-  return result.rows[0]?.plan ?? "free";
-}
+// resolveUserPlan replaced by shared getActivePlan (checks current_period_end)
 
 async function countCompletedInsights(userId: string): Promise<number> {
   const result = await query<{ count: string }>(
@@ -90,7 +86,7 @@ export async function GET(request: NextRequest) {
     return auth.response;
   }
 
-  const plan = await resolveUserPlan(auth.user.id);
+  const plan = await getActivePlan(auth.user.id) as InsightPlanTier;
   const latest = await fetchLatestCompletedInsight(auth.user.id);
   const usageCount = latest ? await countCompletedInsights(auth.user.id) : 0;
 
@@ -141,12 +137,12 @@ export async function POST(request: NextRequest) {
   // tagged as "manual_button".
   void body.trigger;
 
-  const plan = await resolveUserPlan(auth.user.id);
+  const plan = await getActivePlan(auth.user.id) as InsightPlanTier;
   const bounds = todayBoundsInTz(APP_TIMEZONE);
 
   if (plan === "free") {
     const usageCount = await countCompletedInsights(auth.user.id);
-    const decision = decideInsightQuota({ plan, usageCount });
+    const decision = decideInsightQuota({ plan: plan as InsightPlanTier, usageCount });
     if (!decision.allowed) {
       return NextResponse.json(
         {
@@ -170,7 +166,8 @@ export async function POST(request: NextRequest) {
   const client = await getPool().connect();
   try {
     await client.query("begin");
-    if (plan === "premium") {
+    if (plan === "premium" || plan === "pro") {
+      // Paid plan regenerate path: replace any existing row for today.
       await client.query(
         `delete from daily_insights where user_id = $1 and insight_date = $2`,
         [auth.user.id, bounds.date]
@@ -230,7 +227,25 @@ export async function POST(request: NextRequest) {
     const insightId = claim.rows[0].id;
     await client.query("commit");
 
+    // Deduct AI credits. If the wallet is empty, roll back the placeholder row
+    // so the user isn't left with a stuck "pending" insight, and report 402.
+    const credit = await consumeAiCredits({ userId: auth.user.id, action: "insight" });
+    if (!credit.ok) {
+      await query(`delete from daily_insights where id = $1 and user_id = $2`, [insightId, auth.user.id]);
+      return NextResponse.json(
+        {
+          exists: false,
+          can_generate: false,
+          reason: "insufficient_credits",
+          message: credit.reason,
+          plan
+        },
+        { status: 402 }
+      );
+    }
+
     const ctx = await buildContext(auth.user.id, auth.user.user_metadata.display_name, bounds);
+
 
     let parsed: ParsedDailyInsight;
     let model: string;
@@ -363,6 +378,27 @@ async function buildContext(
     })) as unknown as LedgerTransaction[];
   }
 
+  // Fetch last 90 days for trend analysis — passed as all_transactions to the AI.
+  let allTx: LedgerTransaction[] = [];
+  if (walletIds.length > 0) {
+    const ninetyDaysAgoIso = new Date(new Date(bounds.startUtc).getTime() - 90 * 86_400_000).toISOString();
+    const walletPlaceholders2 = walletIds.map((_, i) => `$${i + 1}`).join(",");
+    const allTxParams: unknown[] = [...walletIds, ninetyDaysAgoIso, bounds.endUtc];
+    const allTxRes = await query<Record<string, unknown>>(
+      `select t.id, t.user_id, t.wallet_id, t.category_id, t.merchant_name,
+              t.payment_method, t.transaction_type, t.amount_minor, t.currency,
+              t.occurred_at, t.transfer_pair_id
+       from transactions t
+       where t.wallet_id in (${walletPlaceholders2})
+         and t.occurred_at >= $${walletIds.length + 1}
+         and t.occurred_at < $${walletIds.length + 2}
+       order by t.occurred_at desc
+       limit 500`,
+      allTxParams
+    );
+    allTx = allTxRes.rows.map(normalizeTransaction);
+  }
+
   const todayTx = recentTx.filter((t) => t.occurred_at >= bounds.startUtc && t.occurred_at < bounds.endUtc);
 
   let yesterday_income_minor = 0;
@@ -450,6 +486,34 @@ async function buildContext(
     others_contributed_minor
   };
 
+  // Fetch active debts with remaining balance (total - sum of payments)
+  const debtsRes = await query<{
+    id: string;
+    name: string;
+    total_amount_minor: string;
+    paid_minor: string;
+    next_due_date: string | null;
+  }>(
+    `select d.id, d.name,
+            d.total_amount_minor,
+            coalesce(sum(dp.amount_minor), 0)::bigint as paid_minor,
+            d.next_due_date
+     from debts d
+     left join debt_payments dp on dp.debt_id = d.id
+     where d.user_id = $1 and d.status = 'active'
+     group by d.id
+     order by d.next_due_date asc nulls last`,
+    [userId]
+  );
+
+  const debts: DailyInsightDebt[] = debtsRes.rows.map((d) => ({
+    id: d.id,
+    name: d.name,
+    principal_minor: Number(d.total_amount_minor),
+    remaining_minor: Math.max(0, Number(d.total_amount_minor) - Number(d.paid_minor)),
+    next_due_date: d.next_due_date ?? null
+  }));
+
   const profileRes = await query<{ hide_nominal_default: boolean | null }>(
     `select hide_nominal_default from profiles where id = $1`,
     [userId]
@@ -466,11 +530,13 @@ async function buildContext(
     privacyEnabled,
     wallets,
     today_transactions: todayTx,
+    all_transactions: allTx,
     yesterday_totals: {
       income_minor: yesterday_income_minor,
       expense_minor: yesterday_expense_minor
     },
     budgets,
+    debts,
     sharing
   };
 }

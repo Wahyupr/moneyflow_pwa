@@ -310,3 +310,121 @@ export async function sendPasswordResetEmail(to: string, code: string): Promise<
 
   return sendEmail({ to, subject, html, text });
 }
+
+export async function sendNewTicketNotification(input: {
+  to: string;
+  ticketId: string;
+  ticketSubject: string;
+  userEmail: string;
+}): Promise<{ ok: boolean }> {
+  const emailSubject = `[Support] Tiket baru: ${input.ticketSubject}`;
+  const text = `Ada tiket support baru dari ${input.userEmail}.\n\nSubjek: ${input.ticketSubject}\nID: ${input.ticketId}\n\nBuka dashboard admin untuk merespons.`;
+  const html = `
+    <body style="margin:0;padding:0;background-color:#eef3fb;font-family:'Plus Jakarta Sans',Arial,sans-serif;">
+      <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#eef3fb;padding:40px 16px;">
+        <tr>
+          <td align="center">
+            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:480px;background-color:#ffffff;border-radius:16px;overflow:hidden;">
+              <tr>
+                <td style="background-color:#dc2626;padding:28px 32px 24px;">
+                  <p style="margin:0;font-size:13px;font-weight:600;color:#fecaca;letter-spacing:0.08em;text-transform:uppercase;">Customer Support</p>
+                  <h1 style="margin:8px 0 0;font-size:22px;font-weight:700;color:#ffffff;line-height:1.3;">Tiket support baru masuk</h1>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding:32px 32px 8px;">
+                  <p style="margin:0 0 16px;font-size:15px;line-height:1.7;color:#3d4a42;">Ada tiket support baru yang perlu ditangani.</p>
+                  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid #e5e7eb;border-radius:12px;overflow:hidden;">
+                    <tr>
+                      <td style="padding:16px 20px;background-color:#f9fafb;">
+                        <p style="margin:0 0 6px;font-size:12px;font-weight:600;color:#6b7280;text-transform:uppercase;letter-spacing:0.08em;">Dari</p>
+                        <p style="margin:0;font-size:14px;color:#111827;">${input.userEmail}</p>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td style="padding:16px 20px;border-top:1px solid #e5e7eb;">
+                        <p style="margin:0 0 6px;font-size:12px;font-weight:600;color:#6b7280;text-transform:uppercase;letter-spacing:0.08em;">Subjek</p>
+                        <p style="margin:0;font-size:14px;color:#111827;font-weight:600;">${input.ticketSubject}</p>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td style="padding:16px 20px;border-top:1px solid #e5e7eb;">
+                        <p style="margin:0 0 6px;font-size:12px;font-weight:600;color:#6b7280;text-transform:uppercase;letter-spacing:0.08em;">ID Tiket</p>
+                        <p style="margin:0;font-size:13px;color:#6b7280;font-family:monospace;">${input.ticketId}</p>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding:24px 32px 32px;">
+                  <hr style="border:none;border-top:1px solid #e8efec;margin:0 0 20px;" />
+                  <p style="margin:0;font-size:12px;color:#8a9e96;line-height:1.6;">Buka dashboard admin MoneyFlow untuk melihat dan merespons tiket ini.</p>
+                </td>
+              </tr>
+            </table>
+            <p style="margin:20px 0 0;font-size:11px;color:#9aada5;text-align:center;">© 2025 MoneyFlow</p>
+          </td>
+        </tr>
+      </table>
+    </body>
+  `;
+  return sendEmail({ to: input.to, subject: emailSubject, html, text });
+}
+
+export async function sendNewReplyNotification(input: {
+  to: string;
+  ticketId: string;
+  ticketSubject: string;
+  replierName: string;
+  isStaff: boolean;
+}): Promise<{ ok: boolean }> {
+  const emailSubject = `[Support] Balasan baru: ${input.ticketSubject}`;
+  const senderLabel = input.isStaff ? "Tim support MoneyFlow" : input.replierName;
+  const text = `Ada balasan baru dari ${senderLabel} pada tiket "${input.ticketSubject}" (ID: ${input.ticketId}).`;
+  const html = `
+    <body style="margin:0;padding:0;background-color:#eef3fb;font-family:'Plus Jakarta Sans',Arial,sans-serif;">
+      <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#eef3fb;padding:40px 16px;">
+        <tr>
+          <td align="center">
+            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:480px;background-color:#ffffff;border-radius:16px;overflow:hidden;">
+              <tr>
+                <td style="background-color:#1668DC;padding:28px 32px 24px;">
+                  <p style="margin:0;font-size:13px;font-weight:600;color:#bcdcff;letter-spacing:0.08em;text-transform:uppercase;">Customer Support</p>
+                  <h1 style="margin:8px 0 0;font-size:22px;font-weight:700;color:#ffffff;line-height:1.3;">Ada balasan baru</h1>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding:32px 32px 8px;">
+                  <p style="margin:0 0 16px;font-size:15px;line-height:1.7;color:#3d4a42;"><strong>${senderLabel}</strong> telah membalas tiket support kamu.</p>
+                  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid #e5e7eb;border-radius:12px;overflow:hidden;">
+                    <tr>
+                      <td style="padding:16px 20px;background-color:#f9fafb;">
+                        <p style="margin:0 0 6px;font-size:12px;font-weight:600;color:#6b7280;text-transform:uppercase;letter-spacing:0.08em;">Tiket</p>
+                        <p style="margin:0;font-size:14px;color:#111827;font-weight:600;">${input.ticketSubject}</p>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td style="padding:16px 20px;border-top:1px solid #e5e7eb;">
+                        <p style="margin:0 0 6px;font-size:12px;font-weight:600;color:#6b7280;text-transform:uppercase;letter-spacing:0.08em;">ID Tiket</p>
+                        <p style="margin:0;font-size:13px;color:#6b7280;font-family:monospace;">${input.ticketId}</p>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding:24px 32px 32px;">
+                  <hr style="border:none;border-top:1px solid #e8efec;margin:0 0 20px;" />
+                  <p style="margin:0;font-size:12px;color:#8a9e96;line-height:1.6;">Buka aplikasi MoneyFlow untuk membaca balasan dan melanjutkan percakapan.</p>
+                </td>
+              </tr>
+            </table>
+            <p style="margin:20px 0 0;font-size:11px;color:#9aada5;text-align:center;">© 2025 MoneyFlow</p>
+          </td>
+        </tr>
+      </table>
+    </body>
+  `;
+  return sendEmail({ to: input.to, subject: emailSubject, html, text });
+}

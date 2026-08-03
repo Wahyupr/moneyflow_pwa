@@ -4,6 +4,16 @@ import { z } from "zod";
 import { requireApiUser } from "@/lib/api/auth";
 import { parseVoiceTransaction, type ParsedVoiceTransaction } from "@/lib/voice/parse";
 import { isAiConfigured, parseVoiceWithAi } from "@/lib/voice/ai";
+import { consumeAiCredits } from "@/lib/ai-credits";
+
+import { query } from "@/lib/db/pool";
+
+import {
+  isFinancialQuestion,
+  answerFinancialQuestion,
+  type FinancialContext,
+} from "@/lib/voice/financial-ai";
+
 
 export const runtime = "nodejs";
 
@@ -18,8 +28,51 @@ const TRANSACTION_KEYWORDS: string[] = [
 const ChatSchema = z.object({
   message: z.string().min(1).max(500),
   /** When false, only parse and preview — do not save to DB. */
-  commit: z.boolean().optional()
+  commit: z.boolean().optional(),
+  /** Optional chat session to persist the financial Q&A conversation into. */
+  session_id: z.string().uuid().optional()
 });
+
+/**
+ * Persists a user question + assistant answer into a chat session (owned by
+ * the user). Also bumps the session's updated_at and derives a title from the
+ * first question. Best-effort: failures are logged but never block the reply.
+ */
+async function persistChatTurn(input: {
+  userId: string;
+  sessionId: string;
+  question: string;
+  answer: string;
+}): Promise<void> {
+  try {
+    const owns = await query<{ id: string; title: string }>(
+      `select id, title from chat_sessions where id = $1 and user_id = $2`,
+      [input.sessionId, input.userId]
+    );
+    if (owns.rows.length === 0) return;
+
+    await query(
+      `insert into chat_messages (session_id, user_id, role, content)
+       values ($1, $2, 'user', $3), ($1, $2, 'assistant', $4)`,
+      [input.sessionId, input.userId, input.question, input.answer]
+    );
+
+    // Name the session after the first question (trimmed) if still default.
+    const title = owns.rows[0].title;
+    if (title === "Percakapan baru") {
+      const derived = input.question.slice(0, 60);
+      await query(`update chat_sessions set title = $2, updated_at = now() where id = $1`, [
+        input.sessionId,
+        derived
+      ]);
+    } else {
+      await query(`update chat_sessions set updated_at = now() where id = $1`, [input.sessionId]);
+    }
+  } catch (err) {
+    console.error("[chat persist]", err);
+  }
+}
+
 
 type WalletRow = { id: string; name: string; type: string; institution_name: string | null };
 type CategoryRow = { id: string; name: string; type: string };
@@ -74,7 +127,142 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Pesan tidak valid." }, { status: 400 });
   }
 
-  const { message, commit } = parsedBody.data;
+  const { message, commit, session_id } = parsedBody.data;
+
+  // Financial assistant is available to ALL plans now (free, premium, pro).
+
+  // Each answered question consumes AI chat credits, and the conversation is
+  // persisted into the given chat session.
+  if (commit !== true && isFinancialQuestion(message)) {
+    // Financial Q&A consumes AI chat credits.
+    const credit = await consumeAiCredits({ userId: auth.user.id, action: "chat" });
+    if (!credit.ok) {
+      return NextResponse.json({ reply: credit.reason });
+    }
+    try {
+
+
+      const now = new Date();
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+
+      const [
+        { data: walletRows },
+        { data: expenseRows },
+        { data: incomeRows },
+        { data: budgetRows },
+        { data: categoryRows },
+        { data: debtRows },
+        { data: debtPaymentRows },
+        { data: receivableRows },
+        { data: receivablePaymentRows },
+      ] = await Promise.all([
+        auth.db
+          .from("wallets")
+          .select("name,balance_minor,currency")
+          .eq("user_id", auth.user.id)
+          .is("archived_at", null),
+        auth.db
+          .from("transactions")
+          .select("amount_minor,category_id")
+          .eq("user_id", auth.user.id)
+          .eq("transaction_type", "expense")
+          .gte("occurred_at", startOfMonth),
+        auth.db
+          .from("transactions")
+          .select("amount_minor")
+          .eq("user_id", auth.user.id)
+          .eq("transaction_type", "income")
+          .gte("occurred_at", startOfMonth),
+        auth.db
+          .from("budgets")
+          .select("name,allocated_minor,spent_minor")
+          .eq("user_id", auth.user.id),
+        auth.db.from("categories").select("id,name"),
+        auth.db
+          .from("debts")
+          .select("id,name,creditor_name,total_amount_minor")
+          .eq("user_id", auth.user.id)
+          .eq("status", "active")
+          .limit(200),
+        auth.db
+          .from("debt_payments")
+          .select("debt_id,amount_minor")
+          .eq("user_id", auth.user.id),
+        auth.db
+          .from("receivables")
+          .select("id,name,borrower_name,total_amount_minor")
+          .eq("user_id", auth.user.id)
+          .eq("status", "active")
+          .limit(200),
+        auth.db
+          .from("receivable_payments")
+          .select("receivable_id,amount_minor")
+          .eq("user_id", auth.user.id),
+      ]);
+
+      // Aggregate expenses by category
+      const catMap = Object.fromEntries(
+        ((categoryRows ?? []) as { id: string; name: string }[]).map((c) => [c.id, c.name])
+      );
+      const catTotals: Record<string, number> = {};
+      for (const row of (expenseRows ?? []) as { amount_minor: number; category_id: string | null }[]) {
+        const name = row.category_id ? (catMap[row.category_id] ?? "Lainnya") : "Lainnya";
+        catTotals[name] = (catTotals[name] ?? 0) + row.amount_minor;
+      }
+      const topCategories = Object.entries(catTotals)
+        .map(([name, total_minor]) => ({ name, total_minor }))
+        .sort((a, b) => b.total_minor - a.total_minor);
+
+      // Compute remaining balance for debts (total - sum of payments)
+      type DebtRow = { id: string; name: string; creditor_name: string; total_amount_minor: number };
+      type DebtPaymentRow = { debt_id: string; amount_minor: number };
+      const debtPaymentMap: Record<string, number> = {};
+      for (const p of (debtPaymentRows ?? []) as DebtPaymentRow[]) {
+        debtPaymentMap[p.debt_id] = (debtPaymentMap[p.debt_id] ?? 0) + p.amount_minor;
+      }
+      const debts = ((debtRows ?? []) as DebtRow[]).map((d) => ({
+        name: d.name,
+        creditor_name: d.creditor_name,
+        total_amount_minor: d.total_amount_minor,
+        remaining_minor: Math.max(0, d.total_amount_minor - (debtPaymentMap[d.id] ?? 0)),
+      }));
+
+      // Compute remaining balance for receivables
+      type ReceivableRow = { id: string; name: string; borrower_name: string; total_amount_minor: number };
+      type ReceivablePaymentRow = { receivable_id: string; amount_minor: number };
+      const receivablePaymentMap: Record<string, number> = {};
+      for (const p of (receivablePaymentRows ?? []) as ReceivablePaymentRow[]) {
+        receivablePaymentMap[p.receivable_id] = (receivablePaymentMap[p.receivable_id] ?? 0) + p.amount_minor;
+      }
+      const receivables = ((receivableRows ?? []) as ReceivableRow[]).map((r) => ({
+        name: r.name,
+        borrower_name: r.borrower_name,
+        total_amount_minor: r.total_amount_minor,
+        remaining_minor: Math.max(0, r.total_amount_minor - (receivablePaymentMap[r.id] ?? 0)),
+      }));
+
+      const ctx: FinancialContext = {
+        wallets: (walletRows ?? []) as FinancialContext["wallets"],
+        thisMonthExpense: ((expenseRows ?? []) as { amount_minor: number }[])
+          .reduce((s, r) => s + r.amount_minor, 0),
+        thisMonthIncome: ((incomeRows ?? []) as { amount_minor: number }[])
+          .reduce((s, r) => s + r.amount_minor, 0),
+        topCategories,
+        budgets: (budgetRows ?? []) as FinancialContext["budgets"],
+        debts,
+        receivables,
+      };
+
+      const reply = await answerFinancialQuestion(message, ctx);
+      if (session_id) {
+        await persistChatTurn({ userId: auth.user.id, sessionId: session_id, question: message, answer: reply });
+      }
+      return NextResponse.json({ reply });
+    } catch {
+      // Fall through to transaction parsing on error
+    }
+  }
+
 
   // Parse with rule-based first, fallback to AI
   let parsed = parseVoiceTransaction(message);
@@ -157,7 +345,16 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // Charge AI credits only when the AI parser actually interpreted the message.
+  if (usedAi) {
+    const credit = await consumeAiCredits({ userId: auth.user.id, action: "voice" });
+    if (!credit.ok) {
+      return NextResponse.json({ error: credit.reason, preview }, { status: 402 });
+    }
+  }
+
   // Auto-create cash wallet if needed
+
   if (!wallet && isCashHint(parsed)) {
     const { data: createdCash, error: cashError } = await auth.db
       .from("wallets")

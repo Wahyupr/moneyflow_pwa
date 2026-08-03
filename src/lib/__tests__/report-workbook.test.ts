@@ -91,7 +91,7 @@ async function loadWorkbook(buf: Buffer): Promise<ExcelJS.Workbook> {
 }
 
 describe("buildReportWorkbook", () => {
-  it("emits 6 sheets with the expected names and order", async () => {
+  it("emits 2 sheets with the expected names and order", async () => {
     const buffer = await buildReportWorkbook(
       buildReportData(),
       fallbackInsight,
@@ -100,17 +100,21 @@ describe("buildReportWorkbook", () => {
     const wb = await loadWorkbook(buffer);
 
     const names = wb.worksheets.map((ws) => ws.name);
-    expect(names).toEqual([
-      "Ringkasan",
-      "Kategori",
-      "Merchant",
-      "Tren 6 Bulan",
-      "Transaksi",
-      "AI Insight"
-    ]);
+    expect(names).toEqual(["Laporan", "Transaksi"]);
   });
 
-  it("uses a distinct tab color per sheet", async () => {
+  function collectStrings(ws: ExcelJS.Worksheet): string[] {
+    const out: string[] = [];
+    ws.eachRow((row) => {
+      row.eachCell((cell) => {
+        if (typeof cell.value === "string") out.push(cell.value);
+      });
+    });
+    return out;
+  }
+
+
+  it("uses a restrained workbook palette instead of rainbow sheet colors", async () => {
     const buffer = await buildReportWorkbook(
       buildReportData(),
       fallbackInsight,
@@ -126,47 +130,49 @@ describe("buildReportWorkbook", () => {
       return (c?.argb ?? "").toUpperCase();
     });
 
-    // All tabs should have a non-empty color.
     expect(tabColors.every((c) => c.length > 0)).toBe(true);
-    // All colors should be distinct.
-    expect(new Set(tabColors).size).toBe(tabColors.length);
+    expect(new Set(tabColors).size).toBeLessThanOrEqual(2);
+    expect(tabColors).not.toContain("FFF97316");
+    expect(tabColors).not.toContain("FF8B5CF6");
   });
 
-  it("writes the user name and period description in the Ringkasan banner", async () => {
+  it("writes the user name and period description in the Laporan banner", async () => {
     const buffer = await buildReportWorkbook(
       buildReportData(),
       fallbackInsight,
       { userName: "Andi", aiModelLabel: "glm-4.7" }
     );
     const wb = await loadWorkbook(buffer);
-    const summary = wb.getWorksheet("Ringkasan")!;
+    const summary = wb.getWorksheet("Laporan")!;
     const bannerText = String(summary.getCell("A2").value ?? "");
 
     expect(bannerText).toContain("Juni 2026");
     expect(bannerText).toContain("Andi");
   });
 
-  it("writes category rows with currency values on the Kategori sheet", async () => {
+  it("writes category rows with currency values on the Laporan sheet", async () => {
     const buffer = await buildReportWorkbook(
       buildReportData(),
       fallbackInsight,
       { userName: "Andi", aiModelLabel: "glm-4.7" }
     );
     const wb = await loadWorkbook(buffer);
-    const ws = wb.getWorksheet("Kategori")!;
+    const ws = wb.getWorksheet("Laporan")!;
 
-    // Header row is row 3; first data row is row 4.
-    const headerCell = ws.getRow(3).getCell(1).value;
-    expect(headerCell).toBe("Kategori");
-
-    const firstDataRow = ws.getRow(4);
-    expect(String(firstDataRow.getCell(1).value)).toBe("Makanan");
-    // Expense in minor → divided by 100 to get rupiah major.
-    expect(firstDataRow.getCell(2).value).toBe(25_000); // 2_500_000 / 100
-    expect(firstDataRow.getCell(2).numFmt).toContain("Rp");
+    // The category name and its currency-formatted amount both appear somewhere
+    // in the combined dashboard sheet.
+    let found = false;
+    ws.eachRow((row) => {
+      if (String(row.getCell(1).value) === "Makanan" && row.getCell(2).value === 2_500_000) {
+        expect(row.getCell(2).numFmt).toContain("Rp");
+        found = true;
+      }
+    });
+    expect(found).toBe(true);
   });
 
   it("writes transactions with signed amounts (expense negative)", async () => {
+
     const buffer = await buildReportWorkbook(
       buildReportData(),
       fallbackInsight,
@@ -176,23 +182,70 @@ describe("buildReportWorkbook", () => {
     const ws = wb.getWorksheet("Transaksi")!;
 
     const firstDataRow = ws.getRow(4);
-    // Column 6 is the amount column. Expense 75_000 minor → -750 rupiah major.
-    expect(firstDataRow.getCell(6).value).toBe(-750);
+    // Column 6 is the amount column. IDR is stored as whole rupiah.
+    expect(firstDataRow.getCell(6).value).toBe(-75_000);
     expect(firstDataRow.getCell(6).numFmt).toContain("Red");
+    expect(firstDataRow.getCell(7).value).toBe("IDR");
   });
 
-  it("handles empty by_category gracefully (still emits the sheet)", async () => {
+  it("writes each transaction amount using its own currency fraction digits", async () => {
+    const buffer = await buildReportWorkbook(
+      buildReportData({
+        transactions: [
+          {
+            id: "tx1",
+            user_id: "u1",
+            wallet_id: "w1",
+            category_id: "c1",
+            merchant_name: "GoFood",
+            payment_method: "GoPay",
+            transaction_type: "expense",
+            amount_minor: 75_000,
+            currency: "IDR",
+            occurred_at: "2026-06-10T03:00:00.000Z",
+            transfer_pair_id: null
+          },
+          {
+            id: "tx2",
+            user_id: "u1",
+            wallet_id: "w1",
+            category_id: null,
+            merchant_name: "Stripe",
+            payment_method: "Card",
+            transaction_type: "expense",
+            amount_minor: 12_345,
+            currency: "USD",
+            occurred_at: "2026-06-11T03:00:00.000Z",
+            transfer_pair_id: null
+          }
+        ]
+      }),
+      fallbackInsight,
+      { userName: "Andi", aiModelLabel: "glm-4.7" }
+    );
+    const wb = await loadWorkbook(buffer);
+    const ws = wb.getWorksheet("Transaksi")!;
+
+    expect(ws.getRow(3).getCell(7).value).toBe("Mata Uang");
+    expect(ws.getRow(4).getCell(6).value).toBe(-75_000);
+
+    expect(ws.getRow(4).getCell(7).value).toBe("IDR");
+    expect(ws.getRow(5).getCell(6).value).toBe(-123.45);
+    expect(ws.getRow(5).getCell(7).value).toBe("USD");
+  });
+
+  it("handles empty by_category gracefully (still emits the dashboard)", async () => {
     const buffer = await buildReportWorkbook(
       buildReportData({ by_category: [] }),
       fallbackInsight,
       { userName: "Andi", aiModelLabel: "glm-4.7" }
     );
     const wb = await loadWorkbook(buffer);
-    const ws = wb.getWorksheet("Kategori")!;
+    const ws = wb.getWorksheet("Laporan")!;
     expect(ws).toBeTruthy();
-    // First data row should contain the empty-state message.
-    expect(String(ws.getRow(4).getCell(1).value)).toMatch(/belum ada/i);
+    expect(collectStrings(ws).some((v) => /belum ada pengeluaran/i.test(v))).toBe(true);
   });
+
 
   it("shows empty-state row when transactions list is empty", async () => {
     const buffer = await buildReportWorkbook(
@@ -205,104 +258,105 @@ describe("buildReportWorkbook", () => {
     expect(String(ws.getRow(4).getCell(1).value)).toMatch(/belum ada/i);
   });
 
-  it("shows empty-state row when merchant list is empty", async () => {
+  it("shows empty-state text when merchant list is empty (dashboard)", async () => {
     const buffer = await buildReportWorkbook(
       buildReportData({ top_merchants: [] }),
       fallbackInsight,
       { userName: "Andi", aiModelLabel: "glm-4.7" }
     );
     const wb = await loadWorkbook(buffer);
-    const ws = wb.getWorksheet("Merchant")!;
-    expect(String(ws.getRow(4).getCell(1).value)).toMatch(/belum ada/i);
+    const ws = wb.getWorksheet("Laporan")!;
+    expect(collectStrings(ws).some((v) => /belum ada merchant/i.test(v))).toBe(true);
   });
 
-  it("emits AI Insight sheet even when insight is null", async () => {
+  it("shows the unavailable AI note on the dashboard when insight is null", async () => {
     const buffer = await buildReportWorkbook(
       buildReportData(),
       null,
       { userName: "Andi", aiModelLabel: null }
     );
     const wb = await loadWorkbook(buffer);
-    const ws = wb.getWorksheet("AI Insight")!;
-    expect(ws).toBeTruthy();
-    // The unavailable note should appear somewhere on the sheet.
-    const cellValues: string[] = [];
-    ws.eachRow((row) => {
-      row.eachCell((cell) => {
-        if (typeof cell.value === "string") cellValues.push(cell.value);
-      });
-    });
-    expect(cellValues.some((v) => v.includes("tidak tersedia"))).toBe(true);
+    const ws = wb.getWorksheet("Laporan")!;
+    expect(collectStrings(ws).some((v) => v.includes("tidak tersedia"))).toBe(true);
   });
 
-  it("embeds executive summary and recommendations on AI Insight sheet", async () => {
+  it("embeds executive summary and recommendations on the dashboard", async () => {
     const buffer = await buildReportWorkbook(
       buildReportData(),
       fallbackInsight,
       { userName: "Andi", aiModelLabel: "glm-4.7" }
     );
     const wb = await loadWorkbook(buffer);
-    const ws = wb.getWorksheet("AI Insight")!;
-
-    const cellValues: string[] = [];
-    ws.eachRow((row) => {
-      row.eachCell((cell) => {
-        if (typeof cell.value === "string") cellValues.push(cell.value);
-      });
-    });
+    const ws = wb.getWorksheet("Laporan")!;
+    const cellValues = collectStrings(ws);
 
     expect(cellValues.some((v) => v.includes("Bulan ini terkendali"))).toBe(true);
     expect(cellValues.some((v) => v.includes("Tinjau GoFood"))).toBe(true);
   });
 
-  it("appends a totals row on the Kategori sheet", async () => {
+  it("appends a category TOTAL row on the dashboard", async () => {
     const buffer = await buildReportWorkbook(
       buildReportData(),
       fallbackInsight,
       { userName: "Andi", aiModelLabel: "glm-4.7" }
     );
     const wb = await loadWorkbook(buffer);
-    const ws = wb.getWorksheet("Kategori")!;
+    const ws = wb.getWorksheet("Laporan")!;
 
-    // 1 data row at row 4 → totals at row 5.
-    const totalsRow = ws.getRow(5);
-    expect(String(totalsRow.getCell(1).value)).toBe("TOTAL");
-    expect(totalsRow.getCell(2).value).toBe(25_000); // 2_500_000 / 100
-    expect(totalsRow.getCell(4).value).toBe(15);
+    let totalRow: ExcelJS.Row | null = null;
+    ws.eachRow((row) => {
+      if (String(row.getCell(1).value) === "TOTAL") totalRow = row;
+    });
+    expect(totalRow).not.toBeNull();
+    expect(totalRow!.getCell(2).value).toBe(2_500_000);
+    expect(totalRow!.getCell(5).value).toBe(15);
   });
 
-  it("appends a totals row on the Merchant sheet with computed average", async () => {
+  it("uses numeric merchant ranks instead of decorative medal emoji", async () => {
+    const buffer = await buildReportWorkbook(
+      buildReportData({
+        top_merchants: [
+          { name: "GoFood", expense_minor: 1_800_000, transaction_count: 25 },
+          { name: "Superindo", expense_minor: 900_000, transaction_count: 4 },
+          { name: "Tokopedia", expense_minor: 500_000, transaction_count: 3 }
+        ]
+      }),
+      fallbackInsight,
+      { userName: "Andi", aiModelLabel: "glm-4.7" }
+    );
+    const wb = await loadWorkbook(buffer);
+    const ws = wb.getWorksheet("Laporan")!;
+
+    // Locate the three merchant rows by name and verify their rank column.
+    const rankByName = new Map<string, unknown>();
+    ws.eachRow((row) => {
+      const name = String(row.getCell(2).value);
+      if (["GoFood", "Superindo", "Tokopedia"].includes(name)) {
+        rankByName.set(name, row.getCell(1).value);
+      }
+    });
+    expect(rankByName.get("GoFood")).toBe(1);
+    expect(rankByName.get("Superindo")).toBe(2);
+    expect(rankByName.get("Tokopedia")).toBe(3);
+  });
+
+  it("appends a 6-month RATA-RATA row on the dashboard trend", async () => {
     const buffer = await buildReportWorkbook(
       buildReportData(),
       fallbackInsight,
       { userName: "Andi", aiModelLabel: "glm-4.7" }
     );
     const wb = await loadWorkbook(buffer);
-    const ws = wb.getWorksheet("Merchant")!;
+    const ws = wb.getWorksheet("Laporan")!;
 
-    const totalsRow = ws.getRow(5);
-    expect(String(totalsRow.getCell(2).value)).toBe("TOTAL");
-    expect(totalsRow.getCell(3).value).toBe(18_000); // 1_800_000 / 100
-    expect(totalsRow.getCell(4).value).toBe(25);
-    // 1_800_000 minor / 25 tx = 72_000 minor per tx → 720 rupiah.
-    expect(totalsRow.getCell(5).value).toBe(720);
+    let avgRow: ExcelJS.Row | null = null;
+    ws.eachRow((row) => {
+      if (String(row.getCell(1).value) === "RATA-RATA") avgRow = row;
+    });
+    expect(avgRow).not.toBeNull();
+    expect(Number(avgRow!.getCell(2).value)).toBeCloseTo(8_183_333.33, -1);
   });
 
-  it("appends a 6-month averages row on the Tren sheet", async () => {
-    const buffer = await buildReportWorkbook(
-      buildReportData(),
-      fallbackInsight,
-      { userName: "Andi", aiModelLabel: "glm-4.7" }
-    );
-    const wb = await loadWorkbook(buffer);
-    const ws = wb.getWorksheet("Tren 6 Bulan")!;
-
-    // 6 data rows (rows 4–9), averages at row 10.
-    const avgRow = ws.getRow(10);
-    expect(String(avgRow.getCell(1).value)).toBe("RATA-RATA");
-    // Average income: (8M+8.2M+8.1M+8.3M+8M+8.5M) / 6 = 8.183M minor / 100 = 81_833.33
-    expect(Number(avgRow.getCell(2).value)).toBeCloseTo(81_833.33, -1);
-  });
 
   it("applies auto-fit column widths within sensible bounds", async () => {
     const buffer = await buildReportWorkbook(
@@ -314,7 +368,7 @@ describe("buildReportWorkbook", () => {
     const ws = wb.getWorksheet("Transaksi")!;
 
     // Column widths must be within the [12, 40] bounds passed to autoFitColumns.
-    for (let c = 1; c <= 6; c++) {
+    for (let c = 1; c <= 7; c++) {
       const width = ws.getColumn(c).width ?? 0;
       expect(width).toBeGreaterThanOrEqual(10);
       expect(width).toBeLessThanOrEqual(45);

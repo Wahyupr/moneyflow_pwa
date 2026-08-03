@@ -13,14 +13,14 @@ export const SESSION_TTL_SECONDS = 60 * 60 * 24 * 7; // 7 days
 export type SessionUser = {
   id: string;
   email: string;
-  role: "user" | "admin";
+  role: "user" | "admin" | "cs";
   display_name: string | null;
 };
 
 type SessionPayload = {
   sub: string;
   email: string;
-  role: "user" | "admin";
+  role: "user" | "admin" | "cs";
   display_name: string | null;
   iat: number;
   exp: number;
@@ -86,10 +86,13 @@ export function verifySessionToken(token: string, now = new Date()): SessionUser
     return null;
   }
 
+  const role: "user" | "admin" | "cs" =
+    payload.role === "admin" ? "admin" : payload.role === "cs" ? "cs" : "user";
+
   return {
     id: payload.sub,
     email: payload.email,
-    role: payload.role === "admin" ? "admin" : "user",
+    role,
     display_name: payload.display_name ?? null
   };
 }

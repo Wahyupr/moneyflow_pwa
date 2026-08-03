@@ -10,7 +10,7 @@ const items = [
   { label: "Home", icon: Home, href: "/dashboard", match: ["/dashboard"] },
   { label: "History", icon: ReceiptText, href: "/transactions", match: ["/transactions"] },
   { label: "Reports", icon: BarChart3, href: "/reports", match: ["/reports"] },
-  { label: "Settings", icon: Settings, href: "/settings", match: ["/settings", "/wallets"] }
+  { label: "Settings", icon: Settings, href: "/settings", match: ["/settings", "/wallets"] },
 ];
 
 export function BottomNav() {

@@ -3,6 +3,7 @@
 import { Plus, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { AppFrame } from "@/components/app-frame";
+import { Toast, useToast } from "@/components/ui/toast";
 import { formatCurrency } from "@/lib/money";
 
 type Category = { id: string; name: string; color: string; icon: string };
@@ -30,7 +31,7 @@ function BudgetsContent() {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editTarget, setEditTarget] = useState<Budget | null>(null);
-  const [status, setStatus] = useState<string | null>(null);
+  const { toast, showToast } = useToast();
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -54,7 +55,9 @@ function BudgetsContent() {
     const res = await fetch(`/api/budgets/${id}`, { method: "DELETE" });
     if (res.ok) {
       setBudgets((prev) => prev.filter((b) => b.id !== id));
-      setStatus("Budget dihapus.");
+      showToast("Budget dihapus.");
+    } else {
+      showToast("Gagal menghapus budget.", "error");
     }
   }
 
@@ -68,21 +71,23 @@ function BudgetsContent() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ amount_limit_minor: payload.amount_limit_minor, alert_at_percent: payload.alert_at_percent })
       });
-      if (res.ok) { setStatus("Budget diperbarui."); setShowForm(false); void load(); }
-      else setStatus("Gagal menyimpan.");
+      if (res.ok) { showToast("Budget diperbarui."); setShowForm(false); void load(); }
+      else showToast("Gagal menyimpan.", "error");
     } else {
       const res = await fetch("/api/budgets", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ ...payload, period: "monthly" })
       });
-      if (res.ok) { setStatus("Budget ditambahkan."); setShowForm(false); void load(); }
-      else setStatus("Gagal menyimpan.");
+      if (res.ok) { showToast("Budget ditambahkan."); setShowForm(false); void load(); }
+      else showToast("Gagal menyimpan.", "error");
     }
   }
 
   return (
     <div className="mt-5 space-y-4">
+      <Toast toast={toast} />
+
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-bold text-ink">Budget Bulanan</h2>
         <button
@@ -93,10 +98,6 @@ function BudgetsContent() {
           <Plus size={16} /> Tambah
         </button>
       </div>
-
-      {status ? (
-        <p className="rounded-xl bg-surface-container px-4 py-3 text-sm font-bold text-primary">{status}</p>
-      ) : null}
 
       {showForm ? (
         <BudgetForm

@@ -25,8 +25,8 @@ async function requirePremium(userId: string) {
     "select plan from subscription_entitlements where user_id = $1 and status = 'active' and (current_period_end is null or current_period_end > now())",
     [userId]
   );
-  const plan = (result.rows[0]?.plan ?? "free") as "free" | "premium";
-  return canAccessHutangPiutang(plan);
+  const plan = (result.rows[0]?.plan ?? "free") as "free" | "premium" | "pro";
+  return canAccessHutangPiutang({ plan, recordCount: 0 });
 }
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -43,10 +43,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   }
   const input = parsed.data;
 
-  const owning = await query<{ total: string; paid: string; name: string; creditor_name: string }>(
+  const owning = await query<{ total: string; paid: string; name: string; creditor_name: string; next_due_date: string | null }>(
     `select d.total_amount_minor::text as total,
             coalesce((select sum(amount_minor) from debt_payments where debt_id = d.id), 0)::text as paid,
-            d.name, d.creditor_name
+            d.name, d.creditor_name,
+            d.next_due_date::text as next_due_date
        from debts d
       where d.id = $1 and d.user_id = $2 and d.status = 'active'`,
     [id, auth.user.id]
@@ -107,6 +108,15 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const paid = Number(owning.rows[0].paid) + input.amount_minor;
   if (paid >= total) {
     await query("update debts set status = 'paid' where id = $1", [id]);
+  } else if (owning.rows[0].next_due_date) {
+    // Advance jatuh tempo by 1 month each time a payment is recorded.
+    // We preserve the same day-of-month (e.g. 1 Juli → 1 Agustus).
+    const due = new Date(owning.rows[0].next_due_date);
+    due.setMonth(due.getMonth() + 1);
+    await query(
+      "update debts set next_due_date = $1 where id = $2",
+      [due.toISOString(), id]
+    );
   }
 
   return NextResponse.json(

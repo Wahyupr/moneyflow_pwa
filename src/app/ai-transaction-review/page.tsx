@@ -3,6 +3,7 @@
 import { AlertTriangle, Check, FileCheck2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { AppFrame } from "@/components/app-frame";
+import { Toast, useToast } from "@/components/ui/toast";
 import { dashboardModel } from "@/lib/demo-data";
 
 type DraftState = {
@@ -30,7 +31,7 @@ const fallbackDraft: DraftState = {
 
 export default function AiTransactionReviewPage() {
   const [draft, setDraft] = useState<DraftState>(fallbackDraft);
-  const [status, setStatus] = useState<string | null>(null);
+  const { toast, showToast } = useToast();
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -87,11 +88,11 @@ export default function AiTransactionReviewPage() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ wallet_id: dashboardModel.wallets[0].id, reviewed: true })
       });
-      setStatus(response.ok ? "Draft disimpan sebagai transaksi." : "Draft tersimpan lokal.");
+      showToast(response.ok ? "Draft disimpan sebagai transaksi." : "Draft tersimpan lokal.");
       return;
     }
 
-    setStatus("Draft disimpan lokal.");
+    showToast("Draft disimpan lokal.");
   }
 
   return (
@@ -142,7 +143,7 @@ export default function AiTransactionReviewPage() {
             ))}
           </ul>
         </section>
-        {status ? <p className="rounded-lg bg-surface-container p-3 text-sm font-semibold text-primary">{status}</p> : null}
+        <Toast toast={toast} />
         <button className="flex min-h-12 w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 font-bold text-white active:scale-[0.98]" onClick={confirmDraft} type="button">
           <Check size={18} />
           Confirm Draft

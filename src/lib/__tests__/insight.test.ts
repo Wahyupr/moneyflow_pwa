@@ -40,8 +40,10 @@ const baseContext: DailyInsightContext = {
     }
   ],
   today_transactions: [],
+  all_transactions: [],
   yesterday_totals: { income_minor: 0, expense_minor: 0 },
   budgets: [],
+  debts: [],
   sharing: {
     shared_wallets_count: 0,
     user_contributed_minor: 0,

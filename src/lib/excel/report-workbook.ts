@@ -1,141 +1,87 @@
 /**
  * Excel workbook generator for the personal-finance report download.
  *
- * Produces a multi-sheet .xlsx with:
- *   1. Ringkasan   — totals, deltas, savings rate, transaction count (orange)
- *   2. Kategori    — expense breakdown per category with % (blue)
- *   3. Merchant    — top 20 merchants by spend (purple)
- *   4. Tren        — 6-month income vs expense trend (green)
- *   5. Transaksi   — raw transaction list (grey)
- *   6. AI Insight  — narrative analysis from the AI (amber)
+ * Redesigned into a focused two-sheet layout (down from six):
  *
- * All amount cells use the Indonesian rupiah format. Header rows use a
- * per-sheet color theme (matching the tab color) so users can quickly orient
- * themselves when flipping between sheets.
+ *   1. "Laporan"   — a single dashboard-style page combining:
+ *                      • KPI cards (income, expense, net, savings rate, tx count)
+ *                      • vs-previous-period comparison
+ *                      • category breakdown (with unicode bars)
+ *                      • top merchants
+ *                      • 6-month trend
+ *                      • AI narrative insight
+ *   2. "Transaksi" — the raw transaction ledger (autofilter + freeze header).
+ *
+ * A single consistent color theme is used across both sheets. All amount cells
+ * use the Indonesian rupiah format.
  */
 
 import ExcelJS from "exceljs";
 
 import type { ReportData, ReportWindow } from "@/lib/reports-data";
 import type { ParsedReportInsight } from "@/lib/ai/report-insight";
-import { formatCurrency } from "@/lib/money";
+import { amountMinorToMajor, formatCurrency } from "@/lib/money";
+import type { CurrencyCode } from "@/lib/types";
 
-/**
- * The workbook's amount cells historically divided every stored value by 100,
- * assuming a 2-decimal "cents" convention. But IDR is stored as WHOLE rupiah
- * (0 fraction digits), so dividing by 100 shrank every figure 100× (e.g.
- * 663.609 rendered as 6.636). Rather than rewrite ~20 division sites (some of
- * which are genuine percentages that must keep /100), we pre-scale only the
- * monetary *_minor fields so the existing `/100` math lands on the correct
- * value: for IDR we multiply by 100 first; for 2-decimal currencies we leave
- * the cents untouched.
- */
-function scaleReportData(data: ReportData): ReportData {
-  const currency = data.transactions[0]?.currency ?? "IDR";
-  const factor = currency === "IDR" ? 100 : 1;
-  if (factor === 1) return data;
-
-  return {
-    ...data,
-    totals: {
-      ...data.totals,
-      income_minor: data.totals.income_minor * factor,
-      expense_minor: data.totals.expense_minor * factor,
-      net_minor: data.totals.net_minor * factor
-    },
-    previous_totals: {
-      income_minor: data.previous_totals.income_minor * factor,
-      expense_minor: data.previous_totals.expense_minor * factor,
-      net_minor: data.previous_totals.net_minor * factor
-    },
-    by_category: data.by_category.map((c) => ({ ...c, expense_minor: c.expense_minor * factor })),
-    top_merchants: data.top_merchants.map((m) => ({ ...m, expense_minor: m.expense_minor * factor })),
-    trend: data.trend.map((t) => ({
-      ...t,
-      income_minor: t.income_minor * factor,
-      expense_minor: t.expense_minor * factor
-    })),
-    transactions: data.transactions.map((tx) => ({ ...tx, amount_minor: tx.amount_minor * factor }))
-  };
-}
-
-const SHEET_THEME = {
-  summary: { tab: "FFF97316", header: "FFF97316", light: "FFFED7AA" }, // orange
-  categories: { tab: "FF3B82F6", header: "FF3B82F6", light: "FFBFDBFE" }, // blue
-  merchants: { tab: "FF8B5CF6", header: "FF8B5CF6", light: "FFDDD6FE" }, // purple
-  trend: { tab: "FF10B981", header: "FF10B981", light: "FFA7F3D0" }, // green
-  transactions: { tab: "FF64748B", header: "FF64748B", light: "FFE2E8F0" }, // grey
-  insights: { tab: "FFF59E0B", header: "FFF59E0B", light: "FFFDE68A" } // amber
+// ─── Theme ────────────────────────────────────────────────────────────────
+const THEME = {
+  primary: "FF1668DC", // brand blue — headers & banner
+  primaryDark: "FF0B3D8C",
+  ink: "FF1E293B",
+  muted: "FF64748B",
+  light: "FFEFF4FF", // banded row / soft fill
+  income: "FF10B981",
+  expense: "FFEF4444",
+  amber: "FFF59E0B",
+  border: "FFCBD5E1",
+  cardBg: "FFF8FAFC"
 } as const;
 
 const CURRENCY_FMT = '"Rp"#,##0;[Red]-"Rp"#,##0';
 const PERCENT_FMT = "0.0%";
-const BOLD_WHITE: Partial<ExcelJS.Style> = {
-  font: { bold: true, color: { argb: "FFFFFFFF" }, size: 12 },
-  alignment: { vertical: "middle", horizontal: "left" }
-};
+
+const TITLE_FONT: Partial<ExcelJS.Font> = { bold: true, color: { argb: "FFFFFFFF" }, size: 18 };
+const HEADER_FONT: Partial<ExcelJS.Font> = { bold: true, color: { argb: "FFFFFFFF" }, size: 11 };
 
 export async function buildReportWorkbook(
   rawData: ReportData,
   insight: ParsedReportInsight | null,
   options: { userName: string | null; aiModelLabel: string | null }
 ): Promise<Buffer> {
-  // Normalize amounts so the sheets' /100 divisions render correct rupiah.
-  const data = scaleReportData(rawData);
+  const data = rawData;
   const wb = new ExcelJS.Workbook();
   wb.creator = "Moneyflow";
   wb.created = new Date();
   wb.title = `Laporan Keuangan ${data.window.description}`;
 
-  buildSummarySheet(wb, data, options);
-  buildCategorySheet(wb, data);
-  buildMerchantSheet(wb, data);
-  buildTrendSheet(wb, data);
+  buildDashboardSheet(wb, data, insight, options);
   buildTransactionsSheet(wb, data);
-  buildInsightSheet(wb, data, insight, options);
 
   const buffer = await wb.xlsx.writeBuffer();
   return Buffer.from(buffer);
 }
 
-function styleHeaderRow(ws: ExcelJS.Worksheet, fillColor: string): void {
-  const headerRow = ws.getRow(1);
-  headerRow.height = 24;
-  headerRow.eachCell((cell) => {
-    cell.font = { bold: true, color: { argb: "FFFFFFFF" }, size: 12 };
-    cell.fill = {
-      type: "pattern",
-      pattern: "solid",
-      fgColor: { argb: fillColor }
-    };
-    cell.alignment = { vertical: "middle", horizontal: "left", indent: 1 };
-    cell.border = {
-      bottom: { style: "medium", color: { argb: "FF000000" } }
-    };
-  });
+// ─── Small helpers ──────────────────────────────────────────────────────────
+
+function reportAmount(amountMinor: number): number {
+  return amountMinorToMajor(amountMinor, "IDR");
 }
 
-function applyBandedRows(ws: ExcelJS.Worksheet, startRow: number, endRow: number, lightColor: string): void {
-  for (let r = startRow; r <= endRow; r++) {
-    if ((r - startRow) % 2 !== 0) continue; // even index → banded
-    const row = ws.getRow(r);
-    row.eachCell((cell) => {
-      cell.fill = {
-        type: "pattern",
-        pattern: "solid",
-        fgColor: { argb: lightColor }
-      };
-    });
-  }
+function excelCurrencyFormat(currency: CurrencyCode): string {
+  if (currency === "IDR") return CURRENCY_FMT;
+  return `"${currency}" #,##0.00;[Red]-"${currency}" #,##0.00`;
 }
 
-/**
- * Auto-fit column widths based on actual cell content across a row range.
- *
- * ExcelJS does not compute widths automatically. We iterate every cell in the
- * supplied rows for each column, take the max rendered length, then apply a
- * small padding. Capped so a single very long value doesn't blow out a column.
- */
+function solid(argb: string): ExcelJS.Fill {
+  return { type: "pattern", pattern: "solid", fgColor: { argb } };
+}
+
+function thinBorderAll(argb: string): Partial<ExcelJS.Borders> {
+  const side: ExcelJS.Border = { style: "thin", color: { argb } };
+  return { top: side, left: side, bottom: side, right: side };
+}
+
+/** Auto-fit column widths from cell content across a row range. */
 function autoFitColumns(
   ws: ExcelJS.Worksheet,
   columnCount: number,
@@ -149,587 +95,20 @@ function autoFitColumns(
   for (let r = startRow; r <= endRow; r++) {
     const row = ws.getRow(r);
     for (let c = 1; c <= columnCount; c++) {
-      const cell = row.getCell(c);
-      const raw = cell.value;
+      const raw = row.getCell(c).value;
       let text = "";
       if (typeof raw === "string") text = raw;
       else if (typeof raw === "number") text = Math.round(raw).toString();
       else if (raw instanceof Date) text = raw.toLocaleDateString("id-ID");
       else if (raw && typeof raw === "object" && "text" in raw) text = String((raw as { text: string }).text);
-      // Long strings wrap in cells with wrapText; only first ~60 chars matter for width.
       const visible = text.length > maxWidth ? text.slice(0, maxWidth) : text;
       if (visible.length > maxima[c - 1]) maxima[c - 1] = visible.length;
     }
   }
 
   for (let c = 1; c <= columnCount; c++) {
-    const computed = Math.min(maxWidth, Math.max(minWidth, maxima[c - 1] + padding));
-    ws.getColumn(c).width = computed;
+    ws.getColumn(c).width = Math.min(maxWidth, Math.max(minWidth, maxima[c - 1] + padding));
   }
-}
-
-/**
- * Writes a totals row with bold + tinted background at the given row number.
- * Each entry is [columnIndex, formattedValue, numFmt?]. The row also gets a
- * top border so it reads as a summary separator.
- */
-function writeTotalsRow(
-  ws: ExcelJS.Worksheet,
-  rowNum: number,
-  entries: Array<{ col: number; value: string | number; numFmt?: string; align?: "left" | "right" | "center" }>,
-  accentColor: string
-): void {
-  const row = ws.getRow(rowNum);
-  row.height = 22;
-  for (const entry of entries) {
-    const cell = row.getCell(entry.col);
-    cell.value = entry.value;
-    if (entry.numFmt) cell.numFmt = entry.numFmt;
-    cell.font = { bold: true, color: { argb: "FF1E293B" }, size: 12 };
-    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: accentColor } };
-    cell.alignment = { horizontal: entry.align ?? "right", vertical: "middle", indent: 1 };
-    cell.border = { top: { style: "thin", color: { argb: "FF1E293B" } } };
-  }
-}
-
-function writeTitleBanner(
-  ws: ExcelJS.Worksheet,
-  title: string,
-  subtitle: string,
-  fillColor: string
-): void {
-  ws.mergeCells("A1:D1");
-  const titleCell = ws.getCell("A1");
-  titleCell.value = title;
-  titleCell.font = { bold: true, color: { argb: "FFFFFFFF" }, size: 16 };
-  titleCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: fillColor } };
-  titleCell.alignment = { vertical: "middle", horizontal: "left", indent: 1 };
-  ws.getRow(1).height = 32;
-
-  ws.mergeCells("A2:D2");
-  const subCell = ws.getCell("A2");
-  subCell.value = subtitle;
-  subCell.font = { italic: true, color: { argb: "FF475569" }, size: 11 };
-  subCell.alignment = { vertical: "middle", horizontal: "left", indent: 1 };
-  ws.getRow(2).height = 18;
-}
-
-function buildSummarySheet(wb: ExcelJS.Workbook, data: ReportData, options: { userName: string | null }): void {
-  const theme = SHEET_THEME.summary;
-  const ws = wb.addWorksheet("Ringkasan", {
-    properties: { tabColor: { argb: theme.tab } },
-    views: [{ showGridLines: false }]
-  });
-
-  ws.columns = [
-    { width: 28 },
-    { width: 22 },
-    { width: 22 },
-    { width: 22 }
-  ];
-
-  const userLabel = options.userName ? ` · ${options.userName}` : "";
-  writeTitleBanner(ws, "Ringkasan Keuangan", `${data.window.description}${userLabel}`, theme.tab);
-
-  // Section: Total
-  let row = 4;
-  ws.getCell(`A${row}`).value = "Total";
-  ws.getCell(`A${row}`).font = { bold: true, size: 14, color: { argb: theme.tab } };
-  row += 1;
-
-  const totalsRows: Array<[string, string, string]> = [
-    ["Pemasukan", "income_minor", "B"],
-    ["Pengeluaran", "expense_minor", "C"],
-    ["Selisih (Net)", "net_minor", "D"]
-  ];
-  for (const [label, key, col] of totalsRows) {
-    ws.getCell(`A${row}`).value = label;
-    ws.getCell(`A${row}`).font = { size: 12 };
-    const valueCell = ws.getCell(`${col}${row}`);
-    // totals is shaped from ReportData
-    valueCell.value = (data.totals as unknown as Record<string, number>)[key] / 100;
-    valueCell.numFmt = CURRENCY_FMT;
-    valueCell.font = { bold: true, size: 12 };
-    valueCell.alignment = { horizontal: "right" };
-    row += 1;
-  }
-
-  // Savings rate badge
-  ws.getCell(`A${row}`).value = "Tingkat Tabung";
-  const srCell = ws.getCell(`B${row}`);
-  srCell.value = data.totals.savings_rate_pct / 100;
-  srCell.numFmt = PERCENT_FMT;
-  srCell.font = {
-    bold: true,
-    color: { argb: data.totals.savings_rate_pct >= 20 ? "FF10B981" : "FFEF4444" }
-  };
-  srCell.alignment = { horizontal: "right" };
-  row += 1;
-
-  ws.getCell(`A${row}`).value = "Jumlah Transaksi";
-  ws.getCell(`B${row}`).value = data.totals.transaction_count;
-  ws.getCell(`B${row}`).font = { bold: true };
-  ws.getCell(`B${row}`).alignment = { horizontal: "right" };
-  row += 2;
-
-  // Section: Perbandingan Periode Sebelumnya
-  ws.getCell(`A${row}`).value = "vs Periode Sebelumnya";
-  ws.getCell(`A${row}`).font = { bold: true, size: 14, color: { argb: theme.tab } };
-  row += 1;
-
-  ws.getCell(`A${row}`).value = "Metrik";
-  ws.getCell(`B${row}`).value = "Periode Ini";
-  ws.getCell(`C${row}`).value = "Periode Lalu";
-  ws.getCell(`D${row}`).value = "Δ %";
-  for (const c of ["A", "B", "C", "D"]) {
-    const cell = ws.getCell(`${c}${row}`);
-    cell.font = { bold: true, color: { argb: "FFFFFFFF" } };
-    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: theme.header } };
-    cell.alignment = { horizontal: c === "A" ? "left" : "right", indent: 1 };
-  }
-  const headerRowNum = row;
-  row += 1;
-
-  const comparisonRows: Array<[string, number, number]> = [
-    ["Pemasukan", data.totals.income_minor, data.previous_totals.income_minor],
-    ["Pengeluaran", data.totals.expense_minor, data.previous_totals.expense_minor],
-    ["Net", data.totals.net_minor, data.previous_totals.net_minor]
-  ];
-  const dataStart = row;
-  for (const [label, current, previous] of comparisonRows) {
-    ws.getCell(`A${row}`).value = label;
-    ws.getCell(`A${row}`).font = { size: 12 };
-    ws.getCell(`B${row}`).value = current / 100;
-    ws.getCell(`B${row}`).numFmt = CURRENCY_FMT;
-    ws.getCell(`B${row}`).alignment = { horizontal: "right" };
-    ws.getCell(`C${row}`).value = previous / 100;
-    ws.getCell(`C${row}`).numFmt = CURRENCY_FMT;
-    ws.getCell(`C${row}`).alignment = { horizontal: "right" };
-    const deltaPct = previous === 0 ? (current > 0 ? 100 : 0) : Math.round(((current - previous) / previous) * 100);
-    const deltaCell = ws.getCell(`D${row}`);
-    deltaCell.value = deltaPct / 100;
-    deltaCell.numFmt = "+0%;-0%;0%";
-    deltaCell.font = {
-      bold: true,
-      color: { argb: deltaPct >= 0 ? "FF10B981" : "FFEF4444" }
-    };
-    deltaCell.alignment = { horizontal: "right" };
-    row += 1;
-  }
-  applyBandedRows(ws, dataStart, row - 1, theme.light);
-
-  // Freeze the title banner off-screen via headerRowNum reference (no freeze
-  // on summary because it's a single-screen dashboard-style page).
-  void headerRowNum;
-}
-
-function buildCategorySheet(wb: ExcelJS.Workbook, data: ReportData): void {
-  const theme = SHEET_THEME.categories;
-  const ws = wb.addWorksheet("Kategori", {
-    properties: { tabColor: { argb: theme.tab } },
-    views: [{ state: "frozen", ySplit: 3, showGridLines: false }]
-  });
-
-  ws.columns = [
-    { header: "Kategori", key: "name", width: 32 },
-    { header: "Pengeluaran", key: "expense", width: 22 },
-    { header: "% dari Total", key: "pct", width: 16 },
-    { header: "Jumlah Tx", key: "count", width: 12 }
-  ];
-
-  writeTitleBanner(ws, "Breakdown Kategori", `${data.window.description} · ${data.by_category.length} kategori`, theme.tab);
-
-  // Shift headers to row 3 (after the 2-row banner).
-  const headerRowNum = 3;
-  const headerRow = ws.getRow(headerRowNum);
-  headerRow.height = 22;
-  ws.columns.forEach((col, i) => {
-    const cell = headerRow.getCell(i + 1);
-    cell.value = String(col.header ?? "");
-    cell.style = { ...BOLD_WHITE, fill: { type: "pattern", pattern: "solid", fgColor: { argb: theme.header } } };
-    cell.alignment = { vertical: "middle", horizontal: i === 0 ? "left" : "right", indent: 1 };
-  });
-
-  const startDataRow = 4;
-  if (data.by_category.length === 0) {
-    writeEmptyState(ws, startDataRow, "Belum ada pengeluaran tercatat pada periode ini.", 4);
-    return;
-  }
-  data.by_category.forEach((cat, idx) => {
-    const r = ws.getRow(startDataRow + idx);
-    r.getCell(1).value = cat.category_name;
-    r.getCell(2).value = cat.expense_minor / 100;
-    r.getCell(2).numFmt = CURRENCY_FMT;
-    r.getCell(2).alignment = { horizontal: "right" };
-    r.getCell(3).value = cat.expense_pct / 100;
-    r.getCell(3).numFmt = PERCENT_FMT;
-    r.getCell(3).alignment = { horizontal: "right" };
-    r.getCell(4).value = cat.transaction_count;
-    r.getCell(4).alignment = { horizontal: "right" };
-
-    // Color bar on category cell using the category's own color (subtle).
-    r.getCell(1).font = { bold: idx < 3, color: { argb: "FF1E293B" } };
-    r.getCell(1).fill = {
-      type: "pattern",
-      pattern: "solid",
-      fgColor: { argb: hexWithAlpha(cat.category_color, "33") }
-    };
-  });
-  const lastDataRow = startDataRow + data.by_category.length - 1;
-  applyBandedRows(ws, startDataRow, lastDataRow, theme.light);
-
-  // Totals row.
-  const totalExpenseMinor = data.by_category.reduce((s, c) => s + c.expense_minor, 0);
-  const totalCount = data.by_category.reduce((s, c) => s + c.transaction_count, 0);
-  writeTotalsRow(ws, lastDataRow + 1, [
-    { col: 1, value: "TOTAL", align: "left" },
-    { col: 2, value: totalExpenseMinor / 100, numFmt: CURRENCY_FMT },
-    { col: 3, value: 1, numFmt: PERCENT_FMT },
-    { col: 4, value: totalCount }
-  ], theme.light);
-
-  autoFitColumns(ws, 4, 3, lastDataRow + 1, { minWidth: 12, maxWidth: 50 });
-}
-
-function buildMerchantSheet(wb: ExcelJS.Workbook, data: ReportData): void {
-  const theme = SHEET_THEME.merchants;
-  const ws = wb.addWorksheet("Merchant", {
-    properties: { tabColor: { argb: theme.tab } },
-    views: [{ state: "frozen", ySplit: 3, showGridLines: false }]
-  });
-
-  ws.columns = [
-    { header: "Peringkat", key: "rank", width: 10 },
-    { header: "Merchant", key: "name", width: 36 },
-    { header: "Total Pengeluaran", key: "expense", width: 24 },
-    { header: "Jumlah Tx", key: "count", width: 12 },
-    { header: "Rata-rata / Tx", key: "avg", width: 20 }
-  ];
-
-  writeTitleBanner(ws, "Top Merchant", `${data.window.description} · ${data.top_merchants.length} merchant teratas`, theme.tab);
-
-  const headerRowNum = 3;
-  const headerRow = ws.getRow(headerRowNum);
-  headerRow.height = 22;
-  ws.columns.forEach((col, i) => {
-    const cell = headerRow.getCell(i + 1);
-    cell.value = String(col.header ?? "");
-    cell.style = { ...BOLD_WHITE, fill: { type: "pattern", pattern: "solid", fgColor: { argb: theme.header } } };
-    cell.alignment = { vertical: "middle", horizontal: i === 0 || i === 1 ? "left" : "right", indent: 1 };
-  });
-
-  const startDataRow = 4;
-  if (data.top_merchants.length === 0) {
-    writeEmptyState(ws, startDataRow, "Belum ada merchant dengan pengeluaran pada periode ini.", 5);
-    return;
-  }
-  data.top_merchants.forEach((m, idx) => {
-    const r = ws.getRow(startDataRow + idx);
-    r.getCell(1).value = idx + 1;
-    r.getCell(1).alignment = { horizontal: "center" };
-    r.getCell(1).font = { bold: idx < 3, color: { argb: theme.tab } };
-    r.getCell(2).value = m.name;
-    r.getCell(3).value = m.expense_minor / 100;
-    r.getCell(3).numFmt = CURRENCY_FMT;
-    r.getCell(3).alignment = { horizontal: "right" };
-    r.getCell(4).value = m.transaction_count;
-    r.getCell(4).alignment = { horizontal: "right" };
-    r.getCell(5).value = m.transaction_count > 0 ? m.expense_minor / 100 / m.transaction_count : 0;
-    r.getCell(5).numFmt = CURRENCY_FMT;
-    r.getCell(5).alignment = { horizontal: "right" };
-  });
-  const lastDataRow = startDataRow + data.top_merchants.length - 1;
-  applyBandedRows(ws, startDataRow, lastDataRow, theme.light);
-
-  // Totals row.
-  const totalExpenseMinor = data.top_merchants.reduce((s, m) => s + m.expense_minor, 0);
-  const totalCount = data.top_merchants.reduce((s, m) => s + m.transaction_count, 0);
-  const totalAvg = totalCount > 0 ? totalExpenseMinor / 100 / totalCount : 0;
-  writeTotalsRow(ws, lastDataRow + 1, [
-    { col: 1, value: "—", align: "center" },
-    { col: 2, value: "TOTAL", align: "left" },
-    { col: 3, value: totalExpenseMinor / 100, numFmt: CURRENCY_FMT },
-    { col: 4, value: totalCount },
-    { col: 5, value: totalAvg, numFmt: CURRENCY_FMT }
-  ], theme.light);
-
-  autoFitColumns(ws, 5, 3, lastDataRow + 1, { minWidth: 10, maxWidth: 50 });
-}
-
-function buildTrendSheet(wb: ExcelJS.Workbook, data: ReportData): void {
-  const theme = SHEET_THEME.trend;
-  const ws = wb.addWorksheet("Tren 6 Bulan", {
-    properties: { tabColor: { argb: theme.tab } },
-    views: [{ state: "frozen", ySplit: 3, showGridLines: false }]
-  });
-
-  ws.columns = [
-    { header: "Bulan", key: "month", width: 16 },
-    { header: "Pemasukan", key: "income", width: 22 },
-    { header: "Pengeluaran", key: "expense", width: 22 },
-    { header: "Net", key: "net", width: 22 }
-  ];
-
-  writeTitleBanner(ws, "Tren 6 Bulan", "Pemasukan vs Pengeluaran", theme.tab);
-
-  const headerRowNum = 3;
-  const headerRow = ws.getRow(headerRowNum);
-  headerRow.height = 22;
-  ws.columns.forEach((col, i) => {
-    const cell = headerRow.getCell(i + 1);
-    cell.value = String(col.header ?? "");
-    cell.style = { ...BOLD_WHITE, fill: { type: "pattern", pattern: "solid", fgColor: { argb: theme.header } } };
-    cell.alignment = { vertical: "middle", horizontal: i === 0 ? "left" : "right", indent: 1 };
-  });
-
-  const startDataRow = 4;
-  data.trend.forEach((t, idx) => {
-    const r = ws.getRow(startDataRow + idx);
-    const [y, m] = t.month.split("-").map(Number);
-    const label = new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString("id-ID", {
-      month: "long",
-      year: "numeric"
-    });
-    r.getCell(1).value = label;
-    r.getCell(2).value = t.income_minor / 100;
-    r.getCell(2).numFmt = CURRENCY_FMT;
-    r.getCell(2).alignment = { horizontal: "right" };
-    r.getCell(3).value = t.expense_minor / 100;
-    r.getCell(3).numFmt = CURRENCY_FMT;
-    r.getCell(3).alignment = { horizontal: "right" };
-    r.getCell(4).value = (t.income_minor - t.expense_minor) / 100;
-    r.getCell(4).numFmt = CURRENCY_FMT;
-    r.getCell(4).alignment = { horizontal: "right" };
-    r.getCell(4).font = {
-      bold: true,
-      color: { argb: t.income_minor - t.expense_minor >= 0 ? "FF10B981" : "FFEF4444" }
-    };
-  });
-  const lastDataRow = startDataRow + Math.max(0, data.trend.length - 1);
-  applyBandedRows(ws, startDataRow, lastDataRow, theme.light);
-
-  // 6-month averages row.
-  if (data.trend.length > 0) {
-    const avgIncome = data.trend.reduce((s, t) => s + t.income_minor, 0) / data.trend.length;
-    const avgExpense = data.trend.reduce((s, t) => s + t.expense_minor, 0) / data.trend.length;
-    const avgNet = avgIncome - avgExpense;
-    writeTotalsRow(ws, lastDataRow + 1, [
-      { col: 1, value: "RATA-RATA", align: "left" },
-      { col: 2, value: avgIncome / 100, numFmt: CURRENCY_FMT },
-      { col: 3, value: avgExpense / 100, numFmt: CURRENCY_FMT },
-      { col: 4, value: avgNet / 100, numFmt: CURRENCY_FMT }
-    ], theme.light);
-  }
-
-  autoFitColumns(ws, 4, 3, lastDataRow + 1, { minWidth: 14, maxWidth: 40 });
-}
-
-function buildTransactionsSheet(wb: ExcelJS.Workbook, data: ReportData): void {
-  const theme = SHEET_THEME.transactions;
-  const ws = wb.addWorksheet("Transaksi", {
-    properties: { tabColor: { argb: theme.tab } },
-    views: [{ state: "frozen", ySplit: 3, showGridLines: false }]
-  });
-
-  ws.columns = [
-    { header: "Tanggal", key: "date", width: 14 },
-    { header: "Tipe", key: "type", width: 12 },
-    { header: "Merchant", key: "merchant", width: 28 },
-    { header: "Kategori", key: "category", width: 20 },
-    { header: "Metode", key: "method", width: 16 },
-    { header: "Nominal", key: "amount", width: 20 }
-  ];
-
-  writeTitleBanner(ws, "Daftar Transaksi", `${data.window.description} · ${data.transactions.length} transaksi`, theme.tab);
-
-  const headerRowNum = 3;
-  const headerRow = ws.getRow(headerRowNum);
-  headerRow.height = 22;
-  ws.columns.forEach((col, i) => {
-    const cell = headerRow.getCell(i + 1);
-    cell.value = String(col.header ?? "");
-    cell.style = { ...BOLD_WHITE, fill: { type: "pattern", pattern: "solid", fgColor: { argb: theme.header } } };
-    cell.alignment = { vertical: "middle", horizontal: i === 5 ? "right" : "left", indent: 1 };
-  });
-
-  const startDataRow = 4;
-  // Pre-build a category-id → name lookup from by_category (which already has names).
-  const categoryNameById = new Map<string, string>();
-  for (const c of data.by_category) {
-    if (c.category_id) categoryNameById.set(c.category_id, c.category_name);
-  }
-
-  if (data.transactions.length === 0) {
-    writeEmptyState(ws, startDataRow, "Belum ada transaksi pada periode ini.", 6);
-    return;
-  }
-
-  data.transactions.forEach((tx, idx) => {
-    const r = ws.getRow(startDataRow + idx);
-    const date = new Date(tx.occurred_at);
-    r.getCell(1).value = date;
-    r.getCell(1).numFmt = "dd/mm/yyyy";
-    r.getCell(1).alignment = { horizontal: "left" };
-
-    const typeLabel =
-      tx.transaction_type === "income" ? "Income" :
-      tx.transaction_type === "expense" ? "Expense" :
-      "Transfer";
-    r.getCell(2).value = typeLabel;
-    r.getCell(2).font = {
-      bold: true,
-      color: {
-        argb:
-          tx.transaction_type === "income" ? "FF10B981" :
-          tx.transaction_type === "expense" ? "FFEF4444" :
-          "FF64748B"
-      }
-    };
-
-    r.getCell(3).value = tx.merchant_name ?? "—";
-    r.getCell(4).value = tx.category_id ? (categoryNameById.get(tx.category_id) ?? "Tanpa Kategori") : "Tanpa Kategori";
-    r.getCell(5).value = tx.payment_method ?? "—";
-
-    const signedAmount = tx.transaction_type === "expense" ? -Math.abs(tx.amount_minor) : Math.abs(tx.amount_minor);
-    const amountCell = r.getCell(6);
-    amountCell.value = signedAmount / 100;
-    amountCell.numFmt = CURRENCY_FMT;
-    amountCell.alignment = { horizontal: "right" };
-    amountCell.font = {
-      bold: true,
-      color: {
-        argb: tx.transaction_type === "income" ? "FF10B981" : tx.transaction_type === "expense" ? "FFEF4444" : "FF64748B"
-      }
-    };
-  });
-  applyBandedRows(ws, startDataRow, startDataRow + Math.max(0, data.transactions.length - 1), theme.light);
-  const lastTxRow = startDataRow + Math.max(0, data.transactions.length - 1);
-  ws.autoFilter = {
-    from: { row: headerRowNum, column: 1 },
-    to: { row: lastTxRow, column: 6 }
-  };
-  autoFitColumns(ws, 6, 3, lastTxRow, { minWidth: 12, maxWidth: 40 });
-}
-
-function buildInsightSheet(
-  wb: ExcelJS.Workbook,
-  data: ReportData,
-  insight: ParsedReportInsight | null,
-  options: { aiModelLabel: string | null }
-): void {
-  const theme = SHEET_THEME.insights;
-  const ws = wb.addWorksheet("AI Insight", {
-    properties: { tabColor: { argb: theme.tab } },
-    views: [{ showGridLines: false }]
-  });
-
-  ws.columns = [{ width: 4 }, { width: 100 }];
-
-  writeTitleBanner(ws, "Analisis AI", data.window.description, theme.tab);
-
-  let row = 4;
-
-  if (!insight) {
-    ws.getCell(`B${row}`).value = "Insight AI tidak tersedia untuk rentang ini.";
-    ws.getCell(`B${row}`).font = { italic: true, color: { argb: "FF64748B" } };
-    return;
-  }
-
-  // Executive Summary
-  row = writeSectionHeader(ws, row, "Ringkasan Eksekutif", theme);
-  row = writeParagraph(ws, row, insight.executive_summary);
-  row += 1;
-
-  if (insight.strengths.length > 0) {
-    row = writeSectionHeader(ws, row, "Kekuatan", theme);
-    row = writeBulletList(ws, row, insight.strengths, "FF10B981");
-    row += 1;
-  }
-
-  if (insight.concerns.length > 0) {
-    row = writeSectionHeader(ws, row, "Perhatian", theme);
-    row = writeBulletList(ws, row, insight.concerns, "FFEF4444");
-    row += 1;
-  }
-
-  if (insight.anomalies.length > 0) {
-    row = writeSectionHeader(ws, row, "Anomali & Pola Mencurigakan", theme);
-    row = writeBulletList(ws, row, insight.anomalies, "FFF59E0B");
-    row += 1;
-  }
-
-  if (insight.recommendations.length > 0) {
-    row = writeSectionHeader(ws, row, "Rekomendasi Actionable", theme);
-    for (const rec of insight.recommendations) {
-      const titleCell = ws.getCell(`B${row}`);
-      titleCell.value = `▸ ${rec.title}`;
-      titleCell.font = { bold: true, color: { argb: "FF1E293B" }, size: 12 };
-      row += 1;
-      row = writeParagraph(ws, row, `   ${rec.rationale}`, { italic: true, color: { argb: "FF475569" } });
-      if (typeof rec.potential_saving_minor === "number" && rec.potential_saving_minor > 0) {
-        const savCell = ws.getCell(`B${row}`);
-        savCell.value = `   Potensi penghematan: ${formatCurrency(rec.potential_saving_minor, "IDR")}`;
-        savCell.font = { bold: true, color: { argb: "FF10B981" } };
-        row += 1;
-      }
-      row += 1;
-    }
-  }
-
-  if (insight.forecast) {
-    row = writeSectionHeader(ws, row, "Proyeksi Periode Berikutnya", theme);
-    const f = insight.forecast;
-    const fmtRow = (label: string, value: string, color = "FF1E293B") => {
-      ws.getCell(`B${row}`).value = `${label}: ${value}`;
-      ws.getCell(`B${row}`).font = { bold: true, color: { argb: color } };
-      row += 1;
-    };
-    fmtRow("Estimasi pengeluaran", formatCurrency(f.next_period_expense_minor, "IDR"), "FFEF4444");
-    fmtRow("Tingkat keyakinan", `${Math.round(f.confidence * 100)}%`);
-    row = writeParagraph(ws, row, `Asumsi: ${f.assumptions.join("; ")}`, { italic: true, color: { argb: "FF475569" } });
-    row += 1;
-  }
-}
-
-function writeSectionHeader(ws: ExcelJS.Worksheet, row: number, label: string, theme: typeof SHEET_THEME[keyof typeof SHEET_THEME]): number {
-  const cell = ws.getCell(`B${row}`);
-  cell.value = label;
-  cell.font = { bold: true, size: 14, color: { argb: theme.header } };
-  cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: theme.light } };
-  cell.alignment = { vertical: "middle", horizontal: "left", indent: 1 };
-  ws.getRow(row).height = 22;
-  return row + 1;
-}
-
-function writeParagraph(
-  ws: ExcelJS.Worksheet,
-  row: number,
-  text: string,
-  font?: Partial<ExcelJS.Font>
-): number {
-  const cell = ws.getCell(`B${row}`);
-  cell.value = text;
-  cell.alignment = { vertical: "top", horizontal: "left", wrapText: true, indent: 1 };
-  cell.font = { size: 11, color: { argb: "FF1E293B" }, ...(font ?? {}) };
-  // Estimate row height from text length (rough heuristic).
-  const lineCount = Math.max(1, Math.ceil(text.length / 100));
-  ws.getRow(row).height = 16 * lineCount;
-  return row + 1;
-}
-
-function writeBulletList(ws: ExcelJS.Worksheet, row: number, items: string[], color: string): number {
-  for (const item of items) {
-    const marker = ws.getCell(`B${row}`);
-    marker.value = `●  ${item}`;
-    marker.alignment = { vertical: "top", horizontal: "left", wrapText: true, indent: 1 };
-    marker.font = { size: 11, color: { argb: "FF1E293B" } };
-    const lineCount = Math.max(1, Math.ceil(item.length / 100));
-    ws.getRow(row).height = 16 * lineCount;
-    // Tint the marker bullet by overriding via a left-indent colored cell.
-    void color;
-    row += 1;
-  }
-  return row;
 }
 
 /** Converts a #RRGGBB (or RRGGBB) string into ARGB with the supplied alpha. */
@@ -740,20 +119,567 @@ function hexWithAlpha(hex: string, alpha: string): string {
   return `${alpha}${clean}`;
 }
 
+// ─── Section helpers ─────────────────────────────────────────────────────────
+
+/** Draws the full-width gradient-style banner across A1:H2. */
+function writeBanner(ws: ExcelJS.Worksheet, title: string, subtitle: string): void {
+  ws.mergeCells("A1:H1");
+  const t = ws.getCell("A1");
+  t.value = title;
+  t.font = TITLE_FONT;
+  t.fill = solid(THEME.primary);
+  t.alignment = { vertical: "middle", horizontal: "left", indent: 1 };
+  ws.getRow(1).height = 34;
+
+  ws.mergeCells("A2:H2");
+  const s = ws.getCell("A2");
+  s.value = subtitle;
+  s.font = { italic: true, color: { argb: "FFFFFFFF" }, size: 11 };
+  s.fill = solid(THEME.primaryDark);
+  s.alignment = { vertical: "middle", horizontal: "left", indent: 1 };
+  ws.getRow(2).height = 20;
+}
+
 /**
- * Writes a single italic placeholder row across the given columns so the
- * sheet is not blank/confusing when there is no data for the period.
+ * Writes a section header bar spanning A..H at the given row. Returns the next
+ * free row.
+ */
+function writeSectionBar(ws: ExcelJS.Worksheet, row: number, label: string): number {
+  ws.mergeCells(row, 1, row, 8);
+  const cell = ws.getCell(row, 1);
+  cell.value = label;
+  cell.font = { bold: true, size: 13, color: { argb: THEME.primary } };
+  cell.alignment = { vertical: "middle", horizontal: "left", indent: 1 };
+  cell.border = { bottom: { style: "medium", color: { argb: THEME.primary } } };
+  ws.getRow(row).height = 24;
+  return row + 1;
+}
+
+/**
+ * Draws a compact KPI "card": a 2-row block (label on top, value below) with a
+ * tinted background and accent-colored value text, spanning two columns.
+ */
+function writeKpiCard(
+  ws: ExcelJS.Worksheet,
+  row: number,
+  startCol: number,
+  label: string,
+  value: number | string,
+  numFmt: string | null,
+  accent: string
+): void {
+  const labelCell = ws.getCell(row, startCol);
+  labelCell.value = label.toUpperCase();
+  labelCell.font = { bold: true, size: 9, color: { argb: THEME.muted } };
+  labelCell.alignment = { vertical: "middle", horizontal: "left", indent: 1 };
+  ws.mergeCells(row, startCol, row, startCol + 1);
+
+  const valueCell = ws.getCell(row + 1, startCol);
+  valueCell.value = value;
+  if (numFmt) valueCell.numFmt = numFmt;
+  valueCell.font = { bold: true, size: 14, color: { argb: accent } };
+  valueCell.alignment = { vertical: "middle", horizontal: "left", indent: 1 };
+  ws.mergeCells(row + 1, startCol, row + 1, startCol + 1);
+
+  // Tinted background + border across both merged cells.
+  for (let r = row; r <= row + 1; r++) {
+    for (let c = startCol; c <= startCol + 1; c++) {
+      const cell = ws.getCell(r, c);
+      cell.fill = solid(THEME.cardBg);
+      cell.border = thinBorderAll(THEME.border);
+    }
+  }
+  ws.getRow(row).height = 16;
+  ws.getRow(row + 1).height = 22;
+}
+
+/** Column headers for an inline table section, spanning the given labels. */
+function writeTableHeader(ws: ExcelJS.Worksheet, row: number, headers: Array<{ label: string; align?: "left" | "right" | "center" }>): void {
+  const headerRow = ws.getRow(row);
+  headerRow.height = 20;
+  headers.forEach((h, i) => {
+    const cell = headerRow.getCell(i + 1);
+    cell.value = h.label;
+    cell.font = HEADER_FONT;
+    cell.fill = solid(THEME.primary);
+    cell.alignment = { vertical: "middle", horizontal: h.align ?? "left", indent: 1 };
+  });
+}
+
+/** Applies a soft banded fill to even data rows across the given column count. */
+function bandRows(ws: ExcelJS.Worksheet, startRow: number, endRow: number, cols: number): void {
+  for (let r = startRow; r <= endRow; r++) {
+    if ((r - startRow) % 2 !== 0) continue;
+    for (let c = 1; c <= cols; c++) {
+      ws.getCell(r, c).fill = solid(THEME.light);
+    }
+  }
+}
+
+// ─── Sheet 1: Dashboard ──────────────────────────────────────────────────────
+
+function buildDashboardSheet(
+  wb: ExcelJS.Workbook,
+  data: ReportData,
+  insight: ParsedReportInsight | null,
+  options: { userName: string | null; aiModelLabel: string | null }
+): void {
+  const ws = wb.addWorksheet("Laporan", {
+    properties: { tabColor: { argb: THEME.primary } },
+    views: [{ showGridLines: false }]
+  });
+
+  ws.columns = [
+    { width: 26 },
+    { width: 18 },
+    { width: 16 },
+    { width: 16 },
+    { width: 14 },
+    { width: 16 },
+    { width: 14 },
+    { width: 12 }
+  ];
+
+  const userLabel = options.userName ? ` · ${options.userName}` : "";
+  writeBanner(ws, "Laporan Keuangan", `${data.window.description}${userLabel}`);
+
+  let row = 4;
+
+  // ── KPI cards ──────────────────────────────────────────────────────────
+  row = writeSectionBar(ws, row, "Ringkasan");
+  // Row of 3 cards: income / expense / net.
+  writeKpiCard(ws, row, 1, "Pemasukan", reportAmount(data.totals.income_minor), CURRENCY_FMT, THEME.income);
+  writeKpiCard(ws, row, 3, "Pengeluaran", reportAmount(data.totals.expense_minor), CURRENCY_FMT, THEME.expense);
+  writeKpiCard(ws, row, 5, "Net", reportAmount(data.totals.net_minor), CURRENCY_FMT, data.totals.net_minor >= 0 ? THEME.income : THEME.expense);
+  row += 2;
+  // Row of 2 cards: savings rate / tx count.
+  writeKpiCard(
+    ws,
+    row,
+    1,
+    "Tingkat Tabung",
+    data.totals.savings_rate_pct / 100,
+    PERCENT_FMT,
+    data.totals.savings_rate_pct >= 20 ? THEME.income : THEME.expense
+  );
+  writeKpiCard(ws, row, 3, "Jumlah Transaksi", data.totals.transaction_count, null, THEME.primary);
+  row += 3;
+
+  // ── vs previous period ───────────────────────────────────────────────────
+  row = writeSectionBar(ws, row, "Perbandingan Periode Sebelumnya");
+  writeTableHeader(ws, row, [
+    { label: "Metrik" },
+    { label: "Periode Ini", align: "right" },
+    { label: "Periode Lalu", align: "right" },
+    { label: "Δ %", align: "right" }
+  ]);
+  row += 1;
+
+  const comparisonRows: Array<[string, number, number]> = [
+    ["Pemasukan", data.totals.income_minor, data.previous_totals.income_minor],
+    ["Pengeluaran", data.totals.expense_minor, data.previous_totals.expense_minor],
+    ["Net", data.totals.net_minor, data.previous_totals.net_minor]
+  ];
+  const cmpStart = row;
+  for (const [label, current, previous] of comparisonRows) {
+    const r = ws.getRow(row);
+    r.getCell(1).value = label;
+    r.getCell(1).font = { size: 11, color: { argb: THEME.ink } };
+    r.getCell(2).value = reportAmount(current);
+    r.getCell(2).numFmt = CURRENCY_FMT;
+    r.getCell(2).alignment = { horizontal: "right" };
+    r.getCell(3).value = reportAmount(previous);
+    r.getCell(3).numFmt = CURRENCY_FMT;
+    r.getCell(3).alignment = { horizontal: "right" };
+    const deltaPct = previous === 0 ? (current > 0 ? 100 : 0) : Math.round(((current - previous) / previous) * 100);
+    const d = r.getCell(4);
+    d.value = deltaPct / 100;
+    d.numFmt = "+0%;-0%;0%";
+    d.font = { bold: true, color: { argb: deltaPct >= 0 ? THEME.income : THEME.expense } };
+    d.alignment = { horizontal: "right" };
+    row += 1;
+  }
+  bandRows(ws, cmpStart, row - 1, 4);
+  row += 2;
+
+  row = writeCategorySection(ws, data, row);
+  row = writeMerchantSection(ws, data, row);
+  row = writeTrendSection(ws, data, row);
+  writeInsightSection(ws, insight, options, row);
+}
+
+// ─── Dashboard sections ──────────────────────────────────────────────────────
+
+function writeCategorySection(ws: ExcelJS.Worksheet, data: ReportData, row: number): number {
+  row = writeSectionBar(ws, row, "Breakdown Kategori");
+  writeTableHeader(ws, row, [
+    { label: "Kategori" },
+    { label: "Pengeluaran", align: "right" },
+    { label: "%", align: "right" },
+    { label: "Visualisasi" },
+    { label: "Tx", align: "right" }
+  ]);
+  row += 1;
+
+  if (data.by_category.length === 0) {
+    writeEmptyState(ws, row, "Belum ada pengeluaran pada periode ini.", 5);
+    return row + 2;
+  }
+
+  const start = row;
+  data.by_category.forEach((cat, idx) => {
+    const r = ws.getRow(row);
+    r.height = 19;
+    r.getCell(1).value = cat.category_name;
+    r.getCell(1).font = { bold: idx < 3, color: { argb: THEME.ink } };
+    r.getCell(2).value = reportAmount(cat.expense_minor);
+    r.getCell(2).numFmt = CURRENCY_FMT;
+    r.getCell(2).alignment = { horizontal: "right" };
+    r.getCell(3).value = cat.expense_pct / 100;
+    r.getCell(3).numFmt = PERCENT_FMT;
+    r.getCell(3).alignment = { horizontal: "right" };
+    const blocks = Math.round((cat.expense_pct / 100) * 16);
+    r.getCell(4).value = "█".repeat(Math.max(0, blocks)) + "░".repeat(Math.max(0, 16 - blocks));
+    r.getCell(4).font = { color: { argb: hexWithAlpha(cat.category_color, "FF") }, size: 9 };
+    r.getCell(4).alignment = { horizontal: "left" };
+    r.getCell(5).value = cat.transaction_count;
+    r.getCell(5).alignment = { horizontal: "right" };
+    row += 1;
+  });
+  bandRows(ws, start, row - 1, 5);
+
+  // Total row.
+  const totalExpense = data.by_category.reduce((s, c) => s + c.expense_minor, 0);
+  const totalCount = data.by_category.reduce((s, c) => s + c.transaction_count, 0);
+  const tr = ws.getRow(row);
+  tr.getCell(1).value = "TOTAL";
+  tr.getCell(1).font = { bold: true, color: { argb: THEME.ink } };
+  tr.getCell(2).value = reportAmount(totalExpense);
+  tr.getCell(2).numFmt = CURRENCY_FMT;
+  tr.getCell(2).font = { bold: true };
+  tr.getCell(2).alignment = { horizontal: "right" };
+  tr.getCell(3).value = 1;
+  tr.getCell(3).numFmt = PERCENT_FMT;
+  tr.getCell(3).font = { bold: true };
+  tr.getCell(3).alignment = { horizontal: "right" };
+  tr.getCell(5).value = totalCount;
+  tr.getCell(5).font = { bold: true };
+  tr.getCell(5).alignment = { horizontal: "right" };
+  for (let c = 1; c <= 5; c++) {
+    tr.getCell(c).border = { top: { style: "thin", color: { argb: THEME.ink } } };
+  }
+  row += 1;
+
+  return row + 2;
+}
+
+/**
+ * Writes a single italic placeholder row across the given columns so a section
+ * is not blank/confusing when there is no data for the period.
  */
 function writeEmptyState(ws: ExcelJS.Worksheet, row: number, message: string, spanCols: number): void {
-  const r = ws.getRow(row);
-  r.getCell(1).value = message;
-  r.getCell(1).font = { italic: true, color: { argb: "FF64748B" }, size: 11 };
-  r.getCell(1).alignment = { vertical: "middle", horizontal: "left", indent: 1 };
-  // Merge across the same column count as the header so the message spans the
-  // visible table width.
-  if (spanCols > 1) {
-    ws.mergeCells(row, 1, row, spanCols);
+  ws.mergeCells(row, 1, row, spanCols);
+  const cell = ws.getCell(row, 1);
+  cell.value = message;
+  cell.font = { italic: true, color: { argb: THEME.muted }, size: 11 };
+  cell.alignment = { vertical: "middle", horizontal: "left", indent: 1 };
+}
+
+function writeMerchantSection(ws: ExcelJS.Worksheet, data: ReportData, row: number): number {
+  const merchants = data.top_merchants.slice(0, 10);
+  row = writeSectionBar(ws, row, "Top Merchant");
+  writeTableHeader(ws, row, [
+    { label: "#", align: "center" },
+    { label: "Merchant" },
+    { label: "Pengeluaran", align: "right" },
+    { label: "Tx", align: "right" },
+    { label: "Rata-rata/Tx", align: "right" }
+  ]);
+  row += 1;
+
+  if (merchants.length === 0) {
+    writeEmptyState(ws, row, "Belum ada merchant dengan pengeluaran pada periode ini.", 5);
+    return row + 2;
   }
+
+  const start = row;
+  merchants.forEach((m, idx) => {
+    const r = ws.getRow(row);
+    r.height = 19;
+    r.getCell(1).value = idx + 1;
+    r.getCell(1).alignment = { horizontal: "center" };
+    r.getCell(1).font = { bold: true, color: { argb: THEME.primary } };
+    r.getCell(2).value = m.name;
+    r.getCell(2).font = { bold: idx < 3, color: { argb: THEME.ink } };
+    r.getCell(3).value = reportAmount(m.expense_minor);
+    r.getCell(3).numFmt = CURRENCY_FMT;
+    r.getCell(3).alignment = { horizontal: "right" };
+    r.getCell(4).value = m.transaction_count;
+    r.getCell(4).alignment = { horizontal: "right" };
+    r.getCell(5).value = m.transaction_count > 0 ? reportAmount(m.expense_minor) / m.transaction_count : 0;
+    r.getCell(5).numFmt = CURRENCY_FMT;
+    r.getCell(5).alignment = { horizontal: "right" };
+    row += 1;
+  });
+  bandRows(ws, start, row - 1, 5);
+
+  return row + 2;
+}
+
+function writeTrendSection(ws: ExcelJS.Worksheet, data: ReportData, row: number): number {
+  row = writeSectionBar(ws, row, "Tren 6 Bulan");
+  writeTableHeader(ws, row, [
+    { label: "Bulan" },
+    { label: "Pemasukan", align: "right" },
+    { label: "Pengeluaran", align: "right" },
+    { label: "Net", align: "right" },
+    { label: "vs Lalu", align: "center" }
+  ]);
+  row += 1;
+
+  if (data.trend.length === 0) {
+    writeEmptyState(ws, row, "Belum ada data tren.", 5);
+    return row + 2;
+  }
+
+  const start = row;
+  data.trend.forEach((t, idx) => {
+    const r = ws.getRow(row);
+    r.height = 19;
+    const [y, m] = t.month.split("-").map(Number);
+    r.getCell(1).value = new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString("id-ID", { month: "long", year: "numeric" });
+    r.getCell(2).value = reportAmount(t.income_minor);
+    r.getCell(2).numFmt = CURRENCY_FMT;
+    r.getCell(2).alignment = { horizontal: "right" };
+    r.getCell(3).value = reportAmount(t.expense_minor);
+    r.getCell(3).numFmt = CURRENCY_FMT;
+    r.getCell(3).alignment = { horizontal: "right" };
+    const net = t.income_minor - t.expense_minor;
+    r.getCell(4).value = reportAmount(net);
+    r.getCell(4).numFmt = CURRENCY_FMT;
+    r.getCell(4).alignment = { horizontal: "right" };
+    r.getCell(4).font = { bold: true, color: { argb: net >= 0 ? THEME.income : THEME.expense } };
+    if (idx > 0) {
+      const prev = data.trend[idx - 1];
+      const deltaExp = t.expense_minor - prev.expense_minor;
+      const pct = prev.expense_minor > 0 ? Math.round((deltaExp / prev.expense_minor) * 100) : 0;
+      const arrow = deltaExp > 0 ? "▲" : deltaExp < 0 ? "▼" : "—";
+      const d = r.getCell(5);
+      d.value = `${arrow} ${Math.abs(pct)}%`;
+      d.alignment = { horizontal: "center" };
+      d.font = { bold: true, color: { argb: deltaExp > 0 ? THEME.expense : deltaExp < 0 ? THEME.income : THEME.muted } };
+    } else {
+      r.getCell(5).value = "—";
+      r.getCell(5).alignment = { horizontal: "center" };
+      r.getCell(5).font = { color: { argb: THEME.muted } };
+    }
+    row += 1;
+  });
+  bandRows(ws, start, row - 1, 5);
+
+  // Averages row.
+  const avgIncome = data.trend.reduce((s, t) => s + t.income_minor, 0) / data.trend.length;
+  const avgExpense = data.trend.reduce((s, t) => s + t.expense_minor, 0) / data.trend.length;
+  const ar = ws.getRow(row);
+  ar.getCell(1).value = "RATA-RATA";
+  ar.getCell(1).font = { bold: true, color: { argb: THEME.ink } };
+  ar.getCell(2).value = reportAmount(avgIncome);
+  ar.getCell(2).numFmt = CURRENCY_FMT;
+  ar.getCell(2).font = { bold: true };
+  ar.getCell(2).alignment = { horizontal: "right" };
+  ar.getCell(3).value = reportAmount(avgExpense);
+  ar.getCell(3).numFmt = CURRENCY_FMT;
+  ar.getCell(3).font = { bold: true };
+  ar.getCell(3).alignment = { horizontal: "right" };
+  ar.getCell(4).value = reportAmount(avgIncome - avgExpense);
+  ar.getCell(4).numFmt = CURRENCY_FMT;
+  ar.getCell(4).font = { bold: true };
+  ar.getCell(4).alignment = { horizontal: "right" };
+  for (let c = 1; c <= 5; c++) {
+    ar.getCell(c).border = { top: { style: "thin", color: { argb: THEME.ink } } };
+  }
+  row += 1;
+
+  return row + 2;
+}
+
+function writeInsightSection(
+  ws: ExcelJS.Worksheet,
+  insight: ParsedReportInsight | null,
+  options: { aiModelLabel: string | null },
+  row: number
+): number {
+  const label = options.aiModelLabel ? `Analisis AI · ${options.aiModelLabel}` : "Analisis AI";
+  row = writeSectionBar(ws, row, label);
+
+  if (!insight) {
+    writeEmptyState(ws, row, "Insight AI tidak tersedia untuk rentang ini.", 8);
+    return row + 2;
+  }
+
+  const para = (text: string, font?: Partial<ExcelJS.Font>) => {
+    ws.mergeCells(row, 1, row, 8);
+    const cell = ws.getCell(row, 1);
+    cell.value = text;
+    cell.alignment = { vertical: "top", horizontal: "left", wrapText: true, indent: 1 };
+    cell.font = { size: 11, color: { argb: THEME.ink }, ...(font ?? {}) };
+    ws.getRow(row).height = 16 * Math.max(1, Math.ceil(text.length / 110));
+    row += 1;
+  };
+
+  const subHeader = (text: string) => {
+    ws.mergeCells(row, 1, row, 8);
+    const cell = ws.getCell(row, 1);
+    cell.value = text;
+    cell.font = { bold: true, size: 12, color: { argb: THEME.primary } };
+    cell.alignment = { vertical: "middle", horizontal: "left", indent: 1 };
+    ws.getRow(row).height = 20;
+    row += 1;
+  };
+
+  const bullets = (items: string[], color: string) => {
+    for (const item of items) {
+      ws.mergeCells(row, 1, row, 8);
+      const cell = ws.getCell(row, 1);
+      cell.value = `●  ${item}`;
+      cell.alignment = { vertical: "top", horizontal: "left", wrapText: true, indent: 1 };
+      cell.font = { size: 11, color: { argb: color } };
+      ws.getRow(row).height = Math.max(18, 16 * Math.ceil(item.length / 110));
+      row += 1;
+    }
+  };
+
+  subHeader("Ringkasan Eksekutif");
+  para(insight.executive_summary);
+  row += 1;
+
+  if (insight.strengths.length > 0) {
+    subHeader("Kekuatan");
+    bullets(insight.strengths, THEME.income);
+    row += 1;
+  }
+  if (insight.concerns.length > 0) {
+    subHeader("Perhatian");
+    bullets(insight.concerns, THEME.expense);
+    row += 1;
+  }
+  if (insight.anomalies.length > 0) {
+    subHeader("Anomali & Pola Mencurigakan");
+    bullets(insight.anomalies, THEME.amber);
+    row += 1;
+  }
+  if (insight.recommendations.length > 0) {
+    subHeader("Rekomendasi");
+    for (const rec of insight.recommendations) {
+      para(`▸ ${rec.title}`, { bold: true, color: { argb: THEME.ink }, size: 12 });
+      para(`   ${rec.rationale}`, { italic: true, color: { argb: THEME.muted } });
+      if (typeof rec.potential_saving_minor === "number" && rec.potential_saving_minor > 0) {
+        para(`   Potensi penghematan: ${formatCurrency(rec.potential_saving_minor, "IDR")}`, {
+          bold: true,
+          color: { argb: THEME.income }
+        });
+      }
+      row += 1;
+    }
+  }
+  if (insight.forecast) {
+    subHeader("Proyeksi Periode Berikutnya");
+    para(`Estimasi pengeluaran: ${formatCurrency(insight.forecast.next_period_expense_minor, "IDR")}`, {
+      bold: true,
+      color: { argb: THEME.expense }
+    });
+    para(`Tingkat keyakinan: ${Math.round(insight.forecast.confidence * 100)}%`, { bold: true });
+    para(`Asumsi: ${insight.forecast.assumptions.join("; ")}`, { italic: true, color: { argb: THEME.muted } });
+  }
+
+  return row;
+}
+
+// ─── Sheet 2: Transactions ───────────────────────────────────────────────────
+
+function buildTransactionsSheet(wb: ExcelJS.Workbook, data: ReportData): void {
+  const ws = wb.addWorksheet("Transaksi", {
+    properties: { tabColor: { argb: THEME.primaryDark } },
+    views: [{ state: "frozen", ySplit: 3, showGridLines: false }]
+  });
+
+  ws.columns = [
+    { header: "Tanggal", width: 14 },
+    { header: "Tipe", width: 12 },
+    { header: "Merchant", width: 28 },
+    { header: "Kategori", width: 20 },
+    { header: "Metode", width: 16 },
+    { header: "Nominal", width: 20 },
+    { header: "Mata Uang", width: 12 }
+  ];
+
+  writeBanner(ws, "Daftar Transaksi", `${data.window.description} · ${data.transactions.length} transaksi`);
+
+  const headerRowNum = 3;
+  const headerRow = ws.getRow(headerRowNum);
+  headerRow.height = 22;
+  ws.columns.forEach((col, i) => {
+    const cell = headerRow.getCell(i + 1);
+    cell.value = String(col.header ?? "");
+    cell.font = HEADER_FONT;
+    cell.fill = solid(THEME.primary);
+    cell.alignment = { vertical: "middle", horizontal: i === 5 ? "right" : "left", indent: 1 };
+  });
+
+  const startDataRow = 4;
+
+  // category-id → name lookup from by_category (which already carries names).
+  const categoryNameById = new Map<string, string>();
+  for (const c of data.by_category) {
+    if (c.category_id) categoryNameById.set(c.category_id, c.category_name);
+  }
+
+  if (data.transactions.length === 0) {
+    writeEmptyState(ws, startDataRow, "Belum ada transaksi pada periode ini.", 7);
+    return;
+  }
+
+  data.transactions.forEach((tx, idx) => {
+    const r = ws.getRow(startDataRow + idx);
+    const date = new Date(tx.occurred_at);
+    r.getCell(1).value = date;
+    r.getCell(1).numFmt = "dd/mm/yyyy";
+    r.getCell(1).alignment = { horizontal: "left" };
+
+    const typeColor =
+      tx.transaction_type === "income" ? THEME.income :
+      tx.transaction_type === "expense" ? THEME.expense :
+      THEME.muted;
+    const typeLabel =
+      tx.transaction_type === "income" ? "Income" :
+      tx.transaction_type === "expense" ? "Expense" :
+      "Transfer";
+    r.getCell(2).value = typeLabel;
+    r.getCell(2).font = { bold: true, color: { argb: typeColor } };
+
+    r.getCell(3).value = tx.merchant_name ?? "—";
+    r.getCell(4).value = tx.category_id ? (categoryNameById.get(tx.category_id) ?? "Tanpa Kategori") : "Tanpa Kategori";
+    r.getCell(5).value = tx.payment_method ?? "—";
+
+    const signedAmount = tx.transaction_type === "expense" ? -Math.abs(tx.amount_minor) : Math.abs(tx.amount_minor);
+    const amountCell = r.getCell(6);
+    amountCell.value = amountMinorToMajor(signedAmount, tx.currency);
+    amountCell.numFmt = excelCurrencyFormat(tx.currency);
+    amountCell.alignment = { horizontal: "right" };
+    amountCell.font = { bold: true, color: { argb: typeColor } };
+
+    r.getCell(7).value = tx.currency;
+    r.getCell(7).alignment = { horizontal: "center" };
+    r.getCell(7).font = { bold: true, color: { argb: THEME.muted } };
+  });
+
+  const lastTxRow = startDataRow + data.transactions.length - 1;
+  bandRows(ws, startDataRow, lastTxRow, 7);
+  ws.autoFilter = {
+    from: { row: headerRowNum, column: 1 },
+    to: { row: lastTxRow, column: 7 }
+  };
+  autoFitColumns(ws, 7, 3, lastTxRow, { minWidth: 12, maxWidth: 40 });
 }
 
 export type ReportWorkbookInput = {

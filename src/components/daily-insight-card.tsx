@@ -14,7 +14,7 @@ type InsightPayload = {
   ai_error?: string | null;
 };
 
-type PlanTier = "free" | "premium";
+type PlanTier = "free" | "premium" | "pro";
 
 type Status =
   | { kind: "loading" }
@@ -102,7 +102,7 @@ export function DailyInsightCard() {
           payload: json.insight,
           generatedAt: json.generated_at ?? new Date().toISOString(),
           plan: json.plan ?? "free",
-          canRegenerate: json.plan === "premium"
+          canRegenerate: json.plan === "premium" || json.plan === "pro"
         });
       } else {
         setStatus({
@@ -173,7 +173,7 @@ export function DailyInsightCard() {
           <>
             <div className="mt-3 rounded-lg bg-surface-container px-3 py-3">
               <p className="text-sm text-ink">
-                {status.plan === "premium"
+                {status.plan === "premium" || status.plan === "pro"
                   ? "Buat insight pertama Anda hari ini."
                   : "Buat insight pertama Anda — gratis, sekali seumur hidup."}
               </p>
@@ -362,7 +362,7 @@ function ReadyInsightBody({
             <div className="mt-4 flex items-center gap-2 rounded-lg bg-surface-container px-3 py-2">
               <Lock aria-hidden="true" className="text-muted" size={13} />
               <p className="text-xs text-muted">
-                {plan === "premium"
+                {plan === "premium" || plan === "pro"
                   ? "Insight harian sudah ter-generate."
                   : "Insight gratis sudah digunakan. Upgrade Premium untuk insight baru."}
               </p>

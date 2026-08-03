@@ -4,7 +4,7 @@ export type TransactionType = "expense" | "income" | "transfer";
 
 export type DocumentType = "qris" | "bank_transfer" | "ewallet_transfer" | "receipt" | "unknown";
 
-export type PlanTier = "free" | "premium";
+export type PlanTier = "free" | "premium" | "pro";
 
 export type LedgerTransaction = {
   id: string;

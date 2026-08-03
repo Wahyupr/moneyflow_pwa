@@ -8,9 +8,9 @@
  *  4. Everything else             → Network-first, fall back to cache, then offline page
  */
 
-const SHELL_CACHE   = "mf-shell-v5";
-const STATIC_CACHE  = "mf-static-v5";
-const API_CACHE     = "mf-api-v5";
+const SHELL_CACHE   = "mf-shell-v6";
+const STATIC_CACHE  = "mf-static-v6";
+const API_CACHE     = "mf-api-v6";
 
 // App shell files pre-cached on install
 const SHELL_FILES = [
@@ -77,12 +77,12 @@ self.addEventListener("fetch", (event) => {
 // ── Strategy helpers ──────────────────────────────────────────────────────────
 
 async function cacheFirst(request, cacheName) {
-  const cached = await caches.match(request);
+  const cache = await caches.open(cacheName);
+  const cached = await cache.match(request);
   if (cached) return cached;
   try {
     const response = await fetch(request);
     if (response.ok) {
-      const cache = await caches.open(cacheName);
       cache.put(request, response.clone());
     }
     return response;
@@ -108,16 +108,16 @@ async function staleWhileRevalidate(request, cacheName) {
 }
 
 async function networkFirst(request, cacheName) {
+  const cache = await caches.open(cacheName);
   try {
     const response = await fetch(request);
     if (response.ok) {
-      const cache = await caches.open(cacheName);
       cache.put(request, response.clone());
     }
     return response;
   } catch {
-    const cached = await caches.match(request);
-    return cached ?? caches.match("/") ?? offlinePage();
+    const cached = await cache.match(request);
+    return cached ?? cache.match("/") ?? offlinePage();
   }
 }
 

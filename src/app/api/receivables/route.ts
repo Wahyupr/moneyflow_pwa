@@ -30,23 +30,19 @@ type ReceivableRow = {
   collected_amount_minor: string;
 };
 
-async function requirePremium(userId: string) {
+async function getPlan(userId: string): Promise<"free" | "premium" | "pro"> {
   const result = await query<{ plan: string | null }>(
     "select plan from subscription_entitlements where user_id = $1 and status = 'active' and (current_period_end is null or current_period_end > now())",
     [userId]
   );
-  const plan = (result.rows[0]?.plan ?? "free") as "free" | "premium";
-  return canAccessHutangPiutang(plan);
+  return (result.rows[0]?.plan ?? "free") as "free" | "premium" | "pro";
 }
 
 export async function GET(request: NextRequest) {
   const auth = await requireApiUser(request);
   if ("response" in auth) return auth.response;
 
-  const access = await requirePremium(auth.user.id);
-  if (!access.ok) {
-    return NextResponse.json({ error: access.reason }, { status: 402 });
-  }
+  // Free users can read their existing records — no gate on GET.
 
   const result = await query<ReceivableRow>(
     `select r.*, coalesce(p.collected, 0) as collected_amount_minor
@@ -96,7 +92,14 @@ export async function POST(request: NextRequest) {
   const auth = await requireApiUser(request);
   if ("response" in auth) return auth.response;
 
-  const access = await requirePremium(auth.user.id);
+  // Count existing active receivables to enforce free-tier limit.
+  const plan = await getPlan(auth.user.id);
+  const countRes = await query<{ cnt: string }>(
+    "select count(*) as cnt from receivables where user_id = $1 and status = 'active'",
+    [auth.user.id]
+  );
+  const recordCount = Number(countRes.rows[0]?.cnt ?? 0);
+  const access = canAccessHutangPiutang({ plan, recordCount });
   if (!access.ok) {
     return NextResponse.json({ error: access.reason }, { status: 402 });
   }

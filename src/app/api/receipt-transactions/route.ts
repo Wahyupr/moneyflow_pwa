@@ -3,6 +3,9 @@ import type { NextRequest } from "next/server";
 import { z } from "zod";
 import { requireApiUser } from "@/lib/api/auth";
 import { isReceiptAiConfigured, parseReceiptWithAi, type ParsedReceipt } from "@/lib/receipt/ai";
+import { getActivePlan } from "@/lib/plan";
+import { PLAN_LIMITS } from "@/lib/entitlements";
+import { query } from "@/lib/db/pool";
 
 export const runtime = "nodejs";
 
@@ -104,9 +107,41 @@ export async function POST(request: NextRequest) {
 
   const body = await request.json().catch(() => null);
 
-  // Route based on commit flag to avoid ambiguous fall-through.
   const isCommit = body !== null && typeof body === "object" && (body as Record<string, unknown>).commit === true;
 
+  // Enforce scan quota only on the AI scan path (commit=false), not on save.
+  if (!isCommit) {
+    const plan = await getActivePlan(auth.user.id);
+    const maxPerMonth = PLAN_LIMITS[plan].scanPerDay;
+    if (maxPerMonth !== null) {
+      // Free: 7/month. Premium: 2/day. Pro: unlimited (null).
+      const isPremiumOrAbove = plan !== "free";
+      const countResult = await query<{ count: string }>(
+        isPremiumOrAbove
+          ? `select count(*)::text as count
+             from transactions
+             where user_id = $1
+               and input_method = 'receipt'
+               and occurred_at >= current_date
+               and occurred_at < current_date + interval '1 day'`
+          : `select count(*)::text as count
+             from transactions
+             where user_id = $1
+               and input_method = 'receipt'
+               and occurred_at >= date_trunc('month', now())`,
+        [auth.user.id]
+      );
+      if (Number(countResult.rows[0]?.count ?? 0) >= maxPerMonth) {
+        const limitLabel = isPremiumOrAbove ? `${maxPerMonth}× per hari` : `${maxPerMonth}× per bulan`;
+        return NextResponse.json(
+          { error: `Paket ${plan} hanya mendukung ${limitLabel} scan struk. Upgrade untuk scan lebih banyak.` },
+          { status: 402 }
+        );
+      }
+    }
+  }
+
+  // Route based on commit flag to avoid ambiguous fall-through.
   // --- SAVE PATH: persist the reviewed/edited transaction. ---
   if (isCommit) {
     const save = SaveSchema.safeParse(body);

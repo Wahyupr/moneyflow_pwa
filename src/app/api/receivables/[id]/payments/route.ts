@@ -18,8 +18,8 @@ async function requirePremium(userId: string) {
     "select plan from subscription_entitlements where user_id = $1 and status = 'active' and (current_period_end is null or current_period_end > now())",
     [userId]
   );
-  const plan = (result.rows[0]?.plan ?? "free") as "free" | "premium";
-  return canAccessHutangPiutang(plan);
+  const plan = (result.rows[0]?.plan ?? "free") as "free" | "premium" | "pro";
+  return canAccessHutangPiutang({ plan, recordCount: 0 });
 }
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {

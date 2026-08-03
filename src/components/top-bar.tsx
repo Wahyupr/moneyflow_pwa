@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { Bell, Download, Moon, Share, Sun, UserRound, X } from "lucide-react";
 import { useEffect, useState } from "react";
-import { useTheme } from "next-themes";
+import { useTheme } from "@/components/theme-provider";
 import { detectBrowser, isRunningStandalone } from "@/lib/onboarding";
 
 type BeforeInstallPromptEvent = Event & {
