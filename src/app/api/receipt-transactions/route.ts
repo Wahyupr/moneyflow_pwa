@@ -121,13 +121,13 @@ export async function POST(request: NextRequest) {
           ? `select count(*)::text as count
              from transactions
              where user_id = $1
-               and input_method = 'receipt'
+               and input_method = 'receipt_scan'
                and occurred_at >= current_date
                and occurred_at < current_date + interval '1 day'`
           : `select count(*)::text as count
              from transactions
              where user_id = $1
-               and input_method = 'receipt'
+               and input_method = 'receipt_scan'
                and occurred_at >= date_trunc('month', now())`,
         [auth.user.id]
       );
