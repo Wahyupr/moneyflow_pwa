@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { AppFrame } from "@/components/app-frame";
 import { SelectMenu } from "@/components/ui/select-menu";
-import { formatCurrency } from "@/lib/money";
+import { formatCurrency, formatThousands, parseThousands } from "@/lib/money";
 
 type WalletOption = { id: string; name: string };
 type CategoryOption = { id: string; name: string; type: "expense" | "income" | "transfer" };
@@ -191,7 +191,7 @@ function ScanReceiptContent() {
       };
       setForm({
         transaction_type: preview.transaction_type,
-        amount: String(preview.amount_minor || ""),
+        amount: preview.amount_minor ? formatThousands(preview.amount_minor) : "",
         merchant_name: preview.merchant_name ?? "",
         wallet_id: preview.wallet_id ?? walletList[0]?.id ?? "",
         category_id: preview.category_id ?? "",
@@ -227,7 +227,7 @@ function ScanReceiptContent() {
     if (!form) {
       return;
     }
-    const amount = Math.round(Number(form.amount));
+    const amount = Math.round(Number(parseThousands(form.amount)));
     if (!Number.isFinite(amount) || amount <= 0) {
       setError("Nominal harus lebih dari 0.");
       return;
@@ -360,7 +360,10 @@ function ScanReceiptContent() {
                 className="mt-2 min-h-12 w-full rounded-lg border border-outline bg-surface px-3 focus:border-primary focus:outline-none"
                 inputMode="numeric"
                 value={form.amount}
-                onChange={(event) => setForm((current) => (current ? { ...current, amount: event.target.value } : current))}
+                onChange={(event) => {
+                  const raw = parseThousands(event.target.value);
+                  setForm((current) => (current ? { ...current, amount: formatThousands(raw) } : current));
+                }}
               />
             </label>
 
@@ -516,7 +519,7 @@ function ScanReceiptContent() {
         </button>
       )}
 
-      {form ? <p className="text-center text-xs text-muted">Total dari struk: {formatCurrency(Number(form.amount) || 0, "IDR")}</p> : null}
+      {form ? <p className="text-center text-xs text-muted">Total dari struk: {formatCurrency(Number(parseThousands(form.amount)) || 0, "IDR")}</p> : null}
     </div>
   );
 }
