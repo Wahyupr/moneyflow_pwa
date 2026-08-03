@@ -46,15 +46,17 @@ export function getPool(): Pool {
     max: Number(process.env.DATABASE_POOL_MAX ?? 10),
     // Keep idle connections alive long enough to be reused across requests so
     // we don't repeatedly pay the connection handshake.
-    idleTimeoutMillis: 60_000,
-    connectionTimeoutMillis: 10_000,
+    idleTimeoutMillis: 30_000,
+    connectionTimeoutMillis: 15_000,
     // Detect dead connections without blocking new queries.
-    keepAlive: true
+    keepAlive: true,
+    keepAliveInitialDelayMillis: 10_000,
   });
 
   // Avoid crashing the process if an idle backend connection drops.
-  pool.on("error", () => {
-    /* swallow idle-client errors; pg will reconnect on next acquire */
+  // Log the error so it surfaces in prod logs for diagnosis.
+  pool.on("error", (err) => {
+    console.error("[db-pool] idle client error:", err.message);
   });
 
   globalForPool.__financeAppPgPool = pool;
