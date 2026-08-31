@@ -64,7 +64,8 @@ export async function GET(request: NextRequest) {
       t.payment_method, t.note, t.input_method, t.transfer_pair_id,
       t.recurring_id, t.mood, t.raw_receipt_text,
       case when w.is_shared then coalesce(u.display_name, u.email) else null end as created_by_name,
-      w.name as wallet_name
+      w.name as wallet_name, w.type as wallet_type,
+      w.institution_name as wallet_institution_name, w.color as wallet_color
     from transactions t
     join users u on u.id = t.user_id
     join wallets w on w.id = t.wallet_id

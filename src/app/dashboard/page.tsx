@@ -12,6 +12,7 @@ import { isOnboardingCompleted, markOnboardingCompleted } from "@/lib/onboarding
 import { usePrivacy } from "@/components/privacy-provider";
 import { TransactionRow } from "@/components/transaction-row";
 import { WalletCard } from "@/components/wallet-card";
+import { WalletStack } from "@/components/wallet-stack";
 import { formatCurrency } from "@/lib/money";
 import { SpendingChart } from "@/components/spending-chart";
 import type { DashboardBudget, DashboardDelta, DashboardWallet } from "@/lib/dashboard";
@@ -278,11 +279,7 @@ function DashboardContent() {
             </Link>
           </div>
           {dashboard.wallets.length > 0 ? (
-            <div className="-mx-5 flex gap-3 overflow-x-auto px-5 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              {dashboard.wallets.slice(0, 3).map((wallet) => (
-                <WalletCard compact hidden={hidden} key={wallet.id} wallet={wallet} />
-              ))}
-            </div>
+            <WalletStack wallets={dashboard.wallets} hidden={hidden} />
           ) : (
             <EmptyState message="Belum ada dompet. Tambahkan dompet pertama kamu." href="/wallets" cta="Tambah Dompet" />
           )}

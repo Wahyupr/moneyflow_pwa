@@ -4,8 +4,12 @@ import {
   ArrowRight,
   BarChart3,
   Bell,
+  Bot,
+  Brain,
   HandCoins,
   Landmark,
+  LineChart,
+  MessageSquare,
   Mic,
   PencilLine,
   ReceiptText,
@@ -18,12 +22,14 @@ import {
 // Note: Wallet is still used in FEATURES array for "Multi Dompet" feature card
 import { Reveal } from "@/components/landing/reveal";
 import { Pricing } from "@/components/landing/pricing";
+import { AiInsightDemo } from "@/components/landing/ai-insight-demo";
+import { SpendChart } from "@/components/landing/spend-chart";
 
 
 
 export const metadata = {
-  title: "MoneyFlow — Catat keuangan secepat bicara",
-  description: "Aplikasi keuangan pribadi Indonesia: catat transaksi lewat suara, scan struk, dan kelola dompet dalam satu tempat."
+  title: "MoneyFlow — Asisten keuangan AI pribadimu",
+  description: "Asisten keuangan AI untuk orang Indonesia: catat transaksi otomatis, dapat insight harian dan saran hemat, plus input suara untuk pencatatan secepat bicara."
 };
 
 export default function LandingPage() {
@@ -31,7 +37,9 @@ export default function LandingPage() {
     <main className="min-h-dvh bg-background text-ink">
       <LandingNav />
       <Hero />
+      <Marquee />
       <StatsBand />
+      <InsightShowcase />
       <Features />
       <HowItWorks />
       <Suspense fallback={null}>
@@ -43,6 +51,7 @@ export default function LandingPage() {
     </main>
   );
 }
+
 
 function LandingNav() {
   return (
@@ -83,18 +92,18 @@ function Hero() {
       <div className="relative mx-auto grid max-w-6xl items-center gap-12 px-5 py-16 md:grid-cols-2 md:py-24">
         <div className="lp-hero-in">
           <span className="inline-flex items-center gap-2 rounded-full border border-outline bg-surface px-3 py-1 text-xs font-bold text-primary shadow-card">
-            <Sparkles size={13} />
-            Catat keuangan pakai AI
+            <Brain size={13} />
+            Asisten keuangan bertenaga AI
           </span>
           <h1 className="mt-5 text-4xl font-extrabold leading-tight tracking-tight md:text-5xl">
-            Catat keuangan{" "}
-            <span className="lp-gradient-text bg-gradient-to-r from-primary via-income to-secondary bg-clip-text text-transparent">secepat bicara.</span>
+            Asisten AI yang{" "}
+            <span className="lp-gradient-text bg-gradient-to-r from-primary via-income to-secondary bg-clip-text text-transparent">paham keuanganmu.</span>
           </h1>
           <p className="mt-4 max-w-md text-base leading-relaxed text-muted">
-            Ucapkan transaksimu, foto struk, atau catat manual. MoneyFlow merapikan dompet, kategori, dan merchant secara otomatis — khusus untuk gaya keuangan orang Indonesia.
+            MoneyFlow mencatat transaksimu otomatis, lalu memberi insight harian dan saran hemat yang personal. Cukup bicara, foto struk, atau tanya langsung — AI mengurus sisanya.
           </p>
           <div className="mt-7 flex flex-wrap gap-3">
-            <Link className="group flex min-h-12 items-center gap-2 rounded-xl bg-primary px-6 font-bold text-white shadow-lift transition hover:shadow-[0_16px_50px_rgba(22,104,220,0.4)] active:scale-[0.98]" href="/register">
+            <Link className="lp-sheen-parent group flex min-h-12 items-center gap-2 rounded-xl bg-primary px-6 font-bold text-white shadow-lift transition hover:shadow-[0_16px_50px_rgba(22,104,220,0.4)] active:scale-[0.98]" href="/register">
               Mulai Gratis
               <ArrowRight size={18} className="transition-transform group-hover:translate-x-1" />
             </Link>
@@ -109,6 +118,7 @@ function Hero() {
           <HeroPreview />
         </div>
       </div>
+
     </section>
   );
 }
@@ -151,6 +161,118 @@ function PreviewRow({ label, value }: { label: string; value: string }) {
     </div>
   );
 }
+
+
+const MARQUEE_ITEMS = [
+  "Insight harian otomatis",
+  "Saran hemat personal",
+  "Tanya-jawab keuangan",
+  "Deteksi kategori boros",
+  "Ringkasan arus kas",
+  "Pengingat budget",
+  "Input suara instan",
+  "Scan struk AI"
+] as const;
+
+/** Infinite horizontal ribbon of AI capabilities under the hero. */
+function Marquee() {
+  // Duplicated track so the -50% translate loops seamlessly.
+  const items = [...MARQUEE_ITEMS, ...MARQUEE_ITEMS];
+  return (
+    <section aria-hidden="true" className="relative overflow-hidden border-y border-outline/60 bg-surface/40 py-4">
+      {/* Edge fades so items slide in/out softly. */}
+      <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-16 bg-gradient-to-r from-background to-transparent" />
+      <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-16 bg-gradient-to-l from-background to-transparent" />
+      <div className="lp-marquee-track flex w-max items-center gap-3">
+        {items.map((item, index) => (
+          <span
+            key={`${item}-${index}`}
+            className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-outline bg-surface px-4 py-1.5 text-sm font-semibold text-muted"
+          >
+            <Sparkles size={13} className="text-primary" />
+            {item}
+          </span>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+
+const INSIGHT_POINTS = [
+  {
+    icon: Brain,
+    title: "Analisis otomatis tiap hari",
+    body: "AI membaca transaksimu dan merangkum ke mana uang pergi — tanpa kamu perlu buka spreadsheet."
+  },
+  {
+    icon: LineChart,
+    title: "Deteksi tren & kategori boros",
+    body: "Lihat kategori yang naik minggu ini dan seberapa dekat kamu dengan batas budget bulanan."
+  },
+  {
+    icon: MessageSquare,
+    title: "Tanya apa saja soal uangmu",
+    body: "\"Berapa pengeluaran kopi bulan ini?\" — asisten menjawab langsung dari data kamu sendiri."
+  }
+] as const;
+
+/** The centerpiece: shows the AI insight assistant as the hero capability. */
+function InsightShowcase() {
+  return (
+    <section className="relative overflow-hidden py-16 md:py-24">
+      {/* Slow-drifting aurora backdrop for atmosphere. */}
+      <div aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10 opacity-60">
+        <div className="lp-aurora absolute left-1/2 top-1/2 size-[46rem] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[conic-gradient(from_0deg,theme(colors.primary/25),theme(colors.income/15),theme(colors.secondary/25),theme(colors.primary/25))] blur-3xl" />
+      </div>
+
+      <div className="mx-auto grid max-w-6xl items-center gap-12 px-5 lg:grid-cols-2">
+        <div>
+          <Reveal>
+            <span className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-bold text-primary">
+              <Bot size={13} />
+              Inti dari MoneyFlow
+            </span>
+            <h2 className="mt-5 text-3xl font-extrabold tracking-tight md:text-4xl">
+              Bukan cuma pencatat — <span className="lp-gradient-text bg-gradient-to-r from-primary to-income bg-clip-text text-transparent">asisten yang menganalisis.</span>
+            </h2>
+            <p className="mt-3 max-w-md text-muted">
+              Setelah transaksi tercatat, AI langsung bekerja: merangkum arus kas, menandai pengeluaran tak biasa, dan memberi saran hemat yang bisa langsung kamu jalankan.
+            </p>
+          </Reveal>
+
+          <div className="mt-8 space-y-3">
+            {INSIGHT_POINTS.map((point, index) => (
+              <Reveal
+                key={point.title}
+                delay={index * 100}
+                className="lp-tilt flex items-start gap-3 rounded-2xl border border-outline bg-surface p-4 shadow-card"
+              >
+                <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                  <point.icon size={20} />
+                </span>
+                <div>
+                  <h3 className="font-bold">{point.title}</h3>
+                  <p className="mt-1 text-sm leading-relaxed text-muted">{point.body}</p>
+                </div>
+              </Reveal>
+            ))}
+          </div>
+
+          <Reveal delay={300} className="mt-8">
+            <SpendChart />
+            <p className="mt-2 text-center text-xs text-muted">Contoh visual pengeluaran mingguan</p>
+          </Reveal>
+        </div>
+
+        <Reveal delay={150} className="lg:justify-self-end">
+          <AiInsightDemo />
+        </Reveal>
+      </div>
+    </section>
+  );
+}
+
 
 
 const FEATURES = [
@@ -245,9 +367,10 @@ function Features() {
   return (
     <section className="mx-auto max-w-6xl px-5 py-16 md:py-20">
       <div className="mx-auto max-w-xl text-center">
-        <h2 className="text-3xl font-extrabold tracking-tight md:text-4xl">Semua cara mencatat, dalam satu app</h2>
-        <p className="mt-3 text-muted">Pilih cara tercepat sesuai momen — semuanya rapi otomatis ke dompet dan kategori yang tepat.</p>
+        <h2 className="text-3xl font-extrabold tracking-tight md:text-4xl">Semua yang menyuapi asisten AI-mu</h2>
+        <p className="mt-3 text-muted">Beragam cara mencatat plus alat pengelolaan — semua mengalir jadi data yang dianalisis AI untuk insight yang lebih tajam.</p>
       </div>
+
       <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {FEATURES.map((feature, index) => (
           <Reveal key={feature.title} delay={(index % 3) * 90} as="article" className="group rounded-2xl border border-outline bg-surface p-6 shadow-card transition hover:-translate-y-1 hover:shadow-lift">

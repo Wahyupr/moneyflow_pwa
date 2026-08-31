@@ -30,106 +30,133 @@ type WalletCardProps = {
   onDelete?: () => void;
 };
 
-/** Provider logo badge — colored pill with bold abbreviation text */
-function ProviderBadge({ type, name, compact }: { type: string; name: string; compact: boolean }) {
-  const provider = getProvider(type, name);
-  if (!provider) return null;
+const TYPE_LABELS: Record<string, string> = {
+  cash: "Cash",
+  bank: "Debit",
+  ewallet: "E-Wallet",
+  credit_card: "Credit",
+  savings: "Savings",
+  investment: "Invest"
+};
 
+/**
+ * Formats an account/phone number the way a real card shows it: grouped in
+ * fours with the middle digits masked, e.g. "•••• •••• •••• 1234". Falls back
+ * to a generic masked group when there is no number to show.
+ */
+function formatCardNumber(raw: string | null | undefined): string {
+  const digits = (raw ?? "").replace(/\D/g, "");
+  if (!digits) return "•••• •••• •••• ••••";
+  const last4 = digits.slice(-4).padStart(4, "•");
+  return `•••• •••• •••• ${last4}`;
+}
+
+/** Gold EMV-style chip, drawn with CSS so it reads as a real payment card. */
+function CardChip({ compact }: { compact: boolean }) {
   return (
     <span
-      className={`inline-flex items-center rounded-md font-black tracking-wide leading-none ${compact ? "px-1.5 py-0.5 text-[9px]" : "px-2 py-1 text-[10px]"}`}
-      style={{ background: provider.badgeBg, color: provider.badgeText }}
+      aria-hidden="true"
+      className={`relative block overflow-hidden rounded-[5px] ${compact ? "h-6 w-8" : "h-8 w-11"}`}
+      style={{ background: "linear-gradient(135deg, #F7D774 0%, #E6B23A 45%, #C98F1E 100%)" }}
     >
-      {provider.abbr}
+      <span className="absolute inset-0 grid grid-cols-3 grid-rows-3 opacity-40">
+        {Array.from({ length: 9 }).map((_, i) => (
+          <span key={i} className="border border-black/25" />
+        ))}
+      </span>
+      <span className="absolute inset-y-1 left-1/2 w-px -translate-x-1/2 bg-black/20" />
     </span>
   );
 }
 
 export function WalletCard({ wallet, hidden, compact = false, onEdit, onDelete }: WalletCardProps) {
   const Icon = iconMap[wallet.icon as keyof typeof iconMap] ?? Wallet;
-  const incomeMinor = wallet.income_minor ?? 0;
-  const expenseMinor = wallet.expense_minor ?? 0;
-  const progress = Math.min(100, (expenseMinor / Math.max(incomeMinor + expenseMinor, 1)) * 100);
 
-  // Use provider colorEnd for gradient if available
+  // Provider drives the gradient end color so the card matches the brand.
   const provider = wallet.institution_name ? getProvider(wallet.type, wallet.institution_name) : null;
   const gradientEnd = provider?.colorEnd ?? "#213145";
 
+  const typeLabel = TYPE_LABELS[wallet.type] ?? wallet.type.replace("_", " ");
+  const balanceText = formatCurrency(wallet.balance_minor, "IDR");
+  const numberSource = wallet.account_number ?? wallet.phone_number ?? null;
+
+  // Only show the provider name beside the chip when it adds information — i.e.
+  // when it isn't already reflected in the wallet name (avoids "BCA" twice).
+  const institution = wallet.institution_name?.trim() ?? "";
+  const showInstitution =
+    institution.length > 0 && !wallet.name.trim().toLowerCase().includes(institution.toLowerCase());
+
   return (
     <article
-      className={`relative overflow-hidden rounded-xl text-white shadow-card ${compact ? "min-w-[158px] p-3" : "min-w-[220px] p-4"}`}
-      style={{ background: `linear-gradient(135deg, ${wallet.color}, ${gradientEnd})` }}
+      className={`relative flex flex-col overflow-hidden rounded-2xl text-white shadow-lift ${compact ? "min-w-[210px] p-4" : "min-w-[248px] p-5"}`}
+      style={{ background: `linear-gradient(135deg, ${wallet.color} 0%, ${gradientEnd} 100%)` }}
     >
-      {/* Decorative background icon */}
-      <div className="absolute -bottom-9 -right-7 opacity-10">
-        <Icon aria-hidden="true" size={compact ? 72 : 92} strokeWidth={1.5} />
+      {/* Soft brand-tinted glow + concentric rings, like a physical card */}
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute -right-16 -top-16 size-40 rounded-full opacity-20"
+        style={{ background: "radial-gradient(circle, #ffffff 0%, transparent 70%)" }}
+      />
+      <span aria-hidden="true" className="pointer-events-none absolute -bottom-14 -left-10 size-36 rounded-full border border-white/10" />
+      <span aria-hidden="true" className="pointer-events-none absolute -bottom-20 -left-4 size-44 rounded-full border border-white/10" />
+
+      {/* Header: type label + provider name (as thin text) + shared marker */}
+      <header className="relative flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className={`font-semibold uppercase tracking-[0.18em] text-white/60 ${compact ? "text-[9px]" : "text-[10px]"}`}>
+            {typeLabel}
+          </p>
+          <h3 className={`mt-1 font-bold leading-tight line-clamp-2 ${compact ? "text-sm" : "text-base"}`}>
+            {wallet.name}
+          </h3>
+        </div>
+        <div className="flex shrink-0 flex-col items-end gap-1.5">
+          <span className={`flex items-center justify-center rounded-lg bg-white/15 ${compact ? "size-7" : "size-8"}`}>
+            <Icon aria-hidden="true" size={compact ? 15 : 17} />
+          </span>
+          {wallet.shared ? <UsersRound aria-label="Dompet bersama" size={14} className="text-white/70" /> : null}
+        </div>
+      </header>
+
+      {/* Chip + provider wordmark line (name hidden when it duplicates the title) */}
+      <div className={`relative flex items-center gap-2.5 ${compact ? "mt-3" : "mt-4"}`}>
+        <CardChip compact={compact} />
+        {showInstitution ? (
+          <span className={`truncate font-semibold uppercase tracking-wide text-white/75 ${compact ? "text-[10px]" : "text-xs"}`}>
+            {institution}
+          </span>
+        ) : null}
       </div>
 
-      {/* Header row: icon + provider badge + shared indicator */}
-      <div className="flex items-center justify-between gap-2">
-        <div className={`flex shrink-0 items-center justify-center rounded-lg bg-white/15 ${compact ? "size-8" : "size-9"}`}>
-          <Icon aria-hidden="true" size={compact ? 16 : 18} />
-        </div>
-        <div className="flex items-center gap-1.5">
-          {wallet.institution_name ? (
-            <ProviderBadge type={wallet.type} name={wallet.institution_name} compact={compact} />
-          ) : null}
-          {wallet.shared ? <UsersRound aria-label="Shared wallet" size={16} className="text-white/80" /> : null}
-        </div>
-      </div>
-
-      {/* Wallet type label */}
-      <p className={`${compact ? "mt-3" : "mt-4"} text-[11px] font-bold uppercase tracking-[0.05em] text-white/70`}>
-        {wallet.type.replace("_", " ")}
+      {/* Masked card number */}
+      <p className={`relative mt-2 font-mono tabular-nums tracking-[0.12em] text-white/85 ${compact ? "text-[11px]" : "text-sm"}`}>
+        {formatCardNumber(numberSource)}
       </p>
-
-      {/* Wallet name — allow 2 lines instead of hard truncate */}
-      <h3 className={`mt-0.5 font-semibold leading-tight line-clamp-2 ${compact ? "text-sm" : "text-base"}`}>
-        {wallet.name}
-      </h3>
 
       {/* Balance */}
-      <p className={`mt-2 font-bold tracking-[-0.02em] tabular-nums ${compact ? "text-lg leading-6" : "text-[22px] leading-7"}`}>
-        {hidden ? "*".repeat(formatCurrency(wallet.balance_minor, "IDR").length) : formatCurrency(wallet.balance_minor, "IDR")}
-      </p>
-
-      {/* Expense progress bar */}
-      <div className={`${compact ? "mt-3" : "mt-4"} h-1.5 rounded-full bg-white/20`}>
-        <div className="h-full rounded-full bg-[#85f8c4]" style={{ width: `${progress}%` }} />
+      <div className={`relative ${compact ? "mt-3" : "mt-4"}`}>
+        <p className={`font-medium uppercase tracking-[0.12em] text-white/55 ${compact ? "text-[8px]" : "text-[9px]"}`}>
+          Saldo
+        </p>
+        <p className={`mt-0.5 font-bold tracking-[-0.02em] tabular-nums ${compact ? "text-lg leading-6" : "text-2xl leading-8"}`}>
+          {hidden ? "•".repeat(Math.min(balanceText.length, 10)) : balanceText}
+        </p>
       </div>
 
-      {/* Full card details */}
-      {!compact ? (
-        <>
-          <div className="mt-3 flex justify-between gap-3 text-[11px] font-semibold text-white/80">
-            <span>{hidden ? "****" : `Masuk ${formatCurrency(incomeMinor, "IDR")}`}</span>
-            <span>{hidden ? "****" : `Keluar ${formatCurrency(expenseMinor, "IDR")}`}</span>
-          </div>
-
-          {/* Institution or account info — show full name, not truncated */}
-          {wallet.institution_name || wallet.account_number || wallet.phone_number ? (
-            <p className="mt-2 text-xs text-white/70 break-words">
-              {[wallet.institution_name, wallet.account_number ?? wallet.phone_number]
-                .filter(Boolean)
-                .join(" · ")}
-            </p>
+      {/* Full card actions */}
+      {!compact && (onEdit || onDelete) ? (
+        <div className="relative z-10 mt-4 grid grid-cols-2 gap-2">
+          {onEdit ? (
+            <button className="min-h-10 rounded-lg bg-white/15 text-xs font-bold backdrop-blur-sm active:scale-[0.98]" onClick={onEdit} type="button">
+              Edit
+            </button>
           ) : null}
-
-          {onEdit || onDelete ? (
-            <div className="relative z-10 mt-4 grid grid-cols-2 gap-2">
-              {onEdit ? (
-                <button className="min-h-10 rounded-lg bg-white/15 text-xs font-bold active:scale-[0.98]" onClick={onEdit} type="button">
-                  Edit
-                </button>
-              ) : null}
-              {onDelete ? (
-                <button className="min-h-10 rounded-lg bg-white/15 text-xs font-bold active:scale-[0.98]" onClick={onDelete} type="button">
-                  Hapus
-                </button>
-              ) : null}
-            </div>
+          {onDelete ? (
+            <button className="min-h-10 rounded-lg bg-white/15 text-xs font-bold backdrop-blur-sm active:scale-[0.98]" onClick={onDelete} type="button">
+              Hapus
+            </button>
           ) : null}
-        </>
+        </div>
       ) : null}
     </article>
   );

@@ -345,10 +345,19 @@ export default function VoiceInputPage() {
       <section className="flex w-full flex-col items-center lg:w-auto lg:min-w-[26rem] lg:max-w-md">
         {/* Mic button with layered animations */}
         <div className="relative flex h-56 items-center justify-center">
+          {/* Rotating gradient halo — always on for a lively idle state. */}
+          <span
+            aria-hidden
+            className={`vx-gradient-rotate absolute rounded-full blur-2xl transition-all duration-500 ${
+              listening ? "size-52 opacity-90" : "size-36 opacity-40"
+            } bg-[conic-gradient(from_0deg,theme(colors.primary/40),theme(colors.income/40),theme(colors.secondary/40),theme(colors.primary/40))]`}
+          />
           {listening ? (
             <>
-              <span className="absolute size-56 animate-ping rounded-full bg-primary/10" />
-              <span className="absolute size-44 animate-pulse rounded-full bg-primary/15" />
+              {/* Concentric equalizer rings expanding outward. */}
+              <span className="vx-ring absolute size-40 rounded-full border-2 border-primary/40" />
+              <span className="vx-ring absolute size-40 rounded-full border-2 border-primary/40" style={{ animationDelay: "0.8s" }} />
+              <span className="vx-ring absolute size-40 rounded-full border-2 border-primary/40" style={{ animationDelay: "1.6s" }} />
             </>
           ) : null}
           <span
@@ -357,7 +366,7 @@ export default function VoiceInputPage() {
             }`}
           />
           <button
-            className={`relative z-10 flex size-28 items-center justify-center rounded-full text-white shadow-[0_12px_40px_rgba(22,104,220,0.35)] transition-transform duration-200 active:scale-95 ${
+            className={`vx-breathe relative z-10 flex size-28 items-center justify-center rounded-full text-white shadow-[0_12px_40px_rgba(22,104,220,0.35)] transition-transform duration-200 active:scale-95 ${
               listening
                 ? "bg-gradient-to-br from-expense to-rose-600"
                 : "bg-gradient-to-br from-primary to-primary-container"
@@ -370,6 +379,7 @@ export default function VoiceInputPage() {
             {listening ? <Square size={30} fill="currentColor" /> : <Mic size={34} />}
           </button>
         </div>
+
 
         {/* Waveform / status row */}
         <div className="mt-2 flex h-12 items-center justify-center gap-3">

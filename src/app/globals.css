@@ -177,6 +177,197 @@ select {
   animation: lp-fade-up 0.8s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
+/* ---- Enhanced landing animations ---- */
+
+/* Aurora: slow drifting conic gradient for an atmospheric backdrop. */
+@keyframes lp-aurora {
+  0% {
+    transform: translate3d(-8%, -6%, 0) rotate(0deg) scale(1.1);
+  }
+  50% {
+    transform: translate3d(8%, 6%, 0) rotate(180deg) scale(1.25);
+  }
+  100% {
+    transform: translate3d(-8%, -6%, 0) rotate(360deg) scale(1.1);
+  }
+}
+.lp-aurora {
+  animation: lp-aurora 24s linear infinite;
+  will-change: transform;
+}
+
+/* Marquee: horizontal loop for the logo/phrase ribbon. */
+@keyframes lp-marquee {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+.lp-marquee-track {
+  animation: lp-marquee 28s linear infinite;
+  will-change: transform;
+}
+.lp-marquee-track:hover {
+  animation-play-state: paused;
+}
+
+/* AI typing caret — blinking vertical bar after streamed text. */
+@keyframes lp-caret {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+.lp-caret {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  vertical-align: text-bottom;
+  background: currentColor;
+  animation: lp-caret 1s step-end infinite;
+}
+
+/* Line-by-line typed reveal for the AI insight bubble. */
+@keyframes lp-type-in {
+  0% {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.lp-type-line {
+  opacity: 0;
+  animation: lp-type-in 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Chart bars grow from the baseline when revealed. */
+@keyframes lp-bar-grow {
+  0% {
+    transform: scaleY(0);
+  }
+  100% {
+    transform: scaleY(1);
+  }
+}
+.lp-bar {
+  transform-origin: bottom;
+  animation: lp-bar-grow 0.9s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Soft rotating glow behind the voice orb / hero card. */
+@keyframes lp-orb-spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+.lp-orb-spin {
+  animation: lp-orb-spin 8s linear infinite;
+  will-change: transform;
+}
+
+/* Counting-number pop used on stat values when they enter view. */
+@keyframes lp-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  60% {
+    transform: scale(1.05);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+.lp-pop {
+  animation: lp-pop 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Sheen sweep across primary buttons / badges on hover. */
+@keyframes lp-sheen {
+  0% {
+    transform: translateX(-120%) skewX(-18deg);
+  }
+  100% {
+    transform: translateX(220%) skewX(-18deg);
+  }
+}
+.lp-sheen-parent {
+  position: relative;
+  overflow: hidden;
+}
+.lp-sheen-parent::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 40%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.35), transparent);
+  transform: translateX(-120%) skewX(-18deg);
+  pointer-events: none;
+}
+.lp-sheen-parent:hover::after {
+  animation: lp-sheen 0.9s ease-out;
+}
+
+/* Card tilt/lift on hover — subtle depth for feature cards. */
+.lp-tilt {
+  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: transform;
+}
+.lp-tilt:hover {
+  transform: translateY(-6px);
+}
+
+/* Voice orb: breathing gradient + concentric equalizer rings. */
+@keyframes vx-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.06);
+  }
+}
+.vx-breathe {
+  animation: vx-breathe 3s ease-in-out infinite;
+}
+@keyframes vx-ring {
+  0% {
+    transform: scale(0.7);
+    opacity: 0.55;
+  }
+  100% {
+    transform: scale(1.9);
+    opacity: 0;
+  }
+}
+.vx-ring {
+  animation: vx-ring 2.6s ease-out infinite;
+}
+@keyframes vx-gradient-rotate {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+.vx-gradient-rotate {
+  animation: vx-gradient-rotate 6s linear infinite;
+}
 
 
 html {

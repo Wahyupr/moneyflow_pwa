@@ -2,15 +2,21 @@
 
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useEffect, useState } from "react";
+import { amountMinorToMajor } from "@/lib/money";
 
 type CalendarDay = { day: string; income_minor: number; expense_minor: number; tx_count: number };
 
 const DAYS = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"];
 const MONTHS = ["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
 
-/** Format a minor amount (e.g. 150000) into compact Indonesian notation: 150rb, 1.5jt, 2M */
+/**
+ * Format an IDR minor amount into compact Indonesian notation: 150rb, 1.5jt, 2M.
+ * Uses amountMinorToMajor so it respects the currency's fraction rules — for
+ * IDR (0 fractions) the minor value already equals the rupiah amount, so we
+ * must NOT divide by 100.
+ */
 function compact(minor: number): string {
-  const val = minor / 100;
+  const val = amountMinorToMajor(minor, "IDR");
   if (val >= 1_000_000_000) return `${(val / 1_000_000_000).toFixed(1).replace(/\.0$/, "")}M`;
   if (val >= 1_000_000) return `${(val / 1_000_000).toFixed(1).replace(/\.0$/, "")}jt`;
   if (val >= 1_000) return `${Math.round(val / 1_000)}rb`;

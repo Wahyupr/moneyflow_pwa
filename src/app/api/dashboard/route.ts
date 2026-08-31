@@ -91,22 +91,30 @@ export async function GET(request: NextRequest) {
       query<Record<string, unknown>>(
         `select t.id, t.user_id, t.wallet_id, t.category_id, t.merchant_name,
                 t.payment_method, t.transaction_type, t.amount_minor, t.currency,
-                t.occurred_at, t.transfer_pair_id,
+                t.occurred_at, t.transfer_pair_id, t.note, t.input_method,
+                w.name as wallet_name, w.type as wallet_type,
+                w.institution_name as wallet_institution_name, w.color as wallet_color,
+                c.name as category_name, c.icon as category_icon, c.color as category_color,
                 case when w.is_shared then coalesce(u.display_name, u.email) else null end as created_by_name
          from transactions t
          join users u on u.id = t.user_id
          join wallets w on w.id = t.wallet_id
+         left join categories c on c.id = t.category_id
          where t.wallet_id in (${placeholders})`,
         walletIds
       ),
       query<Record<string, unknown>>(
         `select t.id, t.user_id, t.wallet_id, t.category_id, t.merchant_name,
                 t.payment_method, t.transaction_type, t.amount_minor, t.currency,
-                t.occurred_at, t.transfer_pair_id,
+                t.occurred_at, t.transfer_pair_id, t.note, t.input_method,
+                w.name as wallet_name, w.type as wallet_type,
+                w.institution_name as wallet_institution_name, w.color as wallet_color,
+                c.name as category_name, c.icon as category_icon, c.color as category_color,
                 case when w.is_shared then coalesce(u.display_name, u.email) else null end as created_by_name
          from transactions t
          join users u on u.id = t.user_id
          join wallets w on w.id = t.wallet_id
+         left join categories c on c.id = t.category_id
          where t.wallet_id in (${placeholders})
            and t.occurred_at >= $${walletIds.length + 1}
            and t.occurred_at < $${walletIds.length + 2}
@@ -114,6 +122,7 @@ export async function GET(request: NextRequest) {
         [...walletIds, monthStart, monthEnd]
       )
     ]);
+
 
     allTimeTx = allTimeResult.rows.map(normalizeTx);
     ledger = monthlyResult.rows.map(normalizeTx);

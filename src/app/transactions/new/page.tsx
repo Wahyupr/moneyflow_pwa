@@ -1,6 +1,7 @@
 "use client";
 
-import { Save, Store } from "lucide-react";
+import { Calendar, FileText, Landmark, Save, Store } from "lucide-react";
+
 import { createElement, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AppFrame } from "@/components/app-frame";
@@ -29,6 +30,23 @@ type MerchantOption = {
   name: string;
   logo_url: string | null;
 };
+
+/** Returns today's date as YYYY-MM-DD in the local timezone (input[type=date] format). */
+function todayDateInput(): string {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+/** Current time as HH:MM (input[type=time] format). */
+function nowTimeInput(): string {
+  const now = new Date();
+  const hours = String(now.getHours()).padStart(2, "0");
+  const minutes = String(now.getMinutes()).padStart(2, "0");
+  return `${hours}:${minutes}`;
+}
 
 export default function NewTransactionPage() {
   return (
@@ -59,6 +77,8 @@ function NewTransactionForm() {
   const [walletId, setWalletId] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [note, setNote] = useState("");
+  const [date, setDate] = useState(todayDateInput());
+  const [time, setTime] = useState(nowTimeInput());
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -109,6 +129,20 @@ function NewTransactionForm() {
       setError("Nominal harus lebih dari 0.");
       return;
     }
+    if (!date) {
+      setError("Tanggal transaksi wajib diisi.");
+      return;
+    }
+
+    // Combine the date + time inputs into a real Date so occurred_at reflects
+    // what the user picked instead of always defaulting to "now".
+    const [year, month, day] = date.split("-").map(Number);
+    const [hour, minute] = (time || "00:00").split(":").map(Number);
+    const occurredAt = new Date(year, (month ?? 1) - 1, day ?? 1, hour ?? 0, minute ?? 0);
+    if (Number.isNaN(occurredAt.getTime())) {
+      setError("Tanggal atau waktu tidak valid.");
+      return;
+    }
 
     setSaving(true);
     try {
@@ -121,7 +155,7 @@ function NewTransactionForm() {
           transaction_type: type,
           amount_minor: amountvalue,
           currency: "IDR",
-          occurred_at: new Date().toISOString(),
+          occurred_at: occurredAt.toISOString(),
           merchant_name: merchantName.trim() ? merchantName.trim() : null,
           note: note.trim() ? note.trim() : null,
           input_method: "manual"
@@ -142,12 +176,17 @@ function NewTransactionForm() {
   }
 
   if (loading) {
-    return <p className="mt-5 rounded-xl bg-surface p-5 text-center text-sm text-muted shadow-card">Memuat data...</p>;
+    return (
+      <div className="mt-5 animate-pulse space-y-4">
+        <div className="h-40 rounded-2xl bg-surface shadow-card" />
+        <div className="h-56 rounded-2xl bg-surface shadow-card" />
+      </div>
+    );
   }
 
   if (wallets.length === 0) {
     return (
-      <div className="mt-5 rounded-xl bg-surface p-6 text-center shadow-card">
+      <div className="mt-5 rounded-2xl bg-surface p-6 text-center shadow-card">
         <p className="font-semibold text-ink">Belum ada dompet</p>
         <p className="mt-1 text-sm text-muted">Tambahkan dompet dulu sebelum mencatat transaksi.</p>
         <button
@@ -161,124 +200,196 @@ function NewTransactionForm() {
     );
   }
 
+  const isIncome = type === "income";
+
   return (
-    <div className="mt-5 space-y-4 rounded-xl bg-surface p-4 shadow-card">
-      <div className="block">
-        <span className="text-sm font-semibold text-muted">Merchant</span>
-        <SelectMenu
-          ariaLabel="Merchant"
-          value={merchantName}
-          onChange={setMerchantName}
-          placeholder={merchants.length > 0 ? "Pilih merchant" : "Belum ada merchant"}
-          options={[
-            { value: "", label: "Tanpa merchant" },
-            ...merchants.map((merchant) => ({
-              value: merchant.name,
-              label: merchant.name,
-              icon: <MerchantLogo logoUrl={merchant.logo_url} />
-            }))
-          ]}
-        />
+    <div className="mt-5 space-y-4 lg:grid lg:grid-cols-[1.1fr_1fr] lg:items-start lg:gap-5 lg:space-y-0">
+      {/* ── Left column: amount hero, type toggle, date/time ── */}
+      <div className="space-y-4">
+        <section
+          className={`rounded-2xl p-6 text-center shadow-card transition-colors ${
+            isIncome ? "bg-income/10" : "bg-expense/10"
+          }`}
+        >
+          <div className="mb-4 flex justify-center gap-2 rounded-full bg-surface p-1 shadow-card">
+            <button
+              type="button"
+              onClick={() => {
+                setType("expense");
+                setCategoryId("");
+              }}
+              className={`min-h-10 flex-1 rounded-full px-4 text-sm font-bold transition ${
+                !isIncome ? "bg-expense text-white shadow-card" : "text-muted"
+              }`}
+            >
+              Pengeluaran
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setType("income");
+                setCategoryId("");
+              }}
+              className={`min-h-10 flex-1 rounded-full px-4 text-sm font-bold transition ${
+                isIncome ? "bg-income text-white shadow-card" : "text-muted"
+              }`}
+            >
+              Pemasukan
+            </button>
+          </div>
+
+          <label className="block">
+            <span className="sr-only">Nominal</span>
+            <div className="flex items-center justify-center gap-1">
+              <span className={`text-2xl font-bold ${isIncome ? "text-income" : "text-expense"}`}>Rp</span>
+              <input
+                className={`w-full min-w-0 bg-transparent text-center text-4xl font-extrabold tabular-nums placeholder:text-muted/40 focus:outline-none sm:text-5xl ${
+                  isIncome ? "text-income" : "text-expense"
+                }`}
+                placeholder="0"
+                inputMode="numeric"
+                value={formatThousands(amount)}
+                onChange={(event) => setAmount(parseThousands(event.target.value).replace(/\D/g, ""))}
+                aria-label="Nominal (Rp)"
+              />
+            </div>
+          </label>
+        </section>
+
+        <section className="rounded-2xl bg-surface p-4 shadow-card">
+          <h2 className="mb-3 flex items-center gap-2 text-sm font-bold text-ink">
+            <Calendar size={16} className="text-primary" />
+            Tanggal &amp; Waktu
+          </h2>
+          <div className="grid grid-cols-2 gap-3">
+            <label className="block">
+              <span className="text-xs font-semibold text-muted">Tanggal</span>
+              <input
+                type="date"
+                className="mt-1 min-h-12 w-full rounded-lg border border-outline bg-surface px-3 text-ink focus:border-primary focus:outline-none"
+                value={date}
+                max={todayDateInput()}
+                onChange={(event) => setDate(event.target.value)}
+              />
+            </label>
+            <label className="block">
+              <span className="text-xs font-semibold text-muted">Waktu</span>
+              <input
+                type="time"
+                className="mt-1 min-h-12 w-full rounded-lg border border-outline bg-surface px-3 text-ink focus:border-primary focus:outline-none"
+                value={time}
+                onChange={(event) => setTime(event.target.value)}
+              />
+            </label>
+          </div>
+        </section>
+
+        {error ? (
+          <p className="rounded-lg bg-error-container p-3 text-sm font-semibold text-on-error-container">{error}</p>
+        ) : null}
+
+
+        <button
+          className="hidden min-h-12 w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 font-bold text-white transition active:scale-[0.98] disabled:opacity-60 lg:flex"
+          type="button"
+          onClick={submit}
+          disabled={saving}
+        >
+          <Save size={18} />
+          {saving ? "Menyimpan..." : "Simpan Transaksi"}
+        </button>
       </div>
 
-      <Field label="Nominal (Rp)" placeholder="Masukkan nominal" inputMode="numeric" value={amount} onChange={setAmount} />
+      {/* ── Right column: merchant, wallet, category, note ── */}
+      <div className="space-y-4">
+        <section className="space-y-4 rounded-2xl bg-surface p-4 shadow-card">
+          <h2 className="flex items-center gap-2 text-sm font-bold text-ink">
+            <Landmark size={16} className="text-primary" />
+            Detail Transaksi
+          </h2>
 
-      <div className="block">
-        <span className="text-sm font-semibold text-muted">Tipe</span>
-        <SelectMenu
-          ariaLabel="Tipe transaksi"
-          value={type}
-          onChange={(value) => {
-            setType(value as TransactionType);
-            setCategoryId("");
-          }}
-          options={[
-            { value: "expense", label: "Pengeluaran" },
-            { value: "income", label: "Pemasukan" }
-          ]}
-        />
+          <div className="block">
+            <span className="text-sm font-semibold text-muted">Merchant</span>
+            <SelectMenu
+              ariaLabel="Merchant"
+              value={merchantName}
+              onChange={setMerchantName}
+              placeholder={merchants.length > 0 ? "Pilih merchant" : "Belum ada merchant"}
+              options={[
+                { value: "", label: "Tanpa merchant" },
+                ...merchants.map((merchant) => ({
+                  value: merchant.name,
+                  label: merchant.name,
+                  icon: <MerchantLogo logoUrl={merchant.logo_url} />
+                }))
+              ]}
+            />
+          </div>
+
+          <div className="block">
+            <span className="text-sm font-semibold text-muted">Dompet</span>
+            <SelectMenu
+              ariaLabel="Dompet"
+              value={walletId}
+              onChange={setWalletId}
+              placeholder="Pilih dompet"
+              options={wallets.map((wallet) => ({ value: wallet.id, label: wallet.name }))}
+            />
+          </div>
+
+          <div className="block">
+            <span className="text-sm font-semibold text-muted">Kategori</span>
+            <SelectMenu
+              ariaLabel="Kategori"
+              value={categoryId}
+              onChange={setCategoryId}
+              placeholder={visibleCategories.length > 0 ? "Tanpa kategori" : "Belum ada kategori"}
+              options={[
+                { value: "", label: "Tanpa kategori" },
+                ...visibleCategories.map((category) => ({
+                  value: category.id,
+                  label: category.name,
+                  icon: createElement(getCategoryIcon(category.icon), { size: 16 })
+                }))
+              ]}
+            />
+          </div>
+        </section>
+
+        <section className="rounded-2xl bg-surface p-4 shadow-card">
+          <h2 className="mb-3 flex items-center gap-2 text-sm font-bold text-ink">
+            <FileText size={16} className="text-primary" />
+            Catatan
+          </h2>
+          <label className="block">
+            <span className="sr-only">Catatan</span>
+            <input
+              className="min-h-12 w-full rounded-lg border border-outline bg-surface px-3 text-ink placeholder:text-muted focus:border-primary focus:outline-none"
+              placeholder="Opsional, mis. keterangan tambahan"
+              value={note}
+              onChange={(event) => setNote(event.target.value)}
+            />
+          </label>
+        </section>
+
+        {/* Mobile-only sticky save button, sits above the bottom nav bar. */}
+        <div className="fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+4.25rem)] z-40 px-4 lg:hidden">
+          <button
+            className="flex min-h-12 w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 font-bold text-white shadow-lift transition active:scale-[0.98] disabled:opacity-60"
+            type="button"
+            onClick={submit}
+            disabled={saving}
+          >
+            <Save size={18} />
+            {saving ? "Menyimpan..." : "Simpan Transaksi"}
+          </button>
+        </div>
+        {/* Spacer so content isn't hidden behind the fixed mobile button. */}
+        <div className="h-16 lg:hidden" aria-hidden="true" />
       </div>
-
-      <div className="block">
-        <span className="text-sm font-semibold text-muted">Dompet</span>
-        <SelectMenu
-          ariaLabel="Dompet"
-          value={walletId}
-          onChange={setWalletId}
-          placeholder="Pilih dompet"
-          options={wallets.map((wallet) => ({ value: wallet.id, label: wallet.name }))}
-        />
-      </div>
-
-      <div className="block">
-        <span className="text-sm font-semibold text-muted">Kategori</span>
-        <SelectMenu
-          ariaLabel="Kategori"
-          value={categoryId}
-          onChange={setCategoryId}
-          placeholder={visibleCategories.length > 0 ? "Tanpa kategori" : "Belum ada kategori"}
-          options={[
-            { value: "", label: "Tanpa kategori" },
-            ...visibleCategories.map((category) => ({
-              value: category.id,
-              label: category.name,
-              icon: createElement(getCategoryIcon(category.icon), { size: 16 })
-            }))
-          ]}
-        />
-      </div>
-
-      <Field label="Catatan" placeholder="Opsional" value={note} onChange={setNote} />
-
-      {error ? <p className="text-sm font-semibold text-error">{error}</p> : null}
-
-      <button
-        className="flex min-h-12 w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 font-bold text-white active:scale-[0.98] disabled:opacity-60"
-        type="button"
-        onClick={submit}
-        disabled={saving}
-      >
-        <Save size={18} />
-        {saving ? "Menyimpan..." : "Simpan Transaksi"}
-      </button>
     </div>
   );
 }
 
-function Field({
-  label,
-  placeholder,
-  inputMode,
-  value,
-  onChange
-}: {
-  label: string;
-  placeholder: string;
-  inputMode?: "numeric";
-  value: string;
-  onChange: (value: string) => void;
-}) {
-  const displayValue = inputMode === "numeric" ? formatThousands(value) : value;
 
-  function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
-    if (inputMode === "numeric") {
-      // strip dots, keep only digits, store raw
-      onChange(parseThousands(e.target.value).replace(/\D/g, ""));
-    } else {
-      onChange(e.target.value);
-    }
-  }
 
-  return (
-    <label className="block">
-      <span className="text-sm font-semibold text-muted">{label}</span>
-      <input
-        className="mt-2 min-h-12 w-full rounded-lg border border-outline bg-surface px-3 text-ink placeholder:text-muted focus:border-primary focus:outline-none"
-        placeholder={placeholder}
-        inputMode={inputMode}
-        value={displayValue}
-        onChange={handleChange}
-      />
-    </label>
-  );
-}

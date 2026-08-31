@@ -1,17 +1,14 @@
 "use client";
 
 import {
-  CreditCard,
   Loader2,
   Mail,
   Pencil,
   Plus,
   Save,
-  Smartphone,
   Trash2,
   UserPlus,
   UsersRound,
-  Wallet,
   X
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
@@ -21,14 +18,7 @@ import { SelectMenu } from "@/components/ui/select-menu";
 import { formatCurrency, formatThousands, parseThousands } from "@/lib/money";
 import { validateWalletInput, type WalletInput, type WalletType } from "@/lib/wallets";
 import { getProvider } from "@/lib/wallet-providers";
-
-const ROW_ICONS: Record<string, typeof Wallet> = {
-  "credit-card": CreditCard,
-  smartphone: Smartphone,
-  users: UsersRound,
-  wallet: Wallet
-};
-
+import { ProviderLogo } from "@/components/provider-logo";
 
 import { getProvidersForType, getProviderColor, TYPE_DEFAULT_COLORS } from "@/lib/wallet-providers";
 
@@ -342,7 +332,7 @@ function WalletsContent() {
             <p className="mt-1 text-sm text-muted">Tambahkan dompet pertama Anda untuk mulai mencatat.</p>
           </div>
         ) : (
-          <ul className="space-y-2">
+          <ul className="grid gap-3 sm:grid-cols-2">
             {wallets.map((wallet) => (
               <WalletRowItem
                 hidden={hidden}
@@ -492,24 +482,30 @@ function WalletsContent() {
             </div>
 
             <div className="max-h-[72dvh] space-y-3 overflow-y-auto px-5 pt-2">
-              {/* Compact preview strip (full card is shown on the dashboard). */}
+              {/* Live card preview — mirrors the list/dashboard card look. */}
               <div
-                className="flex items-center gap-3 rounded-2xl p-4 text-white shadow-card"
-                style={{ background: `linear-gradient(135deg, ${form.color ?? "#1668DC"}, #213145)` }}
+                className="relative flex flex-col overflow-hidden rounded-2xl p-4 text-white shadow-card"
+                style={{
+                  background: `linear-gradient(135deg, ${/^#[0-9A-Fa-f]{6}$/.test(form.color ?? "") ? form.color : "#1668DC"}, ${
+                    (form.institution_name
+                      ? getProvider(form.type ?? "cash", form.institution_name)?.colorEnd
+                      : null) ?? "#213145"
+                  })`
+                }}
               >
-                <span className="flex size-9 items-center justify-center rounded-lg bg-white/15">
-                  {(() => {
-                    const PreviewIcon = ROW_ICONS[form.icon ?? "wallet"] ?? Wallet;
-                    return <PreviewIcon size={18} />;
-                  })()}
+                <div className="pointer-events-none absolute -right-10 -top-10 size-32 rounded-full bg-white/10 blur-2xl" />
+                <span className="relative text-[11px] font-bold uppercase tracking-[0.06em] text-white/70">
+                  {TYPE_LABELS[form.type ?? "cash"]}
                 </span>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-semibold">
+                <div className="relative mt-1 flex items-center gap-1.5">
+                  {form.institution_name ? (
+                    <ProviderLogo type={form.type ?? "cash"} name={form.institution_name} size="md" />
+                  ) : null}
+                  <span className="min-w-0 truncate text-lg font-extrabold tracking-tight">
                     {form.name?.trim() || form.institution_name?.trim() || "Dompet Baru"}
-                  </p>
-                  <p className="text-xs text-white/75">{TYPE_LABELS[form.type ?? "cash"]}</p>
+                  </span>
                 </div>
-                <p className="shrink-0 text-sm font-bold tabular-nums">
+                <p className="relative mt-3 text-2xl font-bold tabular-nums">
                   {formatCurrency(form.opening_balance_minor ?? 0, "IDR")}
                 </p>
               </div>
@@ -552,14 +548,7 @@ function WalletsContent() {
                       ...(getProvidersForType(form.type ?? "cash") ?? []).map((provider) => ({
                         value: provider.name,
                         label: provider.name,
-                        icon: (
-                          <span
-                            className="inline-flex h-5 min-w-[28px] items-center justify-center rounded-md px-1.5 text-[9px] font-black leading-none tracking-wide"
-                            style={{ background: provider.badgeBg, color: provider.badgeText }}
-                          >
-                            {provider.abbr}
-                          </span>
-                        )
+                        icon: <ProviderLogo type={form.type ?? "cash"} name={provider.name} size="sm" />
                       })),
                       { value: "__manual__", label: "Manual / Lainnya" }
                     ]}
@@ -640,7 +629,7 @@ function WalletsContent() {
 }
 
 
-/** Minimal list row for a wallet (full card visual lives on the dashboard). */
+/** Full gradient card for a wallet with inline actions. */
 function WalletRowItem({
   wallet,
   hidden,
@@ -654,72 +643,66 @@ function WalletRowItem({
   onDelete: () => void;
   onShare: () => void;
 }) {
-  const Icon = ROW_ICONS[wallet.icon] ?? Wallet;
   const balanceText = formatCurrency(wallet.balance_minor, "IDR");
   const provider = wallet.institution_name ? getProvider(wallet.type, wallet.institution_name) : null;
+  const gradientEnd = provider?.colorEnd ?? "#213145";
+  const subtitle = [
+    wallet.institution_name || TYPE_LABELS[wallet.type],
+    wallet.account_number || wallet.phone_number || null
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
   return (
-    <li className="flex items-center gap-3 rounded-xl bg-surface p-3 shadow-card">
-      {/* Icon circle with optional provider badge overlay */}
-      <div className="relative shrink-0">
-        <span
-          className="flex size-11 items-center justify-center rounded-full text-white"
-          style={{ backgroundColor: wallet.color }}
-        >
-          <Icon size={20} aria-hidden="true" />
-        </span>
-        {provider ? (
-          <span
-            className="absolute -bottom-1 -right-1 flex h-5 min-w-5 items-center justify-center rounded-md px-1 text-[9px] font-black leading-none tracking-wide"
-            style={{ background: provider.badgeBg, color: provider.badgeText }}
-          >
-            {provider.abbr}
-          </span>
-        ) : null}
-      </div>
+    <li
+      className="group relative flex items-center gap-3 overflow-hidden rounded-xl px-3.5 py-3 text-white shadow-card"
+      style={{ background: `linear-gradient(135deg, ${wallet.color}, ${gradientEnd})` }}
+    >
+      {/* Soft sheen for the plastic-card look */}
+      <div className="pointer-events-none absolute -right-8 -top-8 size-24 rounded-full bg-white/10 blur-2xl" />
 
-      {/* Name + subtitle — allow wrapping instead of truncating */}
-      <div className="min-w-0 flex-1">
+      {/* Left: brand + name + subtitle */}
+      <div className="relative min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
-          <p className="line-clamp-2 font-semibold leading-tight text-ink">{wallet.name}</p>
-          {wallet.is_shared ? <UsersRound size={13} className="shrink-0 text-muted" aria-label="Dompet bersama" /> : null}
+          {provider ? <ProviderLogo type={wallet.type} name={wallet.institution_name ?? ""} size="sm" /> : null}
+          <span className="min-w-0 truncate text-base font-bold tracking-tight">{wallet.name}</span>
+          {wallet.is_shared ? (
+            <UsersRound size={13} className="shrink-0 text-white/80" aria-label="Dompet bersama" />
+          ) : null}
         </div>
-        <p className="mt-0.5 break-words text-xs leading-snug text-muted">
-          {wallet.institution_name || TYPE_LABELS[wallet.type]}
-          {wallet.account_number ? ` · ${wallet.account_number}` : wallet.phone_number ? ` · ${wallet.phone_number}` : ""}
-        </p>
+        <p className="mt-0.5 truncate text-[11px] text-white/70">{subtitle}</p>
       </div>
 
-      {/* Balance */}
-      <p className="shrink-0 text-sm font-bold tabular-nums text-ink">
+      {/* Middle: balance */}
+      <p className="relative shrink-0 text-base font-extrabold tracking-[-0.01em] tabular-nums">
         {hidden ? "•".repeat(Math.min(balanceText.length, 8)) : balanceText}
       </p>
 
-      {/* Action buttons */}
-      <div className="ml-1 flex shrink-0 items-center gap-1">
+      {/* Right: actions */}
+      <div className="relative flex shrink-0 items-center gap-0.5">
         <button
-          className="flex size-9 items-center justify-center rounded-full text-primary active:bg-surface-container"
+          className="flex size-8 items-center justify-center rounded-full text-white/90 active:bg-white/20"
           onClick={onShare}
           type="button"
           aria-label={`Bagikan ${wallet.name}`}
         >
-          <UserPlus size={16} />
+          <UserPlus size={15} />
         </button>
         <button
-          className="flex size-9 items-center justify-center rounded-full text-muted active:bg-surface-container"
+          className="flex size-8 items-center justify-center rounded-full text-white/90 active:bg-white/20"
           onClick={onEdit}
           type="button"
           aria-label={`Edit ${wallet.name}`}
         >
-          <Pencil size={16} />
+          <Pencil size={15} />
         </button>
         <button
-          className="flex size-9 items-center justify-center rounded-full text-error active:bg-error-container"
+          className="flex size-8 items-center justify-center rounded-full text-white/90 active:bg-white/20"
           onClick={onDelete}
           type="button"
           aria-label={`Hapus ${wallet.name}`}
         >
-          <Trash2 size={16} />
+          <Trash2 size={15} />
         </button>
       </div>
     </li>
